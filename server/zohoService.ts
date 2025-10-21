@@ -42,6 +42,8 @@ class ZohoService {
   private refreshToken: string;
   private accessToken: string | null = null;
   private tokenExpiry: number = 0;
+  private lastRequestTime: number = 0;
+  private minRequestInterval: number = 1200; // 1.2s entre requisições (50 req/min)
 
   constructor() {
     this.clientId = process.env.ZOHO_CLIENT_ID || "";
@@ -53,6 +55,64 @@ class ZohoService {
         "[ZohoService] Missing credentials. Set ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET, and ZOHO_REFRESH_TOKEN"
       );
     }
+  }
+
+  /**
+   * Aguarda para respeitar rate limit (50 req/min)
+   */
+  private async respeitarRateLimit(): Promise<void> {
+    const now = Date.now();
+    const timeSinceLastRequest = now - this.lastRequestTime;
+
+    if (timeSinceLastRequest < this.minRequestInterval) {
+      const waitTime = this.minRequestInterval - timeSinceLastRequest;
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
+    }
+
+    this.lastRequestTime = Date.now();
+  }
+
+  /**
+   * Executa requisição com retry e backoff exponencial
+   */
+  private async fetchWithRetry(
+    url: string,
+    options: RequestInit,
+    maxRetries: number = 3
+  ): Promise<Response> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        await this.respeitarRateLimit();
+
+        const response = await fetch(url, options);
+
+        // Se receber 429 (Too Many Requests), aguarda e tenta novamente
+        if (response.status === 429) {
+          const retryAfter = response.headers.get("Retry-After");
+          const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, attempt) * 1000;
+
+          console.warn(
+            `[ZohoService] Rate limit atingido (429). Aguardando ${waitTime}ms antes de tentar novamente...`
+          );
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+          continue;
+        }
+
+        return response;
+      } catch (error: any) {
+        lastError = error;
+        console.warn(`[ZohoService] Tentativa ${attempt + 1}/${maxRetries} falhou:`, error.message);
+
+        if (attempt < maxRetries - 1) {
+          const waitTime = Math.pow(2, attempt) * 1000;
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+        }
+      }
+    }
+
+    throw lastError || new Error("Falha após múltiplas tentativas");
   }
 
   /**
@@ -75,9 +135,9 @@ class ZohoService {
         refresh_token: this.refreshToken,
       });
 
-      const response = await fetch(
+      const response = await this.fetchWithRetry(
         "https://accounts.zoho.com/oauth/v2/token",
-        { 
+        {
           method: "POST",
           body: params,
           headers: {
@@ -171,26 +231,31 @@ class ZohoService {
 
     let allData: ZohoContratoRaw[] = [];
     let cursor: string | undefined = undefined;
+    let pageCount = 0;
 
     try {
       // Loop de paginação
       do {
-        const params = new URLSearchParams({
+        pageCount++;
+        console.log(`[ZohoService] Buscando página ${pageCount}...`);
+
+        const urlParams = new URLSearchParams({
           max_records: maxRecords.toString(),
           criteria,
         });
 
+        const url = `https://www.zohoapis.com/creator/v2.1/data/optacredito/opta-operation/report/Contratos?${urlParams.toString()}`;
+
+        const headers: Record<string, string> = {
+          Authorization: `Zoho-oauthtoken ${token}`,
+        };
+
+        // record_cursor vai no HEADER, não no query param
         if (cursor) {
-          params.append("record_cursor", cursor);
+          headers["record_cursor"] = cursor;
         }
 
-        const url = `https://www.zohoapis.com/creator/v2.1/data/optacredito/opta-operation/report/Contratos?${params.toString()}`;
-
-        const response = await fetch(url, {
-          headers: {
-            Authorization: `Zoho-oauthtoken ${token}`,
-          },
-        });
+        const response = await this.fetchWithRetry(url, { headers });
 
         if (!response.ok) {
           const errorData = await response.json();
@@ -202,6 +267,7 @@ class ZohoService {
 
         if (data.data && data.data.length > 0) {
           allData = allData.concat(data.data);
+          console.log(`[ZohoService] Página ${pageCount}: ${data.data.length} registros`);
         }
 
         cursor = data.record_cursor;
@@ -213,7 +279,7 @@ class ZohoService {
         .filter((c): c is ZohoContrato => c !== null);
 
       console.log(
-        `[ZohoService] ${contratosTransformados.length} contratos encontrados (${allData.length} raw)`
+        `[ZohoService] ✓ ${contratosTransformados.length} contratos encontrados em ${pageCount} páginas (${allData.length} raw)`
       );
       return contratosTransformados;
     } catch (error: any) {
