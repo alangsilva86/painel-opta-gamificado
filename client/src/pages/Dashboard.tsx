@@ -1,0 +1,322 @@
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { trpc } from "@/lib/trpc";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { VendedoraCard } from "@/components/VendedoraCard";
+import { TierBadge } from "@/components/TierBadge";
+import { useCelebration } from "@/hooks/useCelebration";
+import {
+  Target,
+  TrendingUp,
+  DollarSign,
+  Users,
+  Zap,
+  Trophy,
+  RefreshCw,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+
+export default function Dashboard() {
+  const { data, isLoading, refetch } = trpc.dashboard.obterDashboard.useQuery(
+    undefined,
+    {
+      refetchInterval: 60000, // Atualiza a cada 60 segundos
+    }
+  );
+
+  const { celebrateMetaAlcancada, celebrateSuperMeta } = useCelebration();
+  const [hasShownCelebration, setHasShownCelebration] = useState(false);
+
+  useEffect(() => {
+    if (data && !hasShownCelebration) {
+      // Celebra se meta global foi alcançada
+      if (data.metaGlobal.percentual >= 150) {
+        celebrateSuperMeta();
+        setHasShownCelebration(true);
+      } else if (data.metaGlobal.percentual >= 100) {
+        celebrateMetaAlcancada();
+        setHasShownCelebration(true);
+      }
+    }
+  }, [data, hasShownCelebration, celebrateMetaAlcancada, celebrateSuperMeta]);
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+
+  const getAceleradorLabel = (acelerador: number) => {
+    if (acelerador >= 0.5) return "+50% Acelerador Global";
+    if (acelerador >= 0.25) return "+25% Acelerador Global";
+    return "Sem acelerador";
+  };
+
+  const getAceleradorColor = (acelerador: number) => {
+    if (acelerador >= 0.5) return "text-green-400";
+    if (acelerador >= 0.25) return "text-yellow-400";
+    return "text-muted-foreground";
+  };
+
+  const getFaltaParaProximoAcelerador = () => {
+    if (!data) return null;
+    const { metaGlobal } = data;
+
+    if (metaGlobal.percentual >= 100) return null;
+    if (metaGlobal.percentual >= 75) {
+      const falta = metaGlobal.metaValor - metaGlobal.realizado;
+      return { target: "100%", falta };
+    }
+    const falta = metaGlobal.metaValor * 0.75 - metaGlobal.realizado;
+    return { target: "75%", falta };
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="animate-spin mx-auto mb-4" size={48} />
+          <p className="text-muted-foreground">Carregando dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-muted-foreground">Erro ao carregar dados</p>
+      </div>
+    );
+  }
+
+  const faltaAcelerador = getFaltaParaProximoAcelerador();
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="bg-card border-b border-border">
+        <div className="container py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">Painel de Vendas Opta</h1>
+              <p className="text-muted-foreground mt-1">
+                {new Date().toLocaleDateString("pt-BR", {
+                  month: "long",
+                  year: "numeric",
+                })}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              className="gap-2"
+            >
+              <RefreshCw size={16} />
+              Atualizar
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="container py-8">
+        {/* KPIs Globais */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {/* Realizado Global */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Realizado Global
+                </CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(data.metaGlobal.realizado)}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Meta: {formatCurrency(data.metaGlobal.metaValor)}
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* % da Meta Global */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">% da Meta</CardTitle>
+                <Target className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {data.metaGlobal.percentual.toFixed(1)}%
+                </div>
+                {faltaAcelerador && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Faltam {formatCurrency(faltaAcelerador.falta)} para{" "}
+                    {faltaAcelerador.target}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Acelerador Global */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Acelerador Global
+                </CardTitle>
+                <Zap className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div
+                  className={`text-2xl font-bold ${getAceleradorColor(
+                    data.metaGlobal.acelerador
+                  )}`}
+                >
+                  {data.metaGlobal.acelerador > 0
+                    ? `+${(data.metaGlobal.acelerador * 100).toFixed(0)}%`
+                    : "0%"}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {getAceleradorLabel(data.metaGlobal.acelerador)}
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Total de Contratos */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Contratos</CardTitle>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{data.totalContratos}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {data.vendedoras.length} vendedoras ativas
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+
+        {/* Banner de Acelerador Ativo */}
+        {data.metaGlobal.acelerador > 0 && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="mb-8"
+          >
+            <Card className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/20">
+              <CardContent className="py-4">
+                <div className="flex items-center justify-center gap-3">
+                  <Zap className="text-green-400" size={24} />
+                  <span className="text-lg font-bold text-green-400">
+                    Acelerador Global Ativo! Todas as vendedoras ganham{" "}
+                    {getAceleradorLabel(data.metaGlobal.acelerador)}
+                  </span>
+                  <Zap className="text-green-400" size={24} />
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Grid de Vendedoras */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold flex items-center gap-2">
+              <Users size={28} />
+              Vendedoras
+            </h2>
+            <Badge variant="secondary" className="text-sm">
+              {data.vendedoras.length} ativas
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {data.ranking.map((vendedora, index) => (
+              <VendedoraCard
+                key={vendedora.id}
+                vendedora={vendedora}
+                rank={index + 1}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Leaderboard */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy size={24} />
+                Ranking do Mês
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {data.ranking.slice(0, 10).map((vendedora, index) => (
+                  <div
+                    key={vendedora.id}
+                    className="flex items-center gap-4 p-3 rounded-lg bg-secondary/50"
+                  >
+                    <div className="text-2xl font-bold w-8 text-center">
+                      {index + 1}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold">{vendedora.nome}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {vendedora.percentualMeta.toFixed(1)}% da meta •{" "}
+                        {formatCurrency(vendedora.realizado)}
+                      </div>
+                    </div>
+                    <TierBadge tier={vendedora.tier} size="sm" />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Footer */}
+        <div className="mt-8 text-center text-sm text-muted-foreground">
+          Última atualização:{" "}
+          {new Date(data.ultimaAtualizacao).toLocaleTimeString("pt-BR")}
+        </div>
+      </div>
+    </div>
+  );
+}
+

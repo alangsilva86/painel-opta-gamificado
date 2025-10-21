@@ -2,6 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
+import { dashboardRouter, adminRouter } from "./dashboardRouter";
 
 export const appRouter = router({
   system: systemRouter,
@@ -17,12 +18,8 @@ export const appRouter = router({
     }),
   }),
 
-  // TODO: add feature routers here, e.g.
-  // todo: router({
-  //   list: protectedProcedure.query(({ ctx }) =>
-  //     db.getUserTodos(ctx.user.id)
-  //   ),
-  // }),
+  dashboard: dashboardRouter,
+  admin: adminRouter,
 });
 
 export type AppRouter = typeof appRouter;
