@@ -111,15 +111,35 @@ export default function Dashboard() {
                 })}
               </p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetch()}
-              className="gap-2"
-            >
-              <RefreshCw size={16} />
-              Atualizar
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.location.href = "/tv"}
+                className="gap-2"
+              >
+                <Target size={16} />
+                Modo TV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.location.href = "/admin"}
+                className="gap-2"
+              >
+                <Users size={16} />
+                Admin
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetch()}
+                className="gap-2"
+              >
+                <RefreshCw size={16} />
+                Atualizar
+              </Button>
+            </div>
           </div>
         </div>
       </div>
