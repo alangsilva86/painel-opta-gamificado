@@ -212,3 +212,49 @@ export function obterMesAnterior(): string {
   return `${ano}-${mes}`;
 }
 
+
+
+/**
+ * Sincroniza vendedoras do Zoho para o banco de dados
+ */
+export async function sincronizarVendedorasDoZoho(contratosZoho: any[]) {
+  const db = await getDb();
+  if (!db) return;
+
+  // Extrai vendedoras únicas dos contratos
+  const vendedorasMap = new Map<string, { id: string; nome: string }>();
+
+  contratosZoho.forEach((contrato) => {
+    if (contrato.Vendedor && contrato.Vendedor.ID && contrato.Vendedor.display_value) {
+      vendedorasMap.set(contrato.Vendedor.ID, {
+        id: contrato.Vendedor.ID,
+        nome: contrato.Vendedor.display_value,
+      });
+    }
+  });
+
+  // Insere ou atualiza vendedoras no banco
+  for (const id of Array.from(vendedorasMap.keys())) {
+    const vendedora = vendedorasMap.get(id)!;
+    const existente = await obterVendedora(id);
+
+    if (!existente) {
+      // Cria nova vendedora
+      await db.insert(vendedoras).values({
+        id: vendedora.id,
+        nome: vendedora.nome,
+        email: null,
+        foto: null,
+        ativo: "sim",
+      });
+      console.log(`[sincronizarVendedoras] Nova vendedora criada: ${vendedora.nome}`);
+    } else if (existente.nome !== vendedora.nome) {
+      // Atualiza nome se mudou
+      await db.update(vendedoras).set({ nome: vendedora.nome }).where(eq(vendedoras.id, id));
+      console.log(`[sincronizarVendedoras] Vendedora atualizada: ${vendedora.nome}`);
+    }
+  }
+
+  console.log(`[sincronizarVendedoras] ${vendedorasMap.size} vendedoras sincronizadas`);
+}
+

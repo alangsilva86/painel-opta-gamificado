@@ -19,6 +19,7 @@ import {
   listarVendedoras,
   criarVendedora,
   listarHistoricoMetas,
+  sincronizarVendedorasDoZoho,
 } from "./dbHelpers";
 
 /**
@@ -40,6 +41,9 @@ export const dashboardRouter = router({
       } else {
         contratosZoho = await zohoService.buscarContratosMesAtual();
       }
+
+      // Sincroniza vendedoras do Zoho para o banco
+      await sincronizarVendedorasDoZoho(contratosZoho);
 
       // Processa contratos
       const contratosProcessados = processarContratos(contratosZoho);
