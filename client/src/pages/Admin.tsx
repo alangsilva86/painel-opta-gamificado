@@ -18,7 +18,7 @@ export default function Admin() {
   });
 
   const { data: vendedoras, refetch: refetchVendedoras } =
-    trpc.admin.listarVendedoras.useQuery();
+    trpc.admin.listarTodasVendedoras.useQuery(); // Usa listarTodasVendedoras para incluir ocultas
 
   const { data: metas, refetch: refetchMetas } = trpc.admin.obterMetas.useQuery({
     mes: mesAtual,
@@ -56,6 +56,16 @@ export default function Admin() {
     },
     onError: (error) => {
       toast.error(`Erro ao criar vendedora: ${error.message}`);
+    },
+  });
+
+  const alternarVisibilidade = trpc.admin.alternarVisibilidade.useMutation({
+    onSuccess: () => {
+      toast.success("Visibilidade atualizada!");
+      refetchVendedoras();
+    },
+    onError: (error) => {
+      toast.error(`Erro ao alterar visibilidade: ${error.message}`);
     },
   });
 
@@ -275,10 +285,21 @@ export default function Admin() {
                 return (
                   <div
                     key={vendedora.id}
-                    className="flex items-end gap-4 p-4 bg-secondary/50 rounded-lg"
+                    className={`flex items-end gap-4 p-4 rounded-lg ${
+                      vendedora.visivel === "nao"
+                        ? "bg-secondary/30 opacity-60"
+                        : "bg-secondary/50"
+                    }`}
                   >
                     <div className="flex-1">
-                      <Label>{vendedora.nome}</Label>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Label>{vendedora.nome}</Label>
+                        {vendedora.visivel === "nao" && (
+                          <span className="text-xs bg-yellow-500/20 text-yellow-600 px-2 py-0.5 rounded">
+                            Oculta
+                          </span>
+                        )}
+                      </div>
                       <div className="text-sm text-muted-foreground mb-2">
                         Meta atual:{" "}
                         {metaAtual
@@ -297,6 +318,24 @@ export default function Admin() {
                         }
                       />
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        alternarVisibilidade.mutate({
+                          vendedoraId: vendedora.id,
+                          visivel: vendedora.visivel === "sim" ? "nao" : "sim",
+                        })
+                      }
+                      disabled={alternarVisibilidade.isPending}
+                      title={
+                        vendedora.visivel === "sim"
+                          ? "Ocultar do dashboard"
+                          : "Mostrar no dashboard"
+                      }
+                    >
+                      {vendedora.visivel === "sim" ? "👁️" : "🚫"}
+                    </Button>
                     <Button
                       onClick={() => handleSaveMetaVendedor(vendedora.id)}
                       disabled={definirMetaVendedor.isPending}

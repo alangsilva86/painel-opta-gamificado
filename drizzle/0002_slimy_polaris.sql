@@ -1,0 +1,1 @@
+ALTER TABLE `vendedoras` ADD `visivel` enum('sim','nao') DEFAULT 'sim' NOT NULL;

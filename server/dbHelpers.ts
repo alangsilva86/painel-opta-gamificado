@@ -6,6 +6,7 @@ import {
   metasGlobal,
   badges,
   historicoMetas,
+  Vendedora,
   InsertVendedora,
   InsertMetaVendedor,
   InsertMetaGlobal,
@@ -19,7 +20,11 @@ import {
 export async function listarVendedoras() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(vendedoras).where(eq(vendedoras.ativo, "sim"));
+  // Retorna apenas vendedoras ativas E visíveis
+  return db
+    .select()
+    .from(vendedoras)
+    .where(and(eq(vendedoras.ativo, "sim"), eq(vendedoras.visivel, "sim")));
 }
 
 export async function obterVendedora(id: string) {
@@ -256,5 +261,33 @@ export async function sincronizarVendedorasDoZoho(contratosZoho: any[]) {
   }
 
   console.log(`[sincronizarVendedoras] ${vendedorasMap.size} vendedoras sincronizadas`);
+}
+
+
+
+/**
+ * Alterna visibilidade de uma vendedora no dashboard
+ */
+export async function alternarVisibilidadeVendedora(
+  vendedoraId: string,
+  visivel: "sim" | "nao"
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database não disponível");
+
+  await db.update(vendedoras).set({ visivel }).where(eq(vendedoras.id, vendedoraId));
+
+  console.log(`[alternarVisibilidade] Vendedora ${vendedoraId} agora está ${visivel === "sim" ? "visível" : "oculta"}`);
+}
+
+/**
+ * Lista todas as vendedoras (incluindo ocultas) para administração
+ */
+export async function listarTodasVendedoras(): Promise<Vendedora[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const resultado = await db.select().from(vendedoras).orderBy(vendedoras.nome);
+  return resultado;
 }
 

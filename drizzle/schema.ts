@@ -25,6 +25,7 @@ export const vendedoras = mysqlTable("vendedoras", {
   email: varchar("email", { length: 320 }),
   foto: text("foto"),
   ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
+  visivel: mysqlEnum("visivel", ["sim", "nao"]).default("sim").notNull(), // Controla se aparece no dashboard
   createdAt: timestamp("createdAt").defaultNow(),
 });
 

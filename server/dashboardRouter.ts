@@ -20,6 +20,8 @@ import {
   criarVendedora,
   listarHistoricoMetas,
   sincronizarVendedorasDoZoho,
+  alternarVisibilidadeVendedora,
+  listarTodasVendedoras,
 } from "./dbHelpers";
 
 /**
@@ -61,7 +63,11 @@ export const dashboardRouter = router({
       // Agrega por vendedora
       let vendedoras = agregarPorVendedora(contratosProcessados, metasMap);
 
-      // Calcula meta global
+      // Busca vendedoras visíveis do banco
+      const vendedorasVisiveis = await listarVendedoras();
+      const idsVisiveis = new Set(vendedorasVisiveis.map((v) => v.id));
+
+      // Calcula meta global (com TODAS as vendedoras)
       const metaGlobalValor = metaGlobalDb ? parseFloat(metaGlobalDb.metaValor) : 0;
       const metaGlobal = calcularMetaGlobal(vendedoras, metaGlobalValor, mesAtual);
 
@@ -74,13 +80,16 @@ export const dashboardRouter = router({
         badges: detectarBadges(v),
       }));
 
-      // Calcula ranking
-      const ranking = calcularRanking(vendedoras);
+      // FILTRA apenas vendedoras visíveis para exibição
+      const vendedorasVisiveis2 = vendedoras.filter((v) => idsVisiveis.has(v.id));
+
+      // Calcula ranking (apenas com visíveis)
+      const ranking = calcularRanking(vendedorasVisiveis2);
 
       return {
         mes: mesAtual,
         metaGlobal,
-        vendedoras,
+        vendedoras: vendedorasVisiveis2, // Retorna apenas visíveis
         ranking,
         totalContratos: contratosProcessados.length,
         ultimaAtualizacao: new Date().toISOString(),
@@ -155,11 +164,33 @@ export const dashboardRouter = router({
  */
 export const adminRouter = router({
   /**
-   * Lista todas as vendedoras cadastradas
+   * Lista todas as vendedoras cadastradas (apenas visíveis)
    */
   listarVendedoras: protectedProcedure.query(async () => {
     return listarVendedoras();
   }),
+
+  /**
+   * Lista TODAS as vendedoras (incluindo ocultas) para administração
+   */
+  listarTodasVendedoras: protectedProcedure.query(async () => {
+    return listarTodasVendedoras();
+  }),
+
+  /**
+   * Alterna visibilidade de uma vendedora no dashboard
+   */
+  alternarVisibilidade: protectedProcedure
+    .input(
+      z.object({
+        vendedoraId: z.string(),
+        visivel: z.enum(["sim", "nao"]),
+      })
+    )
+    .mutation(async ({ input }) => {
+      await alternarVisibilidadeVendedora(input.vendedoraId, input.visivel);
+      return { success: true };
+    }),
 
   /**
    * Cria uma nova vendedora
