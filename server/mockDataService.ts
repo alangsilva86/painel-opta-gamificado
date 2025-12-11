@@ -8,10 +8,13 @@ export interface MockContrato {
   Numero_do_Contrato: string;
   Data_de_Pagamento: string;
   Valor_liquido_liberado: number;
-  Valor_comissao: number;
+  Valor_comissao_opta: number;
+  Base_comissionavel_vendedores: number;
   Vendedor: { display_value: string; ID: string };
   Produto: { display_value: string; ID: string };
   Corban: { display_value: string; ID: string };
+  Estagio: { display_value: string; ID: string };
+  Metadata_Cancelado: string | null;
 }
 
 const VENDEDORAS = [
@@ -52,7 +55,12 @@ export function gerarContratosMock(): MockContrato[] {
 
       // Valor entre 5.000 e 50.000
       const valorLiquido = Math.floor(Math.random() * 45000) + 5000;
-      const valorComissao = valorLiquido * 0.08; // 8% de comissão
+      
+      // NOVA REGRA: Comissão da Opta (simulação: 8% do valor líquido)
+      const valorComissaoOpta = valorLiquido * 0.08;
+      
+      // Base comissionável = Valor_comissao_opta * 0.55 * 0.06
+      const baseComissionavelVendedores = valorComissaoOpta * 0.55 * 0.06;
 
       contratos.push({
         ID: `mock_${vendedora.id}_${i}`,
@@ -61,7 +69,8 @@ export function gerarContratosMock(): MockContrato[] {
         ).padStart(2, "0")}-${i.toString().padStart(4, "0")}`,
         Data_de_Pagamento: dataPagamento.toISOString().split("T")[0],
         Valor_liquido_liberado: valorLiquido,
-        Valor_comissao: valorComissao,
+        Valor_comissao_opta: valorComissaoOpta,
+        Base_comissionavel_vendedores: baseComissionavelVendedores,
         Vendedor: {
           display_value: vendedora.nome,
           ID: vendedora.id,
@@ -74,6 +83,11 @@ export function gerarContratosMock(): MockContrato[] {
           display_value: CORBANS[Math.floor(Math.random() * CORBANS.length)],
           ID: `corban_${Math.floor(Math.random() * 100)}`,
         },
+        Estagio: {
+          display_value: "Pago",
+          ID: "estagio_pago",
+        },
+        Metadata_Cancelado: null,
       });
     }
   });

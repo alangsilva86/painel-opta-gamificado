@@ -46,10 +46,12 @@ export type MetaVendedor = typeof metasVendedor.$inferSelect;
 export type InsertMetaVendedor = typeof metasVendedor.$inferInsert;
 
 // Tabela de metas globais mensais
+// ATUALIZADO: Agora suporta Meta Global e Super Meta Global separadas
 export const metasGlobal = mysqlTable("metas_global", {
   id: varchar("id", { length: 64 }).primaryKey(),
   mes: varchar("mes", { length: 7 }).notNull(), // YYYY-MM
-  metaValor: varchar("metaValor", { length: 20 }).notNull(),
+  metaValor: varchar("metaValor", { length: 20 }).notNull(), // Meta Global (100% = +25%)
+  superMetaValor: varchar("superMetaValor", { length: 20 }).default("0").notNull(), // Super Meta (100% = +50%)
   createdAt: timestamp("createdAt").defaultNow(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow(),
 });

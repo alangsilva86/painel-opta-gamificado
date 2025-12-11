@@ -69,7 +69,8 @@ export const dashboardRouter = router({
 
       // Calcula meta global (com TODAS as vendedoras)
       const metaGlobalValor = metaGlobalDb ? parseFloat(metaGlobalDb.metaValor) : 0;
-      const metaGlobal = calcularMetaGlobal(vendedoras, metaGlobalValor, mesAtual);
+      const superMetaGlobalValor = metaGlobalDb ? parseFloat(metaGlobalDb.superMetaValor) : 0;
+      const metaGlobal = calcularMetaGlobal(vendedoras, metaGlobalValor, superMetaGlobalValor, mesAtual);
 
       // Aplica acelerador global
       vendedoras = aplicarAceleradorGlobal(vendedoras, metaGlobal.acelerador);
@@ -131,7 +132,8 @@ export const dashboardRouter = router({
 
         const vendedoras = agregarPorVendedora(contratosProcessados, metasMap);
         const metaGlobalValor = metaGlobalDb ? parseFloat(metaGlobalDb.metaValor) : 0;
-        const metaGlobal = calcularMetaGlobal(vendedoras, metaGlobalValor, mesAtual);
+        const superMetaGlobalValor = metaGlobalDb ? parseFloat(metaGlobalDb.superMetaValor) : 0;
+        const metaGlobal = calcularMetaGlobal(vendedoras, metaGlobalValor, superMetaGlobalValor, mesAtual);
 
         const vendedora = vendedoras.find((v) => v.id === input.id);
 
@@ -139,17 +141,13 @@ export const dashboardRouter = router({
           throw new Error("Vendedora não encontrada");
         }
 
-        // Aplica acelerador
-        const comissaoBase = vendedora.contratos.reduce(
-          (sum, c) => sum + c.comissaoVendedora,
-          0
-        );
-        vendedora.comissaoPrevista =
-          comissaoBase * (vendedora.multiplicador + metaGlobal.acelerador);
-        vendedora.badges = detectarBadges(vendedora);
+        // Aplica acelerador global
+        const vendedorasComAcelerador = aplicarAceleradorGlobal([vendedora], metaGlobal.acelerador);
+        const vendedoraFinal = vendedorasComAcelerador[0];
+        vendedoraFinal.badges = detectarBadges(vendedoraFinal);
 
         return {
-          vendedora,
+          vendedora: vendedoraFinal,
           metaGlobal,
         };
       } catch (error) {

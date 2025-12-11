@@ -26,8 +26,10 @@ async function testZoho() {
       console.log("   Número:", exemplo.Numero_do_Contrato);
       console.log("   Vendedor:", exemplo.Vendedor?.display_value);
       console.log("   Valor líquido:", exemplo.Valor_liquido_liberado);
-      console.log("   Valor comissão:", exemplo.Valor_comissao);
+      console.log("   Valor comissão Opta:", exemplo.Valor_comissao_opta);
+      console.log("   Base comissionável vendedores:", exemplo.Base_comissionavel_vendedores);
       console.log("   Data pagamento:", exemplo.Data_de_Pagamento);
+      console.log("   Estágio:", exemplo.Estagio?.display_value);
 
       console.log("\n4. Vendedoras únicas:");
       const vendedoras = new Set<string>();

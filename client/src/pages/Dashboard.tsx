@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { VendedoraCard } from "@/components/VendedoraCard";
-import { TierBadge } from "@/components/TierBadge";
+import TierBadge from "@/components/TierBadge";
 import { useCelebration } from "@/hooks/useCelebration";
 import {
   Target,
@@ -31,10 +31,10 @@ export default function Dashboard() {
   useEffect(() => {
     if (data && !hasShownCelebration) {
       // Celebra se meta global foi alcançada
-      if (data.metaGlobal.percentual >= 150) {
+      if (data.metaGlobal.percentualMeta >= 150) {
         celebrateSuperMeta();
         setHasShownCelebration(true);
-      } else if (data.metaGlobal.percentual >= 100) {
+      } else if (data.metaGlobal.percentualMeta >= 100) {
         celebrateMetaAlcancada();
         setHasShownCelebration(true);
       }
@@ -66,8 +66,8 @@ export default function Dashboard() {
     if (!data) return null;
     const { metaGlobal } = data;
 
-    if (metaGlobal.percentual >= 100) return null;
-    if (metaGlobal.percentual >= 75) {
+    if (metaGlobal.percentualMeta >= 100) return null;
+    if (metaGlobal.percentualMeta >= 75) {
       const falta = metaGlobal.metaValor - metaGlobal.realizado;
       return { target: "100%", falta };
     }
@@ -184,7 +184,7 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {data.metaGlobal.percentual.toFixed(1)}%
+                  {data.metaGlobal.percentualMeta.toFixed(1)}%
                 </div>
                 {faltaAcelerador && (
                   <p className="text-xs text-muted-foreground mt-1">

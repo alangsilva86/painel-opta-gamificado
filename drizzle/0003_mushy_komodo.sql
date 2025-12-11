@@ -1,0 +1,1 @@
+ALTER TABLE `metas_global` ADD `superMetaValor` varchar(20) DEFAULT '0' NOT NULL;

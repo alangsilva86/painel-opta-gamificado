@@ -10,7 +10,8 @@ interface ZohoContratoRaw {
   contractNumber?: string;
   paymentDate?: string; // dd/mm/yyyy
   typeDate?: string; // dd/mm/yyyy
-  amount?: string; // valor líquido
+  amount?: string; // valor líquido liberado (NÃO usado para comissão)
+  Valor_comissao?: string; // CAMPO CRÍTICO: comissão da Opta (base do cálculo)
   sellerName?: { name: string; ID: string; zc_display_value: string };
   typerName?: { name: string; ID: string; zc_display_value: string };
   product?: { name: string; ID: string; zc_display_value: string };
@@ -23,11 +24,13 @@ export interface ZohoContrato {
   ID: string;
   Numero_do_Contrato: string;
   Data_de_Pagamento: string; // yyyy-mm-dd
-  Valor_liquido_liberado: number;
-  Valor_comissao: number; // Calculado: amount * 0.08 (estimativa)
+  Valor_liquido_liberado: number; // Valor do empréstimo (NÃO entra no cálculo de comissão)
+  Valor_comissao_opta: number; // Comissão da Opta (vinda do Zoho) - NÃO EXIBIR
+  Base_comissionavel_vendedores: number; // Valor_comissao_opta * 0.55 * 0.06
   Vendedor: { display_value: string; ID: string };
   Produto: { display_value: string; ID: string };
   Corban: { display_value: string; ID: string };
+  Estagio: { display_value: string; ID: string }; // Blueprint.Current_Stage
   Metadata_Cancelado: string | null;
 }
 
@@ -178,21 +181,27 @@ class ZohoService {
 
   /**
    * Transforma contrato raw do Zoho para formato esperado
+   * REGRA CRÍTICA: Usa Valor_comissao do Zoho, NÃO o amount
    */
   private transformarContrato(raw: ZohoContratoRaw): ZohoContrato | null {
     // Ignora contratos sem data de pagamento
     if (!raw.paymentDate) return null;
 
     const valorLiquido = parseFloat(raw.amount || "0");
-    // Estimativa: comissão = 8% do valor líquido
-    const valorComissao = valorLiquido * 0.08;
+    
+    // NOVA REGRA: Base de comissão vem do campo Valor_comissao do Zoho
+    const valorComissaoOpta = parseFloat(raw.Valor_comissao || "0");
+    
+    // Cálculo oficial: Base Comissionável = Valor_comissao_opta * 0.55 * 0.06
+    const baseComissionavelVendedores = valorComissaoOpta * 0.55 * 0.06;
 
     return {
       ID: raw.ID,
       Numero_do_Contrato: raw.contractNumber || "",
       Data_de_Pagamento: this.converterData(raw.paymentDate),
       Valor_liquido_liberado: valorLiquido,
-      Valor_comissao: valorComissao,
+      Valor_comissao_opta: valorComissaoOpta, // NÃO EXIBIR no painel
+      Base_comissionavel_vendedores: baseComissionavelVendedores,
       Vendedor: {
         display_value: raw.sellerName?.name || "Sem vendedor",
         ID: raw.sellerName?.ID || "",
@@ -204,6 +213,10 @@ class ZohoService {
       Corban: {
         display_value: raw.agentId?.name || "Sem corban",
         ID: raw.agentId?.ID || "",
+      },
+      Estagio: {
+        display_value: raw["Blueprint.Current_Stage"]?.zc_display_value || "Sem estágio",
+        ID: raw["Blueprint.Current_Stage"]?.ID || "",
       },
       Metadata_Cancelado: null, // Já filtramos cancelados na query
     };

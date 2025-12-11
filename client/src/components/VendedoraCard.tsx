@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { ProgressRing } from "./ProgressRing";
-import { TierBadge } from "./TierBadge";
+import TierBadge from "./TierBadge";
 import { Trophy, TrendingUp, DollarSign } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -12,7 +12,7 @@ interface VendedoraCardProps {
     realizado: number;
     meta: number;
     percentualMeta: number;
-    tier: number;
+    tier: string;
     comissaoPrevista: number;
     contratos: any[];
     badges: string[];

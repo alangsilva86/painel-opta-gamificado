@@ -1,31 +1,40 @@
 /**
  * Serviço de cálculos de comissão e tiers
- * Implementa as regras de negócio do plano de comissionamento
+ * Implementa as regras de negócio ATUALIZADAS do plano de comissionamento Opta
+ * 
+ * REGRA CRÍTICA: Base de comissão vem do campo Valor_comissao do Zoho,
+ * NÃO do valor líquido (amount)
  */
+
+import { ZohoContrato } from "./zohoService";
 
 export interface ContratoProcessado {
   id: string;
   numero: string;
   dataPagamento: string;
-  valorLiquido: number;
-  valorComissao: number;
+  valorLiquido: number; // Valor do empréstimo (NÃO usado para comissão)
+  valorComissaoOpta: number; // Comissão da Opta (NÃO EXIBIR)
+  baseComissionavel: number; // Valor_comissao_opta * 0.55 * 0.06
   vendedora: string;
   vendedoraId: string;
   produto: string;
+  produtoId: string;
   corban: string;
-  baseComissionavel: number;
-  comissaoVendedora: number;
+  estagio: string;
+  estagioId: string;
 }
 
 export interface VendedoraStats {
   id: string;
   nome: string;
-  realizado: number;
+  realizado: number; // Soma da baseComissionavel
   meta: number;
   percentualMeta: number;
-  tier: number;
+  tier: string;
+  tierNumero: number;
   multiplicador: number;
-  comissaoPrevista: number;
+  comissaoBase: number; // Sem acelerador
+  comissaoPrevista: number; // Com acelerador
   contratos: ContratoProcessado[];
   badges: string[];
   streak: number;
@@ -34,120 +43,67 @@ export interface VendedoraStats {
 export interface MetaGlobalStats {
   mes: string;
   metaValor: number;
+  superMetaValor: number;
   realizado: number;
-  percentual: number;
-  acelerador: number;
+  percentualMeta: number;
+  percentualSuperMeta: number;
+  acelerador: number; // 0, 0.25 ou 0.50
+  metaGlobalBatida: boolean;
+  superMetaGlobalBatida: boolean;
 }
 
 /**
- * Parâmetros do plano de comissionamento
+ * Tabela de tiers ATUALIZADA - Dezembro 2025
+ * 
+ * REGRA CRÍTICA: Bronze (1-75%) NÃO recebe comissão, mesmo com acelerador global
  */
-const PARAMETROS = {
-  BASE_PCT: 0.55, // 55% do valor de comissão
-  PCT_VENDEDORA: 0.06, // 6% da base comissionável
-};
-
-/**
- * Tabela de tiers e multiplicadores
- */
-const TIERS = [
-  { min: 0, max: 74.99, multiplicador: 0.0, nome: "Sem comissão" },
-  { min: 75, max: 99.99, multiplicador: 0.5, nome: "Bronze" },
-  { min: 100, max: 124.99, multiplicador: 1.0, nome: "Prata" },
-  { min: 125, max: 149.99, multiplicador: 1.5, nome: "Ouro" },
-  { min: 150, max: 174.99, multiplicador: 2.0, nome: "Platina" },
-  { min: 175, max: 199.99, multiplicador: 2.5, nome: "Diamante" },
-  { min: 200, max: 249.99, multiplicador: 3.0, nome: "Mestre" },
-  { min: 250, max: Infinity, multiplicador: 3.5, nome: "Lendário" },
+export const TIERS = [
+  { min: 1, max: 74.99, multiplicador: 0.0, nome: "Bronze", emoji: "🥉", cor: "gray" },
+  { min: 75, max: 99.99, multiplicador: 0.5, nome: "Prata", emoji: "🥈", cor: "silver" },
+  { min: 100, max: 124.99, multiplicador: 1.0, nome: "Ouro", emoji: "🥇", cor: "gold" },
+  { min: 125, max: 149.99, multiplicador: 1.5, nome: "Platina", emoji: "💎", cor: "blue" },
+  { min: 150, max: 174.99, multiplicador: 2.0, nome: "Brilhante", emoji: "✨", cor: "cyan" },
+  { min: 175, max: 199.99, multiplicador: 2.5, nome: "Diamante", emoji: "🔷", cor: "teal" },
+  { min: 200, max: 249.99, multiplicador: 3.0, nome: "Mestre", emoji: "👑", cor: "orange" },
+  { min: 250, max: Infinity, multiplicador: 3.5, nome: "Lendário", emoji: "⚡", cor: "purple" },
 ];
 
 /**
- * Calcula a base comissionável de um contrato
+ * Processa contratos do Zoho para formato interno
+ * NOVA REGRA: Usa Base_comissionavel_vendedores já calculado no zohoService
  */
-export function calcularBaseComissionavel(valorComissao: number): number {
-  return Math.round(valorComissao * PARAMETROS.BASE_PCT * 100) / 100;
-}
-
-/**
- * Calcula a comissão da vendedora sobre um contrato
- */
-export function calcularComissaoVendedora(baseComissionavel: number): number {
-  return Math.round(baseComissionavel * PARAMETROS.PCT_VENDEDORA * 100) / 100;
+export function processarContratos(contratosZoho: ZohoContrato[]): ContratoProcessado[] {
+  return contratosZoho.map((c) => ({
+    id: c.ID,
+    numero: c.Numero_do_Contrato,
+    dataPagamento: c.Data_de_Pagamento,
+    valorLiquido: c.Valor_liquido_liberado,
+    valorComissaoOpta: c.Valor_comissao_opta, // NÃO EXIBIR
+    baseComissionavel: c.Base_comissionavel_vendedores, // Já vem calculado
+    vendedora: c.Vendedor.display_value,
+    vendedoraId: c.Vendedor.ID,
+    produto: c.Produto.display_value,
+    produtoId: c.Produto.ID,
+    corban: c.Corban.display_value,
+    estagio: c.Estagio.display_value,
+    estagioId: c.Estagio.ID,
+  }));
 }
 
 /**
  * Determina o tier baseado no percentual da meta
  */
-export function determinarTier(percentualMeta: number): {
-  tier: number;
-  multiplicador: number;
-  nome: string;
-} {
-  const tierEncontrado = TIERS.find(
-    (t) => percentualMeta >= t.min && percentualMeta <= t.max
-  );
-
-  return {
-    tier: tierEncontrado?.multiplicador || 0,
-    multiplicador: tierEncontrado?.multiplicador || 0,
-    nome: tierEncontrado?.nome || "Desconhecido",
-  };
+export function determinarTier(percentualMeta: number): (typeof TIERS)[0] {
+  const tier = TIERS.find((t) => percentualMeta >= t.min && percentualMeta <= t.max);
+  return tier || TIERS[0]; // Default: Bronze
 }
 
 /**
- * Calcula o acelerador global baseado no percentual da meta global
- */
-export function calcularAceleradorGlobal(percentualMetaGlobal: number): number {
-  if (percentualMetaGlobal >= 100) return 0.5;
-  if (percentualMetaGlobal >= 75) return 0.25;
-  return 0;
-}
-
-/**
- * Calcula a comissão final de uma vendedora
- * Fórmula: Comissão Base * (Multiplicador Individual + Acelerador Global)
- */
-export function calcularComissaoFinal(
-  comissaoBase: number,
-  multiplicadorIndividual: number,
-  aceleradorGlobal: number
-): number {
-  return Math.round(comissaoBase * (multiplicadorIndividual + aceleradorGlobal) * 100) / 100;
-}
-
-/**
- * Processa contratos brutos do Zoho e calcula valores
- */
-export function processarContratos(
-  contratosZoho: any[]
-): ContratoProcessado[] {
-  return contratosZoho.map((c) => {
-    const valorComissao = parseFloat(c.Valor_comissao || 0);
-    const baseComissionavel = calcularBaseComissionavel(valorComissao);
-    const comissaoVendedora = calcularComissaoVendedora(baseComissionavel);
-
-    return {
-      id: c.ID,
-      numero: c.Numero_do_Contrato || "",
-      dataPagamento: c.Data_de_Pagamento || "",
-      valorLiquido: parseFloat(c.Valor_liquido_liberado || 0),
-      valorComissao,
-      vendedora: c.Vendedor?.display_value || "Desconhecido",
-      vendedoraId: c.Vendedor?.ID || "",
-      produto: c.Produto?.display_value || "",
-      corban: c.Corban?.display_value || "",
-      baseComissionavel,
-      comissaoVendedora,
-    };
-  });
-}
-
-/**
- * Agrega contratos por vendedora e calcula estatísticas
+ * Agrega contratos por vendedora
  */
 export function agregarPorVendedora(
   contratos: ContratoProcessado[],
-  metas: Map<string, number>
+  metasMap: Map<string, number>
 ): VendedoraStats[] {
   const vendedorasMap = new Map<string, VendedoraStats>();
 
@@ -159,10 +115,12 @@ export function agregarPorVendedora(
         id: vendedoraId,
         nome: vendedora,
         realizado: 0,
-        meta: metas.get(vendedoraId) || 0,
+        meta: metasMap.get(vendedoraId) || 0,
         percentualMeta: 0,
-        tier: 0,
+        tier: "Bronze",
+        tierNumero: 0,
         multiplicador: 0,
+        comissaoBase: 0,
         comissaoPrevista: 0,
         contratos: [],
         badges: [],
@@ -171,120 +129,178 @@ export function agregarPorVendedora(
     }
 
     const stats = vendedorasMap.get(vendedoraId)!;
-    stats.realizado += contrato.valorLiquido;
+    stats.realizado += contrato.baseComissionavel;
     stats.contratos.push(contrato);
   });
 
   // Calcula percentuais e tiers
-  vendedorasMap.forEach((stats) => {
-    if (stats.meta > 0) {
-      stats.percentualMeta = (stats.realizado / stats.meta) * 100;
-    }
-
-    const tierInfo = determinarTier(stats.percentualMeta);
-    stats.tier = tierInfo.tier;
-    stats.multiplicador = tierInfo.multiplicador;
-
-    // Soma comissões base
-    const comissaoBase = stats.contratos.reduce(
-      (sum, c) => sum + c.comissaoVendedora,
-      0
-    );
-    stats.comissaoPrevista = comissaoBase * stats.multiplicador;
+  const vendedoras = Array.from(vendedorasMap.values());
+  vendedoras.forEach((v) => {
+    v.percentualMeta = v.meta > 0 ? (v.realizado / v.meta) * 100 : 0;
+    const tier = determinarTier(v.percentualMeta);
+    v.tier = tier.nome;
+    v.tierNumero = TIERS.indexOf(tier);
+    v.multiplicador = tier.multiplicador;
+    
+    // Comissão base (sem acelerador)
+    v.comissaoBase = v.realizado * v.multiplicador;
   });
 
-  return Array.from(vendedorasMap.values());
+  return vendedoras;
 }
 
 /**
- * Calcula estatísticas globais
+ * Calcula meta global ATUALIZADA
+ * Agora suporta Meta Global e Super Meta Global separadas
  */
 export function calcularMetaGlobal(
   vendedoras: VendedoraStats[],
   metaGlobalValor: number,
+  superMetaGlobalValor: number,
   mes: string
 ): MetaGlobalStats {
   const realizado = vendedoras.reduce((sum, v) => sum + v.realizado, 0);
-  const percentual = metaGlobalValor > 0 ? (realizado / metaGlobalValor) * 100 : 0;
-  const acelerador = calcularAceleradorGlobal(percentual);
+  
+  const percentualMeta = metaGlobalValor > 0 ? (realizado / metaGlobalValor) * 100 : 0;
+  const percentualSuperMeta = superMetaGlobalValor > 0 ? (realizado / superMetaGlobalValor) * 100 : 0;
+  
+  const metaGlobalBatida = percentualMeta >= 100;
+  const superMetaGlobalBatida = percentualSuperMeta >= 100;
+
+  // NOVA REGRA: Aceleradores cumulativos
+  let acelerador = 0;
+  if (metaGlobalBatida) acelerador += 0.25; // +25%
+  if (superMetaGlobalBatida) acelerador += 0.50; // +50%
 
   return {
     mes,
     metaValor: metaGlobalValor,
+    superMetaValor: superMetaGlobalValor,
     realizado,
-    percentual,
+    percentualMeta,
+    percentualSuperMeta,
     acelerador,
+    metaGlobalBatida,
+    superMetaGlobalBatida,
   };
 }
 
 /**
- * Aplica acelerador global às comissões das vendedoras
+ * Aplica acelerador global às vendedoras
+ * NOVA REGRA: Apenas vendedoras com ≥75% da meta recebem acelerador
  */
 export function aplicarAceleradorGlobal(
   vendedoras: VendedoraStats[],
-  aceleradorGlobal: number
+  acelerador: number
 ): VendedoraStats[] {
   return vendedoras.map((v) => {
-    const comissaoBase = v.contratos.reduce(
-      (sum, c) => sum + c.comissaoVendedora,
-      0
-    );
-    v.comissaoPrevista = calcularComissaoFinal(
-      comissaoBase,
-      v.multiplicador,
-      aceleradorGlobal
-    );
+    // REGRA CRÍTICA: Bronze (< 75%) não recebe acelerador
+    if (v.percentualMeta < 75) {
+      v.comissaoPrevista = 0;
+    } else {
+      v.comissaoPrevista = v.comissaoBase * (1 + acelerador);
+    }
     return v;
   });
 }
 
 /**
- * Detecta badges conquistadas
+ * Detecta badges automáticas
  */
 export function detectarBadges(vendedora: VendedoraStats): string[] {
   const badges: string[] = [];
 
-  // Badge: Meta alcançada (100%)
-  if (vendedora.percentualMeta >= 100) {
-    badges.push("meta_100");
-  }
+  // Badges de meta
+  if (vendedora.percentualMeta >= 100) badges.push("Meta 100%");
+  if (vendedora.percentualMeta >= 150) badges.push("Supermeta 150%");
+  if (vendedora.percentualMeta >= 200) badges.push("Supermeta 200%");
 
-  // Badge: Supermeta (150%)
-  if (vendedora.percentualMeta >= 150) {
-    badges.push("supermeta_150");
-  }
+  // Badges de sequência (contratos no mesmo dia)
+  const contratosPorDia = new Map<string, number>();
+  vendedora.contratos.forEach((c) => {
+    const dia = c.dataPagamento.split("T")[0];
+    contratosPorDia.set(dia, (contratosPorDia.get(dia) || 0) + 1);
+  });
 
-  // Badge: Hat-trick (3+ contratos)
-  if (vendedora.contratos.length >= 3) {
-    badges.push("hat_trick");
-  }
-
-  // Badge: Imparável (5+ contratos)
-  if (vendedora.contratos.length >= 5) {
-    badges.push("imparavel");
-  }
-
-  // Badge: Tier Lendário
-  if (vendedora.percentualMeta >= 250) {
-    badges.push("lendario");
-  }
+  const maxContratosDia = Math.max(...Array.from(contratosPorDia.values()), 0);
+  if (maxContratosDia >= 3) badges.push("Hat-trick");
+  if (maxContratosDia >= 5) badges.push("Imparável");
+  if (maxContratosDia >= 10) badges.push("Dominante");
 
   return badges;
 }
 
 /**
- * Calcula o ranking de vendedoras
+ * Calcula ranking das vendedoras
  */
-export function calcularRanking(
-  vendedoras: VendedoraStats[]
-): VendedoraStats[] {
+export function calcularRanking(vendedoras: VendedoraStats[]): VendedoraStats[] {
   return [...vendedoras].sort((a, b) => {
-    // Primeiro por % da meta
+    // 1º critério: % da meta (maior primeiro)
     if (b.percentualMeta !== a.percentualMeta) {
       return b.percentualMeta - a.percentualMeta;
     }
-    // Depois por valor realizado
-    return b.realizado - a.realizado;
+    // 2º critério: Valor realizado (maior primeiro)
+    if (b.realizado !== a.realizado) {
+      return b.realizado - a.realizado;
+    }
+    // 3º critério: Número de contratos (maior primeiro)
+    return b.contratos.length - a.contratos.length;
   });
 }
 
+/**
+ * Calcula produtos mais vendidos
+ */
+export function calcularProdutosMaisVendidos(
+  contratos: ContratoProcessado[]
+): Array<{ produto: string; quantidade: number }> {
+  const produtosMap = new Map<string, number>();
+
+  contratos.forEach((c) => {
+    produtosMap.set(c.produto, (produtosMap.get(c.produto) || 0) + 1);
+  });
+
+  return Array.from(produtosMap.entries())
+    .map(([produto, quantidade]) => ({ produto, quantidade }))
+    .sort((a, b) => b.quantidade - a.quantidade);
+}
+
+/**
+ * Calcula produtos mais rentáveis por vendedora
+ */
+export function calcularProdutosRentaveis(
+  contratos: ContratoProcessado[]
+): Array<{ produto: string; comissaoTotal: number }> {
+  const produtosMap = new Map<string, number>();
+
+  contratos.forEach((c) => {
+    produtosMap.set(c.produto, (produtosMap.get(c.produto) || 0) + c.baseComissionavel);
+  });
+
+  return Array.from(produtosMap.entries())
+    .map(([produto, comissaoTotal]) => ({ produto, comissaoTotal }))
+    .sort((a, b) => b.comissaoTotal - a.comissaoTotal);
+}
+
+/**
+ * Calcula pipeline por estágio (contratos sem comissão ainda)
+ */
+export function calcularPipelinePorEstagio(
+  contratos: ContratoProcessado[]
+): Array<{ estagio: string; valorLiquido: number; quantidade: number }> {
+  const estagiosMap = new Map<string, { valorLiquido: number; quantidade: number }>();
+
+  contratos.forEach((c) => {
+    // Considera apenas contratos sem comissão calculada
+    if (c.valorComissaoOpta === 0 && c.valorLiquido > 0) {
+      const stats = estagiosMap.get(c.estagio) || { valorLiquido: 0, quantidade: 0 };
+      stats.valorLiquido += c.valorLiquido;
+      stats.quantidade += 1;
+      estagiosMap.set(c.estagio, stats);
+    }
+  });
+
+  return Array.from(estagiosMap.entries())
+    .map(([estagio, stats]) => ({ estagio, ...stats }))
+    .sort((a, b) => b.valorLiquido - a.valorLiquido);
+}

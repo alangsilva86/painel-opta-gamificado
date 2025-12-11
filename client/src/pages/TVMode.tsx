@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { ProgressRing } from "@/components/ProgressRing";
-import { TierBadge } from "@/components/TierBadge";
+import TierBadge from "@/components/TierBadge";
 import { Trophy, Zap, Target, TrendingUp } from "lucide-react";
 
 export default function TVMode() {
@@ -70,7 +70,7 @@ export default function TVMode() {
           >
             <div className="text-muted-foreground text-xl mb-2">% da Meta</div>
             <div className="text-5xl font-bold text-blue-400">
-              {data.metaGlobal.percentual.toFixed(1)}%
+              {data.metaGlobal.percentualMeta.toFixed(1)}%
             </div>
           </motion.div>
 
