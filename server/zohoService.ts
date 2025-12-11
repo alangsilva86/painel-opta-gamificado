@@ -253,8 +253,8 @@ class ZohoService {
     const dataInicioBr = `${diaIni}/${mesIni}/${anoIni}`;
     const dataFimBr = `${diaFim}/${mesFim2}/${anoFim}`;
 
-    // Monta o critério de filtro
-    const criteria = `paymentDate >= '${dataInicioBr}' && paymentDate <= '${dataFimBr}'`;
+    // Monta o critério de filtro (ignora cancelados)
+    const criteria = `paymentDate >= '${dataInicioBr}' && paymentDate <= '${dataFimBr}' && (Metadata_Cancelado is null)`;
 
     let allData: ZohoContratoRaw[] = [];
     let cursor: string | undefined = undefined;
@@ -269,6 +269,23 @@ class ZohoService {
         const urlParams = new URLSearchParams({
           max_records: maxRecords.toString(),
           criteria,
+          field_config: "custom",
+          fields: [
+            "ID",
+            "contractNumber",
+            "paymentDate",
+            "Data_de_Pagamento",
+            "amount",
+            "Valor_liquido_liberado",
+            "Valor_comissao",
+            "Comissao",
+            "Comissao_Bonus",
+            "Vendedor",
+            "Produto",
+            "agentId",
+            "Blueprint.Current_Stage",
+            "Metadata_Cancelado",
+          ].join(","),
         });
 
         const url = `https://www.zohoapis.com/creator/v2.1/data/optacredito/opta-operation/report/Contratos?${urlParams.toString()}`;
