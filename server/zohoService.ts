@@ -16,6 +16,9 @@ interface ZohoContratoRaw {
   Valor_comissao?: string; // CAMPO CRÍTICO: comissão da Opta (base do cálculo) - pode vir vazio
   Comissao?: string; // campo alternativo
   Comissao_Bonus?: string; // campo alternativo
+  amountComission?: string; // campo que chega no payload do Zoho
+  comissionPercent?: string; // percentual de comissão
+  comissionPercentBonus?: string; // percentual de bônus
   sellerName?: { name: string; ID: string; zc_display_value: string };
   typerName?: { name: string; ID: string; zc_display_value: string };
   product?: { name: string; ID: string; zc_display_value: string };
@@ -60,6 +63,11 @@ function parseMoney(value: unknown): number {
 
   const result = parseFloat(normalized);
   return isNaN(result) ? 0 : result;
+}
+
+function parsePercent(value: unknown): number {
+  // Percentual pode vir como "4.2000" ou "4,2". Reaproveita a lógica de moeda.
+  return parseMoney(value);
 }
 
 function firstNumber(...values: Array<unknown>): number {
@@ -225,8 +233,21 @@ class ZohoService {
       raw.amount
     );
 
-    // Fallback robusto para comissão: usa Valor_comissao, depois Comissao, depois Comissao_Bonus.
-    const comissaoPrincipal = firstNumber(raw.Valor_comissao, raw.Comissao);
+    // Calcula comissão:
+    // 1) Se existir amountComission (Zoho), usa.
+    // 2) Senão, tenta Valor_comissao/Comissao.
+    // 3) Se ainda zero, calcula por percentual * valor líquido.
+    const comissaoPercent = parsePercent(raw.comissionPercent);
+    const comissaoPercentBonus = parsePercent(raw.comissionPercentBonus);
+    const comissaoPercentTotal = comissaoPercent + comissaoPercentBonus;
+    const comissaoCalculadaPorPercentual = valorLiquido * (comissaoPercentTotal / 100);
+
+    const comissaoPrincipal = firstNumber(
+      raw.amountComission,
+      raw.Valor_comissao,
+      raw.Comissao,
+      comissaoCalculadaPorPercentual
+    );
     const comissaoBonus = parseMoney(raw.Comissao_Bonus);
     let valorComissaoOpta = comissaoPrincipal + comissaoBonus;
     
@@ -304,6 +325,9 @@ class ZohoService {
             "Valor_comissao",
             "Comissao",
             "Comissao_Bonus",
+            "amountComission",
+            "comissionPercent",
+            "comissionPercentBonus",
             "Vendedor",
             "Produto",
             "agentId",

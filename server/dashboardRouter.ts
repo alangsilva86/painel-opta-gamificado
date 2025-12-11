@@ -74,6 +74,18 @@ export const dashboardRouter = router({
       // Processa contratos
       const contratosProcessados = processarContratos(contratosZoho);
 
+      // Filtro defensivo: remove estágios que não contam para produção/realizado
+      const estagiosInvalidos = new Set([
+        "Cancelado",
+        "Não Contratado",
+        "Comercial",
+        "Em Digitação",
+      ]);
+      const contratosValidos = contratosProcessados.filter(
+        (c) => !estagiosInvalidos.has(c.estagio)
+      );
+      const contratosParaExibicao = contratosValidos;
+
       // Busca metas do banco
       const metasVendedorDb = await listarMetasVendedorPorMes(mesAtual);
       const metaGlobalDb = await obterMetaGlobal(mesAtual);
@@ -106,7 +118,7 @@ export const dashboardRouter = router({
       });
 
       // Agrega por vendedora
-      let vendedoras: VendedoraStats[] = agregarPorVendedora(contratosProcessados, metasMap).map((v) => {
+      let vendedoras: VendedoraStats[] = agregarPorVendedora(contratosParaExibicao, metasMap).map((v) => {
         const planejada = metasPlanejadasMap.get(v.id);
         const metaDiaria =
           planejada && planejada.metaDiaria > 0
@@ -158,7 +170,7 @@ export const dashboardRouter = router({
       const produtosMap = new Map<string, { contratos: number; comissao: number }>();
       let totalComissao = 0;
 
-      contratosProcessados.forEach((c) => {
+      contratosParaExibicao.forEach((c) => {
         const atual = produtosMap.get(c.produto) || { contratos: 0, comissao: 0 };
         atual.contratos += 1;
         atual.comissao += c.baseComissionavel;
@@ -177,7 +189,7 @@ export const dashboardRouter = router({
         .sort((a, b) => b.totalComissao - a.totalComissao);
 
       // Pipeline
-      const pipelineBruto = calcularPipelinePorEstagio(contratosProcessados);
+      const pipelineBruto = calcularPipelinePorEstagio(contratosParaExibicao);
       const pipeline = pipelineBruto.map((p) => ({
         estagio: p.estagio,
         totalValor: p.valorLiquido,
@@ -188,7 +200,7 @@ export const dashboardRouter = router({
         ...p,
         percentualPipeline: totalValorPipeline > 0 ? (p.totalValor / totalValorPipeline) * 100 : 0,
       }));
-      const valorEmLiberacao = contratosProcessados
+      const valorEmLiberacao = contratosParaExibicao
         .filter((c) => c.valorComissaoOpta === 0 && c.valorLiquido > 0)
         .reduce((acc, c) => acc + c.valorLiquido, 0);
 
@@ -197,7 +209,7 @@ export const dashboardRouter = router({
         metaGlobal,
         vendedoras: vendedorasVisiveis2, // Retorna apenas visíveis
         ranking,
-        totalContratos: contratosProcessados.length,
+        totalContratos: contratosParaExibicao.length,
         ultimaAtualizacao: new Date().toISOString(),
         produtos,
         totalComissao,
@@ -239,6 +251,13 @@ export const dashboardRouter = router({
       }
 
       let contratosProcessados = processarContratos(contratosZoho);
+      const estagiosInvalidos = new Set([
+        "Cancelado",
+        "Não Contratado",
+        "Comercial",
+        "Em Digitação",
+      ]);
+      contratosProcessados = contratosProcessados.filter((c) => !estagiosInvalidos.has(c.estagio));
 
       if (input?.vendedoraId) {
         contratosProcessados = contratosProcessados.filter(
@@ -305,7 +324,15 @@ export const dashboardRouter = router({
         } else {
           contratosZoho = await zohoService.buscarContratosMesAtual();
         }
-        const contratosProcessados = processarContratos(contratosZoho);
+        const estagiosInvalidos = new Set([
+          "Cancelado",
+          "Não Contratado",
+          "Comercial",
+          "Em Digitação",
+        ]);
+        const contratosProcessados = processarContratos(contratosZoho).filter(
+          (c) => !estagiosInvalidos.has(c.estagio)
+        );
 
         const metasDiarias = await obterMetasDiarias(mesAtual, input.id);
         const metasSemanais = await obterMetasSemanais(mesAtual, input.id);
