@@ -9,9 +9,13 @@ interface ZohoContratoRaw {
   ID: string;
   contractNumber?: string;
   paymentDate?: string; // dd/mm/yyyy
+  Data_de_Pagamento?: string; // fallback
   typeDate?: string; // dd/mm/yyyy
   amount?: string; // valor líquido liberado (NÃO usado para comissão)
-  Valor_comissao?: string; // CAMPO CRÍTICO: comissão da Opta (base do cálculo)
+  Valor_liquido_liberado?: string | number; // campo com nome completo
+  Valor_comissao?: string; // CAMPO CRÍTICO: comissão da Opta (base do cálculo) - pode vir vazio
+  Comissao?: string; // campo alternativo
+  Comissao_Bonus?: string; // campo alternativo
   sellerName?: { name: string; ID: string; zc_display_value: string };
   typerName?: { name: string; ID: string; zc_display_value: string };
   product?: { name: string; ID: string; zc_display_value: string };
@@ -184,13 +188,23 @@ class ZohoService {
    * REGRA CRÍTICA: Usa Valor_comissao do Zoho, NÃO o amount
    */
   private transformarContrato(raw: ZohoContratoRaw): ZohoContrato | null {
-    // Ignora contratos sem data de pagamento
-    if (!raw.paymentDate) return null;
+    // Data de pagamento: aceita paymentDate ou Data_de_Pagamento (iso ou dd/mm/yyyy)
+    const dataPagamentoBr = raw.Data_de_Pagamento || raw.paymentDate;
+    if (!dataPagamentoBr) return null;
+    const dataPagamento = this.converterData(dataPagamentoBr) || dataPagamentoBr;
 
-    const valorLiquido = parseFloat(raw.amount || "0");
-    
-    // NOVA REGRA: Base de comissão vem do campo Valor_comissao do Zoho
-    const valorComissaoOpta = parseFloat(raw.Valor_comissao || "0");
+    const valorLiquido = parseFloat(
+      (raw.Valor_liquido_liberado as string) ||
+        raw.amount ||
+        (typeof raw.Valor_liquido_liberado === "number"
+          ? raw.Valor_liquido_liberado.toString()
+          : "0")
+    );
+
+    // Fallback robusto para comissão: usa Valor_comissao, depois Comissao, depois Comissao_Bonus.
+    const comissaoPrincipal = parseFloat(raw.Valor_comissao || raw.Comissao || "0");
+    const comissaoBonus = parseFloat(raw.Comissao_Bonus || "0");
+    let valorComissaoOpta = comissaoPrincipal + comissaoBonus;
     
     // Cálculo oficial: Base Comissionável = Valor_comissao_opta * 0.55 * 0.06
     const baseComissionavelVendedores = valorComissaoOpta * 0.55 * 0.06;
@@ -198,7 +212,7 @@ class ZohoService {
     return {
       ID: raw.ID,
       Numero_do_Contrato: raw.contractNumber || "",
-      Data_de_Pagamento: this.converterData(raw.paymentDate),
+      Data_de_Pagamento: dataPagamento,
       Valor_liquido_liberado: valorLiquido,
       Valor_comissao_opta: valorComissaoOpta, // NÃO EXIBIR no painel
       Base_comissionavel_vendedores: baseComissionavelVendedores,
@@ -336,4 +350,3 @@ class ZohoService {
 
 // Singleton
 export const zohoService = new ZohoService();
-
