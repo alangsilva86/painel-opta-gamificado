@@ -242,8 +242,8 @@ const TIERS = [
 
 ## 🔒 Segurança
 
-- **Autenticação**: Integrada com Manus OAuth
-- **Rotas protegidas**: `/admin` requer autenticação
+- **Sessão local**: cookies assinados com `JWT_SECRET`
+- **Rotas protegidas**: `/admin` requer sessão ativa
 - **Auditoria**: Todas as alterações de metas são registradas com usuário e timestamp
 - **Credenciais**: Zoho credentials armazenadas como variáveis de ambiente (nunca no código)
 
@@ -258,9 +258,9 @@ O painel é totalmente responsivo:
 
 O painel está pronto para deploy. Para publicar:
 
-1. Clique no botão "Publish" na interface do Manus
-2. Configure o domínio desejado
-3. O sistema automaticamente fará o deploy
+1. Faça o build (`pnpm build`) e publique em sua infraestrutura (VPS ou PaaS de sua escolha)
+2. Configure domínio e SSL conforme o provedor escolhido
+3. O sistema estará pronto para produção após apontar as variáveis de ambiente
 
 ## 📞 Suporte
 
@@ -281,4 +281,3 @@ Para dúvidas ou problemas:
 
 **Versão**: 1.0.0  
 **Última atualização**: Outubro 2025
-

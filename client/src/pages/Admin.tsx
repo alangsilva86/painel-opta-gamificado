@@ -1,14 +1,29 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { Settings, Users, Target, History, Save, Plus, Eye, EyeOff, TrendingUp, Zap } from "lucide-react";
+import {
+  Settings,
+  Users,
+  Target,
+  History,
+  Save,
+  Plus,
+  Eye,
+  EyeOff,
+  TrendingUp,
+  Zap,
+  CalendarRange,
+  RefreshCw,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MetasCalendario } from "@/components/MetasCalendario";
 
 export default function Admin() {
   const { user, isAuthenticated } = useAuth();
@@ -70,14 +85,51 @@ export default function Admin() {
     },
   });
 
+  const atualizarMetaDiaria = trpc.admin.atualizarMetaDiaria.useMutation({
+    onSuccess: () => {
+      toast.success("Meta diária atualizada");
+      metasOperacionais.refetch();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const atualizarMetaSemanal = trpc.admin.atualizarMetaSemanal.useMutation({
+    onSuccess: () => {
+      toast.success("Meta semanal atualizada");
+      metasOperacionais.refetch();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const regenerarMetas = trpc.admin.regenerarMetasVendedora.useMutation({
+    onSuccess: () => {
+      toast.success("Metas recalculadas com dias úteis");
+      metasOperacionais.refetch();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   const [metaGlobalInput, setMetaGlobalInput] = useState("");
   const [superMetaGlobalInput, setSuperMetaGlobalInput] = useState("");
   const [metasVendedorInput, setMetasVendedorInput] = useState<Record<string, string>>({});
+  const [metasSemanaisInput, setMetasSemanaisInput] = useState<Record<number, string>>({});
   const [novaVendedora, setNovaVendedora] = useState({
     id: "",
     nome: "",
     email: "",
   });
+  const [vendedoraOperacional, setVendedoraOperacional] = useState<string>("");
+
+  const metasOperacionais = trpc.admin.obterMetasOperacionais.useQuery(
+    { mes: mesAtual, vendedoraId: vendedoraOperacional },
+    { enabled: Boolean(vendedoraOperacional) }
+  );
+
+  useEffect(() => {
+    if (!vendedoraOperacional && vendedoras && vendedoras.length > 0) {
+      setVendedoraOperacional(vendedoras[0].id);
+    }
+  }, [vendedoraOperacional, vendedoras]);
 
   const handleSaveMetaGlobal = () => {
     if (!metaGlobalInput) {
@@ -125,6 +177,45 @@ export default function Admin() {
     }
 
     criarVendedora.mutate(novaVendedora);
+  };
+
+  const handleAtualizarMetaDiaria = (dia: number, valor: number) => {
+    if (!vendedoraOperacional) return;
+    atualizarMetaDiaria.mutate({
+      mes: mesAtual,
+      dia,
+      vendedoraId: vendedoraOperacional,
+      metaValor: valor,
+    });
+  };
+
+  const handleAtualizarMetaSemanal = (semana: number) => {
+    if (!vendedoraOperacional) return;
+    const valor = metasSemanaisInput[semana];
+    if (!valor) {
+      toast.error("Informe a meta semanal");
+      return;
+    }
+    atualizarMetaSemanal.mutate({
+      mes: mesAtual,
+      semana,
+      vendedoraId: vendedoraOperacional,
+      metaValor: parseFloat(valor),
+    });
+  };
+
+  const handleRegenerarMetas = () => {
+    if (!vendedoraOperacional) return;
+    const metaSelecionada = metas?.metasVendedor?.find(
+      (m: any) => m.vendedoraId === vendedoraOperacional
+    );
+    const metaValor = metaSelecionada ? parseFloat(metaSelecionada.metaValor) : undefined;
+
+    regenerarMetas.mutate({
+      mes: mesAtual,
+      vendedoraId: vendedoraOperacional,
+      metaValor,
+    });
   };
 
   const formatCurrency = (value: string | number) => {
@@ -177,9 +268,10 @@ export default function Admin() {
 
       <div className="container py-8">
         <Tabs defaultValue="metas" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-8">
+          <TabsList className="grid w-full grid-cols-4 mb-8">
             <TabsTrigger value="metas">Metas Globais</TabsTrigger>
             <TabsTrigger value="vendedoras">Vendedoras</TabsTrigger>
+            <TabsTrigger value="operacional">Metas Dia/Sem</TabsTrigger>
             <TabsTrigger value="historico">Histórico</TabsTrigger>
           </TabsList>
 
@@ -424,6 +516,145 @@ export default function Admin() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* TAB: OPERACIONAL */}
+          <TabsContent value="operacional" className="space-y-6">
+            <Card className="border-2 border-primary/20">
+              <CardHeader className="bg-primary/5">
+                <CardTitle className="flex items-center gap-2">
+                  <CalendarRange size={22} />
+                  Metas Diárias e Semanais
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-xs uppercase tracking-wide">Vendedora</Label>
+                    <Select
+                      value={vendedoraOperacional}
+                      onValueChange={(value) => setVendedoraOperacional(value)}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {vendedoras?.map((v) => (
+                          <SelectItem key={v.id} value={v.id}>
+                            {v.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wide">Dias úteis</Label>
+                    <Input
+                      value={metasOperacionais.data?.diasUteis ?? diasUteis}
+                      disabled
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs uppercase tracking-wide">Semanas</Label>
+                    <Input
+                      value={metasOperacionais.data?.semanasPlanejadas ?? semanas}
+                      disabled
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">
+                    Ajuste metas operacionais para alinhar execução diária.
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRegenerarMetas}
+                    disabled={regenerarMetas.isPending || !vendedoraOperacional}
+                    className="gap-2"
+                  >
+                    <RefreshCw size={14} className={regenerarMetas.isPending ? "animate-spin" : ""} />
+                    Regenerar com dias úteis
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {vendedoraOperacional && metasOperacionais.data && (
+              <>
+                <MetasCalendario
+                  mes={mesAtual}
+                  vendedoraNome={
+                    vendedoras?.find((v) => v.id === vendedoraOperacional)?.nome || "Vendedora"
+                  }
+                  metasDiarias={
+                    metasOperacionais.data.diarias?.map((d) => ({
+                      dia: d.dia,
+                      meta: parseFloat(d.metaValor),
+                      tipo: d.tipo as "automatica" | "manual",
+                    })) || []
+                  }
+                  metaMensal={
+                    parseFloat(
+                      (metas?.metasVendedor as any)?.find((m: any) => m.vendedoraId === vendedoraOperacional)?.metaValor || "0"
+                    )
+                  }
+                  onAtualizarMeta={handleAtualizarMetaDiaria}
+                  onRegenerar={handleRegenerarMetas}
+                />
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Metas Semanais</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {(metasOperacionais.data.semanais || []).map((semana) => (
+                      <div
+                        key={semana.semana}
+                        className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border"
+                      >
+                        <div>
+                          <p className="font-medium">Semana {semana.semana}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Atual: {formatCurrency(parseFloat(semana.metaValor))}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            placeholder="Nova meta"
+                            value={metasSemanaisInput[semana.semana] || ""}
+                            onChange={(e) =>
+                              setMetasSemanaisInput({
+                                ...metasSemanaisInput,
+                                [semana.semana]: e.target.value,
+                              })
+                            }
+                            className="w-32 text-sm"
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => handleAtualizarMetaSemanal(semana.semana)}
+                            disabled={atualizarMetaSemanal.isPending}
+                          >
+                            <Save size={14} className="mr-1" />
+                            Salvar
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    {metasOperacionais.data.semanais?.length === 0 && (
+                      <p className="text-muted-foreground text-sm">
+                        Nenhuma meta semanal gerada para este mês.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </TabsContent>
 
           {/* TAB: HISTÓRICO */}

@@ -5,7 +5,7 @@ import { eq, and } from "drizzle-orm";
 /**
  * Calcula quantos dias úteis existem entre duas datas
  */
-function contarDiasUteis(dataInicio: Date, dataFim: Date): number {
+export function contarDiasUteis(dataInicio: Date, dataFim: Date): number {
   let dias = 0;
   const data = new Date(dataInicio);
 
@@ -21,14 +21,14 @@ function contarDiasUteis(dataInicio: Date, dataFim: Date): number {
 /**
  * Calcula a semana do mês para um dia específico
  */
-function calcularSemanaDoMes(dia: number): number {
+export function calcularSemanaDoMes(dia: number): number {
   return Math.ceil(dia / 7);
 }
 
 /**
  * Calcula o intervalo de dias de uma semana específica do mês
  */
-function obterIntervaloSemana(mes: string, semana: number) {
+export function obterIntervaloSemana(mes: string, semana: number) {
   const [ano, mesNum] = mes.split("-").map(Number);
   const ultimoDia = new Date(ano, mesNum, 0).getDate();
 
@@ -36,6 +36,26 @@ function obterIntervaloSemana(mes: string, semana: number) {
   const diaFim = Math.min(semana * 7, ultimoDia);
 
   return { diaInicio, diaFim };
+}
+
+/**
+ * Calcula dias úteis do mês (YYYY-MM)
+ */
+export function calcularDiasUteisDoMes(mes: string): number {
+  const [ano, mesNum] = mes.split("-").map(Number);
+  const inicio = new Date(ano, mesNum - 1, 1);
+  const fim = new Date(ano, mesNum, 0);
+  return contarDiasUteis(inicio, fim);
+}
+
+/**
+ * Calcula quantas semanas úteis o mês possui
+ */
+export function calcularSemanasUteisDoMes(mes: string): number {
+  const [ano, mesNum] = mes.split("-").map(Number);
+  const ultimoDia = new Date(ano, mesNum, 0).getDate();
+  const semanas = Math.ceil(ultimoDia / 7);
+  return semanas;
 }
 
 /**
@@ -264,4 +284,30 @@ export async function regenerarMetasDoMes(mes: string) {
     await gerarMetasDiarias(mes, meta.vendedoraId, metaValor);
     await gerarMetasSemanais(mes, meta.vendedoraId, metaValor);
   }
+}
+
+/**
+ * Lista todas as metas diárias de um mês (todas as vendedoras)
+ */
+export async function listarMetasDiariasDoMes(mes: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(metasDiarias)
+    .where(eq(metasDiarias.mes, mes));
+}
+
+/**
+ * Lista todas as metas semanais de um mês (todas as vendedoras)
+ */
+export async function listarMetasSemanaisDoMes(mes: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(metasSemanais)
+    .where(eq(metasSemanais.mes, mes));
 }

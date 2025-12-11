@@ -14,7 +14,7 @@ interface PipelineData {
   estagio: string;
   totalContratos: number;
   totalValor: number;
-  percentualPipeline: number;
+  percentualPipeline?: number;
 }
 
 interface GraficosAnaliseProps {
@@ -58,10 +58,12 @@ export function GraficosAnalise({ produtos, pipeline, totalComissao, totalValorP
     comissao: p.totalComissao,
   }));
 
+  const totalValor = totalValorPipeline || pipeline.reduce((acc, p) => acc + p.totalValor, 0);
   const pipelineGrafico = pipeline.map((p) => ({
     name: p.estagio,
     value: p.totalValor,
     contratos: p.totalContratos,
+    percentual: totalValor > 0 ? (p.totalValor / totalValor) * 100 : 0,
   }));
 
   return (
@@ -251,7 +253,7 @@ export function GraficosAnalise({ produtos, pipeline, totalComissao, totalValorP
                     <td className="text-right py-3 px-4 font-semibold">{formatCurrency(item.totalValor)}</td>
                     <td className="text-right py-3 px-4">
                       <span className="bg-indigo-500/20 text-indigo-400 px-2 py-1 rounded text-xs font-semibold">
-                        {item.percentualPipeline.toFixed(1)}%
+                        {((item.percentualPipeline ?? (item as any).percentual ?? 0)).toFixed(1)}%
                       </span>
                     </td>
                   </tr>

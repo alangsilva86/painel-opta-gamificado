@@ -2,8 +2,9 @@ import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { ProgressRing } from "./ProgressRing";
 import TierBadge from "./TierBadge";
-import { Trophy, TrendingUp, DollarSign } from "lucide-react";
+import { Trophy, TrendingUp, DollarSign, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface VendedoraCardProps {
   vendedora: {
@@ -16,17 +17,28 @@ interface VendedoraCardProps {
     comissaoPrevista: number;
     contratos: any[];
     badges: string[];
+    metaDiariaPlanejada?: number;
+    metaSemanalPlanejada?: number;
+    escada?: {
+      label: string;
+      falta: number;
+      percentual: number;
+      alvo: number;
+      atingido: boolean;
+    }[];
+    aceleradorAplicado?: number;
   };
   rank?: number;
   onClick?: () => void;
 }
 
-const BADGE_LABELS: Record<string, string> = {
-  meta_100: "Meta 100%",
-  supermeta_150: "Supermeta 150%",
-  hat_trick: "Hat-trick",
-  imparavel: "Imparável",
-  lendario: "Lendário",
+const BADGE_DESCRICOES: Record<string, string> = {
+  "Meta 100%": "Bateu 100% da meta individual",
+  "Supermeta 150%": "Chegou a 150% da meta",
+  "Supermeta 200%": "Passou de 200% da meta",
+  "Hat-trick": "3 contratos no mesmo dia",
+  "Imparável": "5 contratos no mesmo dia",
+  "Dominante": "10 contratos no mesmo dia",
 };
 
 export function VendedoraCard({ vendedora, rank, onClick }: VendedoraCardProps) {
@@ -44,6 +56,8 @@ export function VendedoraCard({ vendedora, rank, onClick }: VendedoraCardProps) 
     if (rank === 3) return "text-orange-400";
     return "text-muted-foreground";
   };
+
+  const proximoNivel = vendedora.escada?.find((step) => !step.atingido);
 
   return (
     <motion.div
@@ -111,7 +125,7 @@ export function VendedoraCard({ vendedora, rank, onClick }: VendedoraCardProps) 
                 <div>
                   <div className="text-xs text-muted-foreground flex items-center gap-1">
                     <DollarSign size={12} />
-                    Comissão
+                    Comissão {vendedora.aceleradorAplicado ? "(+acel.)" : ""}
                   </div>
                   <div className="text-sm font-semibold text-green-400">
                     {formatCurrency(vendedora.comissaoPrevista)}
@@ -152,13 +166,43 @@ export function VendedoraCard({ vendedora, rank, onClick }: VendedoraCardProps) 
                 </div>
               </div>
 
+              {/* Metas operacionais */}
+              <div className="grid grid-cols-2 gap-3 mt-4 text-xs text-muted-foreground">
+                <div>
+                  Meta diária
+                  <div className="text-sm font-semibold text-foreground">
+                    {formatCurrency(vendedora.metaDiariaPlanejada || 0)}
+                  </div>
+                </div>
+                <div>
+                  Meta semanal
+                  <div className="text-sm font-semibold text-foreground">
+                    {formatCurrency(vendedora.metaSemanalPlanejada || 0)}
+                  </div>
+                </div>
+              </div>
+
+              {proximoNivel && (
+                <div className="mt-3 text-xs text-muted-foreground flex items-center gap-2">
+                  <Zap size={12} className="text-yellow-400" />
+                  Próximo nível {proximoNivel.label}: faltam {formatCurrency(proximoNivel.falta)}
+                </div>
+              )}
+
               {/* Badges */}
               {vendedora.badges.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-3">
                   {vendedora.badges.slice(0, 3).map((badge) => (
-                    <Badge key={badge} variant="secondary" className="text-xs">
-                      {BADGE_LABELS[badge] || badge}
-                    </Badge>
+                    <Tooltip key={badge}>
+                      <TooltipTrigger asChild>
+                        <Badge variant="secondary" className="text-xs cursor-default">
+                          {badge}
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        {BADGE_DESCRICOES[badge] || "Conquista desbloqueada"}
+                      </TooltipContent>
+                    </Tooltip>
                   ))}
                   {vendedora.badges.length > 3 && (
                     <Badge variant="outline" className="text-xs">
@@ -184,4 +228,3 @@ export function VendedoraCard({ vendedora, rank, onClick }: VendedoraCardProps) 
     </motion.div>
   );
 }
-

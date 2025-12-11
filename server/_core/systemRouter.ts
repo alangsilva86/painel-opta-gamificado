@@ -1,6 +1,10 @@
 import { z } from "zod";
-import { notifyOwner } from "./notification";
 import { adminProcedure, publicProcedure, router } from "./trpc";
+
+async function notifyOwner(): Promise<boolean> {
+  // Placeholder notification handler (no external dependency)
+  return true;
+}
 
 export const systemRouter = router({
   health: publicProcedure
@@ -20,8 +24,8 @@ export const systemRouter = router({
         content: z.string().min(1, "content is required"),
       })
     )
-    .mutation(async ({ input }) => {
-      const delivered = await notifyOwner(input);
+    .mutation(async () => {
+      const delivered = await notifyOwner();
       return {
         success: delivered,
       } as const;

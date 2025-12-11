@@ -9,6 +9,8 @@ import {
   aplicarAceleradorGlobal,
   detectarBadges,
   calcularRanking,
+  calcularPipelinePorEstagio,
+  VendedoraStats,
 } from "./calculationService";
 import {
   listarMetasVendedorPorMes,
@@ -23,6 +25,26 @@ import {
   alternarVisibilidadeVendedora,
   listarTodasVendedoras,
 } from "./dbHelpers";
+import {
+  listarMetasDiariasDoMes,
+  listarMetasSemanaisDoMes,
+  obterMetasDiarias,
+  obterMetasSemanais,
+  atualizarMetaDiaria,
+  atualizarMetaSemanal,
+  gerarMetasDiarias,
+  gerarMetasSemanais,
+  calcularDiasUteisDoMes,
+  calcularSemanasUteisDoMes,
+} from "./metasService";
+
+function getIntervaloDoMes(mes: string) {
+  const [ano, mesNum] = mes.split("-").map(Number);
+  const inicio = `${ano}-${String(mesNum).padStart(2, "0")}-01`;
+  const ultimoDia = new Date(ano, mesNum, 0).getDate();
+  const fim = `${ano}-${String(mesNum).padStart(2, "0")}-${String(ultimoDia).padStart(2, "0")}`;
+  return { inicio, fim };
+}
 
 /**
  * Router do dashboard - dados em tempo real
@@ -34,6 +56,8 @@ export const dashboardRouter = router({
   obterDashboard: publicProcedure.query(async () => {
     try {
       const mesAtual = obterMesAtual();
+      const diasUteis = calcularDiasUteisDoMes(mesAtual);
+      const semanasPlanejadas = calcularSemanasUteisDoMes(mesAtual);
 
       // Busca contratos do Zoho ou usa mock
       let contratosZoho;
@@ -53,6 +77,8 @@ export const dashboardRouter = router({
       // Busca metas do banco
       const metasVendedorDb = await listarMetasVendedorPorMes(mesAtual);
       const metaGlobalDb = await obterMetaGlobal(mesAtual);
+      const metasDiariasMes = await listarMetasDiariasDoMes(mesAtual);
+      const metasSemanaisMes = await listarMetasSemanaisDoMes(mesAtual);
 
       // Monta mapa de metas por vendedora
       const metasMap = new Map<string, number>();
@@ -60,8 +86,49 @@ export const dashboardRouter = router({
         metasMap.set(m.vendedoraId, parseFloat(m.metaValor));
       });
 
+      // Mapa de metas operacionais (diárias/semanais) por vendedora
+      const metasPlanejadasMap = new Map<string, { metaDiaria: number; metaSemanal: number }>();
+
+      metasDiariasMes.forEach((m) => {
+        const valor = parseFloat(m.metaValor);
+        if (isNaN(valor)) return;
+        const atual = metasPlanejadasMap.get(m.vendedoraId) || { metaDiaria: 0, metaSemanal: 0 };
+        atual.metaDiaria += valor;
+        metasPlanejadasMap.set(m.vendedoraId, atual);
+      });
+
+      metasSemanaisMes.forEach((m) => {
+        const valor = parseFloat(m.metaValor);
+        if (isNaN(valor)) return;
+        const atual = metasPlanejadasMap.get(m.vendedoraId) || { metaDiaria: 0, metaSemanal: 0 };
+        atual.metaSemanal += valor;
+        metasPlanejadasMap.set(m.vendedoraId, atual);
+      });
+
       // Agrega por vendedora
-      let vendedoras = agregarPorVendedora(contratosProcessados, metasMap);
+      let vendedoras: VendedoraStats[] = agregarPorVendedora(contratosProcessados, metasMap).map((v) => {
+        const planejada = metasPlanejadasMap.get(v.id);
+        const metaDiaria =
+          planejada && planejada.metaDiaria > 0
+            ? planejada.metaDiaria / Math.max(1, metasDiariasMes.filter((m) => m.vendedoraId === v.id).length || diasUteis || 1)
+            : diasUteis > 0
+              ? v.meta / diasUteis
+              : 0;
+        const metaSemanal =
+          planejada && planejada.metaSemanal > 0
+            ? planejada.metaSemanal / Math.max(1, metasSemanaisMes.filter((m) => m.vendedoraId === v.id).length || semanasPlanejadas || 1)
+            : semanasPlanejadas > 0
+              ? v.meta / semanasPlanejadas
+              : 0;
+
+        return {
+          ...v,
+          metaDiariaPlanejada: metaDiaria,
+          metaSemanalPlanejada: metaSemanal,
+          diasUteis,
+          semanasPlanejadas,
+        };
+      });
 
       // Busca vendedoras visíveis do banco
       const vendedorasVisiveis = await listarVendedoras();
@@ -87,6 +154,44 @@ export const dashboardRouter = router({
       // Calcula ranking (apenas com visíveis)
       const ranking = calcularRanking(vendedorasVisiveis2);
 
+      // Produtos e rentabilidade
+      const produtosMap = new Map<string, { contratos: number; comissao: number }>();
+      let totalComissao = 0;
+
+      contratosProcessados.forEach((c) => {
+        const atual = produtosMap.get(c.produto) || { contratos: 0, comissao: 0 };
+        atual.contratos += 1;
+        atual.comissao += c.baseComissionavel;
+        produtosMap.set(c.produto, atual);
+        totalComissao += c.baseComissionavel;
+      });
+
+      const produtos = Array.from(produtosMap.entries())
+        .map(([nome, dados]) => ({
+          nome,
+          totalContratos: dados.contratos,
+          totalComissao: dados.comissao,
+          comissaoMedia: dados.contratos > 0 ? dados.comissao / dados.contratos : 0,
+          percentualTotal: totalComissao > 0 ? (dados.comissao / totalComissao) * 100 : 0,
+        }))
+        .sort((a, b) => b.totalComissao - a.totalComissao);
+
+      // Pipeline
+      const pipelineBruto = calcularPipelinePorEstagio(contratosProcessados);
+      const pipeline = pipelineBruto.map((p) => ({
+        estagio: p.estagio,
+        totalValor: p.valorLiquido,
+        totalContratos: p.quantidade,
+      }));
+      const totalValorPipeline = pipeline.reduce((acc, item) => acc + item.totalValor, 0);
+      const pipelineComPercentual = pipeline.map((p) => ({
+        ...p,
+        percentualPipeline: totalValorPipeline > 0 ? (p.totalValor / totalValorPipeline) * 100 : 0,
+      }));
+      const valorEmLiberacao = contratosProcessados
+        .filter((c) => c.valorComissaoOpta === 0 && c.valorLiquido > 0)
+        .reduce((acc, c) => acc + c.valorLiquido, 0);
+
       return {
         mes: mesAtual,
         metaGlobal,
@@ -94,12 +199,94 @@ export const dashboardRouter = router({
         ranking,
         totalContratos: contratosProcessados.length,
         ultimaAtualizacao: new Date().toISOString(),
+        produtos,
+        totalComissao,
+        pipeline: pipelineComPercentual,
+        totalValorPipeline,
+        valorEmLiberacao,
+        operacional: {
+          diasUteis,
+          semanasPlanejadas,
+        },
       };
     } catch (error) {
       console.error("[dashboardRouter] Erro ao obter dashboard:", error);
       throw new Error("Falha ao carregar dados do dashboard");
     }
   }),
+
+  /**
+   * Endpoints de análise (produtos e pipeline) com filtros
+   */
+  obterAnalises: publicProcedure
+    .input(
+      z
+        .object({
+          mes: z.string().optional(),
+          vendedoraId: z.string().optional(),
+        })
+        .optional()
+    )
+    .query(async ({ input }) => {
+      const mes = input?.mes || obterMesAtual();
+      const { inicio, fim } = getIntervaloDoMes(mes);
+
+      let contratosZoho;
+      if (shouldUseMockData()) {
+        contratosZoho = gerarContratosMock();
+      } else {
+        contratosZoho = await zohoService.buscarContratos({ mesInicio: inicio, mesFim: fim });
+      }
+
+      let contratosProcessados = processarContratos(contratosZoho);
+
+      if (input?.vendedoraId) {
+        contratosProcessados = contratosProcessados.filter(
+          (c) => c.vendedoraId === input.vendedoraId
+        );
+      }
+
+      const produtosMap = new Map<string, { contratos: number; comissao: number }>();
+      let totalComissao = 0;
+
+      contratosProcessados.forEach((c) => {
+        const atual = produtosMap.get(c.produto) || { contratos: 0, comissao: 0 };
+        atual.contratos += 1;
+        atual.comissao += c.baseComissionavel;
+        produtosMap.set(c.produto, atual);
+        totalComissao += c.baseComissionavel;
+      });
+
+      const produtos = Array.from(produtosMap.entries())
+        .map(([nome, dados]) => ({
+          nome,
+          totalContratos: dados.contratos,
+          totalComissao: dados.comissao,
+          comissaoMedia: dados.contratos > 0 ? dados.comissao / dados.contratos : 0,
+          percentualTotal: totalComissao > 0 ? (dados.comissao / totalComissao) * 100 : 0,
+        }))
+        .sort((a, b) => b.totalComissao - a.totalComissao);
+
+      const pipelineBruto = calcularPipelinePorEstagio(contratosProcessados);
+      const pipeline = pipelineBruto.map((p) => ({
+        estagio: p.estagio,
+        totalValor: p.valorLiquido,
+        totalContratos: p.quantidade,
+      }));
+      const totalValorPipeline = pipeline.reduce((acc, item) => acc + item.totalValor, 0);
+      const pipelineComPercentual = pipeline.map((p) => ({
+        ...p,
+        percentualPipeline: totalValorPipeline > 0 ? (p.totalValor / totalValorPipeline) * 100 : 0,
+      }));
+
+      return {
+        mes,
+        produtos,
+        totalComissao,
+        pipeline: pipelineComPercentual,
+        totalValorPipeline,
+      };
+    }),
 
   /**
    * Obtém dados de uma vendedora específica
@@ -109,6 +296,9 @@ export const dashboardRouter = router({
     .query(async ({ input }) => {
       try {
         const mesAtual = obterMesAtual();
+        const diasUteis = calcularDiasUteisDoMes(mesAtual);
+        const semanasPlanejadas = calcularSemanasUteisDoMes(mesAtual);
+
         let contratosZoho;
         if (shouldUseMockData()) {
           contratosZoho = gerarContratosMock();
@@ -117,10 +307,8 @@ export const dashboardRouter = router({
         }
         const contratosProcessados = processarContratos(contratosZoho);
 
-        // Filtra contratos da vendedora
-        const contratosVendedora = contratosProcessados.filter(
-          (c) => c.vendedoraId === input.id
-        );
+        const metasDiarias = await obterMetasDiarias(mesAtual, input.id);
+        const metasSemanais = await obterMetasSemanais(mesAtual, input.id);
 
         const metasVendedorDb = await listarMetasVendedorPorMes(mesAtual);
         const metaGlobalDb = await obterMetaGlobal(mesAtual);
@@ -145,6 +333,25 @@ export const dashboardRouter = router({
         const vendedorasComAcelerador = aplicarAceleradorGlobal([vendedora], metaGlobal.acelerador);
         const vendedoraFinal = vendedorasComAcelerador[0];
         vendedoraFinal.badges = detectarBadges(vendedoraFinal);
+        const metaDiariaPlanejada =
+          metasDiarias.length > 0
+            ? metasDiarias.reduce((acc, m) => acc + parseFloat(m.metaValor), 0) /
+              Math.max(1, metasDiarias.length)
+            : diasUteis > 0
+              ? vendedoraFinal.meta / diasUteis
+              : 0;
+        const metaSemanalPlanejada =
+          metasSemanais.length > 0
+            ? metasSemanais.reduce((acc, m) => acc + parseFloat(m.metaValor), 0) /
+              Math.max(1, metasSemanais.length)
+            : semanasPlanejadas > 0
+              ? vendedoraFinal.meta / semanasPlanejadas
+              : 0;
+
+        vendedoraFinal.metaDiariaPlanejada = metaDiariaPlanejada;
+        vendedoraFinal.metaSemanalPlanejada = metaSemanalPlanejada;
+        vendedoraFinal.diasUteis = diasUteis;
+        vendedoraFinal.semanasPlanejadas = semanasPlanejadas;
 
         return {
           vendedora: vendedoraFinal,
@@ -257,17 +464,21 @@ export const adminRouter = router({
     .input(
       z.object({
         mes: z.string(),
-        metaValor: z.string(),
+        metaValor: z.string().optional(),
         superMetaValor: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
+      const existente = await obterMetaGlobal(input.mes);
+      const metaValor = input.metaValor ?? existente?.metaValor ?? "0";
+      const superMetaValor = input.superMetaValor ?? existente?.superMetaValor ?? "0";
       const id = `meta_glob_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       await criarOuAtualizarMetaGlobal(
         {
           id,
           mes: input.mes,
-          metaValor: input.metaValor,
+          metaValor,
+          superMetaValor,
         },
         ctx.user.id
       );
@@ -282,5 +493,70 @@ export const adminRouter = router({
     .query(async ({ input }) => {
       return listarHistoricoMetas(input.mes);
     }),
-});
 
+  /**
+   * Metas operacionais (diárias e semanais) para edição no admin
+   */
+  obterMetasOperacionais: protectedProcedure
+    .input(z.object({ mes: z.string(), vendedoraId: z.string() }))
+    .query(async ({ input }) => {
+      const [diarias, semanais] = await Promise.all([
+        obterMetasDiarias(input.mes, input.vendedoraId),
+        obterMetasSemanais(input.mes, input.vendedoraId),
+      ]);
+
+      return {
+        diarias,
+        semanais,
+        diasUteis: calcularDiasUteisDoMes(input.mes),
+        semanasPlanejadas: calcularSemanasUteisDoMes(input.mes),
+      };
+    }),
+
+  atualizarMetaDiaria: protectedProcedure
+    .input(
+      z.object({
+        mes: z.string(),
+        dia: z.number().min(1).max(31),
+        vendedoraId: z.string(),
+        metaValor: z.number().positive(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      await atualizarMetaDiaria(input.mes, input.dia, input.vendedoraId, input.metaValor);
+      return { success: true };
+    }),
+
+  atualizarMetaSemanal: protectedProcedure
+    .input(
+      z.object({
+        mes: z.string(),
+        semana: z.number().min(1).max(5),
+        vendedoraId: z.string(),
+        metaValor: z.number().positive(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      await atualizarMetaSemanal(input.mes, input.semana, input.vendedoraId, input.metaValor);
+      return { success: true };
+    }),
+
+  regenerarMetasVendedora: protectedProcedure
+    .input(
+      z.object({
+        mes: z.string(),
+        vendedoraId: z.string(),
+        metaValor: z.number().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const metasDoMes = await listarMetasVendedorPorMes(input.mes);
+      const metaVendedora = metasDoMes.find((m) => m.vendedoraId === input.vendedoraId);
+      const metaValor =
+        input.metaValor ?? (metaVendedora ? parseFloat(metaVendedora.metaValor) : 0);
+
+      await gerarMetasDiarias(input.mes, input.vendedoraId, metaValor);
+      await gerarMetasSemanais(input.mes, input.vendedoraId, metaValor);
+      return { success: true };
+    }),
+});

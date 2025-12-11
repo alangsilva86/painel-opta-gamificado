@@ -97,6 +97,7 @@ async function seed() {
     id: `meta_global_${mesAtual}`,
     mes: mesAtual,
     metaValor: "620000", // Soma das metas individuais
+    superMetaValor: "930000", // 150% da meta global
   });
 
   console.log("✅ Meta global criada");
@@ -116,4 +117,3 @@ seed().catch((error) => {
   console.error("❌ Erro ao executar seed:", error);
   process.exit(1);
 });
-

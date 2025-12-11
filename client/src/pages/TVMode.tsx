@@ -53,7 +53,7 @@ export default function TVMode() {
         </div>
 
         {/* KPIs em destaque */}
-        <div className="grid grid-cols-4 gap-6 mb-6">
+        <div className="grid grid-cols-5 gap-6 mb-6">
           <motion.div
             className="bg-card rounded-2xl p-6 text-center border-2 border-border"
             whileHover={{ scale: 1.05 }}
@@ -71,6 +71,18 @@ export default function TVMode() {
             <div className="text-muted-foreground text-xl mb-2">% da Meta</div>
             <div className="text-5xl font-bold text-blue-400">
               {data.metaGlobal.percentualMeta.toFixed(1)}%
+            </div>
+          </motion.div>
+
+          <motion.div
+            className="bg-card rounded-2xl p-6 text-center border-2 border-border"
+            whileHover={{ scale: 1.05 }}
+          >
+            <div className="text-muted-foreground text-xl mb-2">Super Meta</div>
+            <div className="text-5xl font-bold text-purple-400">
+              {data.metaGlobal.superMetaValor > 0
+                ? data.metaGlobal.percentualSuperMeta.toFixed(1) + "%"
+                : "--"}
             </div>
           </motion.div>
 
@@ -114,7 +126,7 @@ export default function TVMode() {
             <div className="flex items-center justify-center gap-4 text-3xl font-bold text-green-400">
               <Zap size={40} />
               <span>
-                Acelerador Global Ativo! Todas ganham +
+                Acelerador Global Ativo! Vendedoras 75%+ ganham +
                 {(data.metaGlobal.acelerador * 100).toFixed(0)}%
               </span>
               <Zap size={40} />
@@ -273,4 +285,3 @@ export default function TVMode() {
     </div>
   );
 }
-

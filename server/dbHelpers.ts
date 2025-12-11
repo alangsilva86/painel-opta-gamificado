@@ -13,6 +13,7 @@ import {
   InsertBadge,
   InsertHistoricoMeta,
 } from "../drizzle/schema";
+import { gerarMetasDiarias, gerarMetasSemanais } from "./metasService";
 
 /**
  * Helpers para vendedoras
@@ -107,6 +108,13 @@ export async function criarOuAtualizarMetaVendedor(
       alteradoPor: userId,
     });
   }
+
+  // Gera metas diárias e semanais automaticamente com o novo valor
+  const metaNumerica = parseFloat(data.metaValor);
+  if (!isNaN(metaNumerica)) {
+    await gerarMetasDiarias(data.mes, data.vendedoraId, metaNumerica);
+    await gerarMetasSemanais(data.mes, data.vendedoraId, metaNumerica);
+  }
 }
 
 /**
@@ -139,15 +147,19 @@ export async function criarOuAtualizarMetaGlobal(
       tipo: "global",
       mes: data.mes,
       vendedoraId: null,
-      valorAnterior: existente.metaValor,
-      valorNovo: data.metaValor,
+      valorAnterior: `${existente.metaValor}|${existente.superMetaValor}`,
+      valorNovo: `${data.metaValor}|${data.superMetaValor ?? existente.superMetaValor ?? "0"}`,
       alteradoPor: userId,
     });
 
     // Atualiza
     await db
       .update(metasGlobal)
-      .set({ metaValor: data.metaValor, updatedAt: new Date() })
+      .set({
+        metaValor: data.metaValor,
+        superMetaValor: data.superMetaValor ?? existente.superMetaValor ?? "0",
+        updatedAt: new Date(),
+      })
       .where(eq(metasGlobal.id, existente.id));
   } else {
     // Cria nova
@@ -290,4 +302,3 @@ export async function listarTodasVendedoras(): Promise<Vendedora[]> {
   const resultado = await db.select().from(vendedoras).orderBy(vendedoras.nome);
   return resultado;
 }
-

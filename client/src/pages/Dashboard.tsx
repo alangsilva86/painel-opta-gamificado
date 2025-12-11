@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,9 +13,15 @@ import {
   Zap,
   Trophy,
   RefreshCw,
+  Volume2,
+  VolumeX,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { EscadaAcelerador } from "@/components/EscadaAcelerador";
+import { GraficosAnalise } from "@/components/GraficosAnalise";
+import { useAudio } from "@/contexts/AudioContext";
 
 export default function Dashboard() {
   const { data, isLoading, refetch } = trpc.dashboard.obterDashboard.useQuery(
@@ -26,20 +32,34 @@ export default function Dashboard() {
   );
 
   const { celebrateMetaAlcancada, celebrateSuperMeta } = useCelebration();
-  const [hasShownCelebration, setHasShownCelebration] = useState(false);
+  const { playSale, playMeta, playSuperMeta, muted, toggleMute } = useAudio();
+  const celebrationRef = useRef({ meta: false, superMeta: false });
+  const lastContractsRef = useRef<number>(0);
 
   useEffect(() => {
-    if (data && !hasShownCelebration) {
-      // Celebra se meta global foi alcançada
-      if (data.metaGlobal.percentualMeta >= 150) {
-        celebrateSuperMeta();
-        setHasShownCelebration(true);
-      } else if (data.metaGlobal.percentualMeta >= 100) {
-        celebrateMetaAlcancada();
-        setHasShownCelebration(true);
-      }
+    if (!data) return;
+
+    if (!celebrationRef.current.superMeta && data.metaGlobal.superMetaGlobalBatida) {
+      celebrateSuperMeta();
+      playSuperMeta();
+      celebrationRef.current = { meta: true, superMeta: true };
+      return;
     }
-  }, [data, hasShownCelebration, celebrateMetaAlcancada, celebrateSuperMeta]);
+
+    if (!celebrationRef.current.meta && data.metaGlobal.metaGlobalBatida) {
+      celebrateMetaAlcancada();
+      playMeta();
+      celebrationRef.current.meta = true;
+    }
+  }, [data, celebrateMetaAlcancada, celebrateSuperMeta, playMeta, playSuperMeta]);
+
+  useEffect(() => {
+    if (!data) return;
+    if (lastContractsRef.current && data.totalContratos > lastContractsRef.current) {
+      playSale();
+    }
+    lastContractsRef.current = data.totalContratos;
+  }, [data, playSale]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -66,13 +86,19 @@ export default function Dashboard() {
     if (!data) return null;
     const { metaGlobal } = data;
 
-    if (metaGlobal.percentualMeta >= 100) return null;
-    if (metaGlobal.percentualMeta >= 75) {
-      const falta = metaGlobal.metaValor - metaGlobal.realizado;
-      return { target: "100%", falta };
+    if (!metaGlobal.metaGlobalBatida) {
+      if (metaGlobal.percentualMeta >= 75) {
+        return { target: "100%", falta: metaGlobal.faltaMeta };
+      }
+      const falta = metaGlobal.metaValor * 0.75 - metaGlobal.realizado;
+      return { target: "75%", falta };
     }
-    const falta = metaGlobal.metaValor * 0.75 - metaGlobal.realizado;
-    return { target: "75%", falta };
+
+    if (!metaGlobal.superMetaGlobalBatida && metaGlobal.superMetaValor > 0) {
+      return { target: "Super Meta", falta: metaGlobal.faltaSuperMeta };
+    }
+
+    return null;
   };
 
   if (isLoading) {
@@ -101,23 +127,32 @@ export default function Dashboard() {
       {/* Header */}
       <div className="bg-card border-b border-border">
         <div className="container py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold">Painel de Vendas Opta</h1>
-              <p className="text-muted-foreground mt-1">
-                {new Date().toLocaleDateString("pt-BR", {
-                  month: "long",
-                  year: "numeric",
-                })}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.location.href = "/tv"}
-                className="gap-2"
-              >
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold">Painel de Vendas Opta</h1>
+                <p className="text-muted-foreground mt-1">
+                  {new Date().toLocaleDateString("pt-BR", {
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={toggleMute}
+                  className="gap-2"
+                >
+                  {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                  {muted ? "Áudio off" : "Áudio on"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.location.href = "/tv"}
+                  className="gap-2"
+                >
                 <Target size={16} />
                 Modo TV
               </Button>
@@ -146,7 +181,7 @@ export default function Dashboard() {
 
       <div className="container py-8">
         {/* KPIs Globais */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-8">
           {/* Realizado Global */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -192,6 +227,33 @@ export default function Dashboard() {
                     {faltaAcelerador.target}
                   </p>
                 )}
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Super Meta Global */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+          >
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Super Meta</CardTitle>
+                <Shield className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {data.metaGlobal.superMetaValor > 0
+                    ? `${data.metaGlobal.percentualSuperMeta.toFixed(1)}%`
+                    : "--"}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Super Meta:{" "}
+                  {data.metaGlobal.superMetaValor > 0
+                    ? formatCurrency(data.metaGlobal.superMetaValor)
+                    : "Não definida"}
+                </p>
               </CardContent>
             </Card>
           </motion.div>
@@ -247,6 +309,58 @@ export default function Dashboard() {
           </motion.div>
         </div>
 
+        <div className="mb-6 space-y-3">
+          <Card className="border-primary/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap size={18} />
+                Escada de Aceleradores (≥75% habilita)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <EscadaAcelerador steps={data.metaGlobal.escada} realizado={data.metaGlobal.realizado} />
+              {faltaAcelerador && (
+                <p className="text-xs text-muted-foreground">
+                  Falta {formatCurrency(faltaAcelerador.falta)} para {faltaAcelerador.target}.
+                  Acelerador só impacta vendedoras com 75%+ da meta individual.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Meta Diária Base</p>
+                <p className="text-xl font-bold">
+                  {formatCurrency(
+                    data.operacional?.diasUteis
+                      ? data.metaGlobal.metaValor / data.operacional.diasUteis
+                      : 0
+                  )}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Meta Semanal Base</p>
+                <p className="text-xl font-bold">
+                  {formatCurrency(
+                    data.operacional?.semanasPlanejadas
+                      ? data.metaGlobal.metaValor / data.operacional.semanasPlanejadas
+                      : 0
+                  )}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Valor em liberação (fora da comissão)</p>
+                <p className="text-xl font-bold">{formatCurrency(data.valorEmLiberacao || 0)}</p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
         {/* Banner de Acelerador Ativo */}
         {data.metaGlobal.acelerador > 0 && (
           <motion.div
@@ -259,7 +373,7 @@ export default function Dashboard() {
                 <div className="flex items-center justify-center gap-3">
                   <Zap className="text-green-400" size={24} />
                   <span className="text-lg font-bold text-green-400">
-                    Acelerador Global Ativo! Todas as vendedoras ganham{" "}
+                    Acelerador Global Ativo! Todas as vendedoras (75%+) ganham{" "}
                     {getAceleradorLabel(data.metaGlobal.acelerador)}
                   </span>
                   <Zap className="text-green-400" size={24} />
@@ -330,6 +444,17 @@ export default function Dashboard() {
           </Card>
         </motion.div>
 
+        {/* Produtos e Pipeline */}
+        <div className="mt-8">
+          <h2 className="text-2xl font-bold mb-4">Produtos & Pipeline</h2>
+          <GraficosAnalise
+            produtos={data.produtos || []}
+            pipeline={data.pipeline || []}
+            totalComissao={data.totalComissao || 0}
+            totalValorPipeline={data.totalValorPipeline || 0}
+          />
+        </div>
+
         {/* Footer */}
         <div className="mt-8 text-center text-sm text-muted-foreground">
           Última atualização:{" "}
@@ -339,4 +464,3 @@ export default function Dashboard() {
     </div>
   );
 }
-

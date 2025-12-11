@@ -15,13 +15,22 @@ export interface PipelineStats {
   percentualPipeline: number;
 }
 
+function getIntervaloMes(mes: string) {
+  const [ano, mesNum] = mes.split("-").map(Number);
+  const inicio = `${ano}-${String(mesNum).padStart(2, "0")}-01`;
+  const ultimoDia = new Date(ano, mesNum, 0).getDate();
+  const fim = `${ano}-${String(mesNum).padStart(2, "0")}-${String(ultimoDia).padStart(2, "0")}`;
+  return { inicio, fim };
+}
+
 /**
  * Agrupa contratos por produto e calcula estatísticas
  */
 export async function analisarProdutos(mes: string) {
+  const { inicio, fim } = getIntervaloMes(mes);
   const contratos = await zohoService.buscarContratos({
-    mesInicio: mes,
-    mesFim: mes,
+    mesInicio: inicio,
+    mesFim: fim,
   });
 
   const produtosMap = new Map<string, { contratos: number; comissao: number }>();
@@ -61,9 +70,10 @@ export async function analisarProdutos(mes: string) {
  * Agrupa contratos por estágio do pipeline
  */
 export async function analisarPipeline(mes: string) {
+  const { inicio, fim } = getIntervaloMes(mes);
   const contratos = await zohoService.buscarContratos({
-    mesInicio: mes,
-    mesFim: mes,
+    mesInicio: inicio,
+    mesFim: fim,
   });
 
   const pipelineMap = new Map<string, { contratos: number; valor: number }>();

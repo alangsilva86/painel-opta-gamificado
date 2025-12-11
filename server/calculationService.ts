@@ -35,6 +35,12 @@ export interface VendedoraStats {
   multiplicador: number;
   comissaoBase: number; // Sem acelerador
   comissaoPrevista: number; // Com acelerador
+  aceleradorAplicado?: number;
+  metaDiariaPlanejada?: number;
+  metaSemanalPlanejada?: number;
+  diasUteis?: number;
+  semanasPlanejadas?: number;
+  escada?: EscadaStep[];
   contratos: ContratoProcessado[];
   badges: string[];
   streak: number;
@@ -50,6 +56,17 @@ export interface MetaGlobalStats {
   acelerador: number; // 0, 0.25 ou 0.50
   metaGlobalBatida: boolean;
   superMetaGlobalBatida: boolean;
+  faltaMeta: number;
+  faltaSuperMeta: number;
+  escada: EscadaStep[];
+}
+
+export interface EscadaStep {
+  label: string;
+  percentual: number;
+  alvo: number;
+  falta: number;
+  atingido: boolean;
 }
 
 /**
@@ -67,6 +84,35 @@ export const TIERS = [
   { min: 200, max: 249.99, multiplicador: 3.0, nome: "Mestre", emoji: "👑", cor: "orange" },
   { min: 250, max: Infinity, multiplicador: 3.5, nome: "Lendário", emoji: "⚡", cor: "purple" },
 ];
+
+export const ESCADA_NIVEIS = [75, 100, 125, 150, 175, 200, 250];
+
+/**
+ * Calcula a escada de evolução (próximos níveis)
+ */
+export function montarEscada(meta: number, realizado: number, labels?: Record<number, string>): EscadaStep[] {
+  if (meta <= 0) {
+    return ESCADA_NIVEIS.map((percentual) => ({
+      percentual,
+      label: labels?.[percentual] || `${percentual}%`,
+      alvo: 0,
+      falta: 0,
+      atingido: false,
+    }));
+  }
+
+  return ESCADA_NIVEIS.map((percentual) => {
+    const alvo = meta * (percentual / 100);
+    const falta = Math.max(0, alvo - realizado);
+    return {
+      percentual,
+      label: labels?.[percentual] || `${percentual}%`,
+      alvo,
+      falta,
+      atingido: falta === 0,
+    };
+  });
+}
 
 /**
  * Processa contratos do Zoho para formato interno
@@ -122,6 +168,7 @@ export function agregarPorVendedora(
         multiplicador: 0,
         comissaoBase: 0,
         comissaoPrevista: 0,
+        aceleradorAplicado: 0,
         contratos: [],
         badges: [],
         streak: 0,
@@ -144,6 +191,9 @@ export function agregarPorVendedora(
     
     // Comissão base (sem acelerador)
     v.comissaoBase = v.realizado * v.multiplicador;
+
+    // Escada de progressão (para tooltips de próximo nível)
+    v.escada = montarEscada(v.meta, v.realizado);
   });
 
   return vendedoras;
@@ -167,10 +217,32 @@ export function calcularMetaGlobal(
   const metaGlobalBatida = percentualMeta >= 100;
   const superMetaGlobalBatida = percentualSuperMeta >= 100;
 
-  // NOVA REGRA: Aceleradores cumulativos
+  // NOVA REGRA: Aceleradores NÃO cumulativos (super meta substitui meta)
   let acelerador = 0;
-  if (metaGlobalBatida) acelerador += 0.25; // +25%
-  if (superMetaGlobalBatida) acelerador += 0.50; // +50%
+  if (superMetaGlobalBatida) {
+    acelerador = 0.5;
+  } else if (metaGlobalBatida) {
+    acelerador = 0.25;
+  }
+
+  const escadaLabels: Record<number, string> = {
+    75: "75% (ativação)",
+    100: "Meta Global",
+  };
+
+  const escada = montarEscada(metaGlobalValor, realizado, escadaLabels).filter(
+    (step) => step.percentual <= 100
+  );
+
+  if (superMetaGlobalValor > 0) {
+    escada.push({
+      label: "Super Meta",
+      percentual: (superMetaGlobalValor / (metaGlobalValor || 1)) * 100,
+      alvo: superMetaGlobalValor,
+      falta: Math.max(0, superMetaGlobalValor - realizado),
+      atingido: superMetaGlobalBatida,
+    });
+  }
 
   return {
     mes,
@@ -182,6 +254,9 @@ export function calcularMetaGlobal(
     acelerador,
     metaGlobalBatida,
     superMetaGlobalBatida,
+    faltaMeta: Math.max(0, metaGlobalValor - realizado),
+    faltaSuperMeta: Math.max(0, superMetaGlobalValor - realizado),
+    escada,
   };
 }
 
@@ -197,8 +272,10 @@ export function aplicarAceleradorGlobal(
     // REGRA CRÍTICA: Bronze (< 75%) não recebe acelerador
     if (v.percentualMeta < 75) {
       v.comissaoPrevista = 0;
+      v.aceleradorAplicado = 0;
     } else {
       v.comissaoPrevista = v.comissaoBase * (1 + acelerador);
+      v.aceleradorAplicado = acelerador;
     }
     return v;
   });
@@ -291,8 +368,8 @@ export function calcularPipelinePorEstagio(
   const estagiosMap = new Map<string, { valorLiquido: number; quantidade: number }>();
 
   contratos.forEach((c) => {
-    // Considera apenas contratos sem comissão calculada
-    if (c.valorComissaoOpta === 0 && c.valorLiquido > 0) {
+    // Passa a considerar todos os contratos para visibilidade de pipeline
+    if (c.valorLiquido > 0) {
       const stats = estagiosMap.get(c.estagio) || { valorLiquido: 0, quantidade: 0 };
       stats.valorLiquido += c.valorLiquido;
       stats.quantidade += 1;

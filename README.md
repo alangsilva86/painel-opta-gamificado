@@ -86,11 +86,8 @@ ZOHO_REFRESH_TOKEN=seu_refresh_token
 # Banco de Dados
 DATABASE_URL=mysql://user:password@host:port/database
 
-# Autenticação
+# Sessão local
 JWT_SECRET=sua_chave_secreta_jwt
-VITE_APP_ID=seu_app_id_manus
-OAUTH_SERVER_URL=https://api.manus.im
-VITE_OAUTH_PORTAL_URL=https://portal.manus.im
 
 # Aplicação
 VITE_APP_TITLE="Painel de Vendas Opta"
