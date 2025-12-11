@@ -43,6 +43,33 @@ interface ZohoDataResponse {
   record_cursor?: string;
 }
 
+function parseMoney(value: unknown): number {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string") return 0;
+
+  const trimmed = value.trim();
+  if (!trimmed) return 0;
+
+  // Remove prefixo de moeda e espaços
+  let normalized = trimmed.replace(/[R$\s]/gi, "");
+
+  // Se tiver vírgula como decimal, troca por ponto
+  // Remove pontos de milhar (ponto seguido de 3 dígitos)
+  normalized = normalized.replace(/\.(?=\d{3}(\D|$))/g, "");
+  normalized = normalized.replace(",", ".");
+
+  const result = parseFloat(normalized);
+  return isNaN(result) ? 0 : result;
+}
+
+function firstNumber(...values: Array<unknown>): number {
+  for (const v of values) {
+    const n = parseMoney(v);
+    if (n !== 0) return n;
+  }
+  return 0;
+}
+
 class ZohoService {
   private clientId: string;
   private clientSecret: string;
@@ -193,17 +220,14 @@ class ZohoService {
     if (!dataPagamentoBr) return null;
     const dataPagamento = this.converterData(dataPagamentoBr) || dataPagamentoBr;
 
-    const valorLiquido = parseFloat(
-      (raw.Valor_liquido_liberado as string) ||
-        raw.amount ||
-        (typeof raw.Valor_liquido_liberado === "number"
-          ? raw.Valor_liquido_liberado.toString()
-          : "0")
+    const valorLiquido = firstNumber(
+      raw.Valor_liquido_liberado,
+      raw.amount
     );
 
     // Fallback robusto para comissão: usa Valor_comissao, depois Comissao, depois Comissao_Bonus.
-    const comissaoPrincipal = parseFloat(raw.Valor_comissao || raw.Comissao || "0");
-    const comissaoBonus = parseFloat(raw.Comissao_Bonus || "0");
+    const comissaoPrincipal = firstNumber(raw.Valor_comissao, raw.Comissao);
+    const comissaoBonus = parseMoney(raw.Comissao_Bonus);
     let valorComissaoOpta = comissaoPrincipal + comissaoBonus;
     
     // Cálculo oficial: Base Comissionável = Valor_comissao_opta * 0.55 * 0.06
