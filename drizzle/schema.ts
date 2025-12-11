@@ -1,4 +1,4 @@
-import { mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { mysqlEnum, mysqlTable, text, timestamp, varchar, int } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -100,3 +100,33 @@ export const historicoMetas = mysqlTable("historico_metas", {
 
 export type HistoricoMeta = typeof historicoMetas.$inferSelect;
 export type InsertHistoricoMeta = typeof historicoMetas.$inferInsert;
+
+// Tabela de metas diárias por vendedora
+export const metasDiarias = mysqlTable("metas_diarias", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  mes: varchar("mes", { length: 7 }).notNull(), // YYYY-MM
+  dia: int("dia").notNull(), // 1-31
+  vendedoraId: varchar("vendedoraId", { length: 64 }).notNull(),
+  metaValor: varchar("metaValor", { length: 20 }).notNull(), // Calculado automaticamente ou editado manualmente
+  tipo: mysqlEnum("tipo", ["automatica", "manual"]).default("automatica").notNull(),
+  createdAt: timestamp("createdAt").defaultNow(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow(),
+});
+
+export type MetaDiaria = typeof metasDiarias.$inferSelect;
+export type InsertMetaDiaria = typeof metasDiarias.$inferInsert;
+
+// Tabela de metas semanais por vendedora
+export const metasSemanais = mysqlTable("metas_semanais", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  mes: varchar("mes", { length: 7 }).notNull(), // YYYY-MM
+  semana: int("semana").notNull(), // 1-5
+  vendedoraId: varchar("vendedoraId", { length: 64 }).notNull(),
+  metaValor: varchar("metaValor", { length: 20 }).notNull(), // Calculado automaticamente ou editado manualmente
+  tipo: mysqlEnum("tipo", ["automatica", "manual"]).default("automatica").notNull(),
+  createdAt: timestamp("createdAt").defaultNow(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow(),
+});
+
+export type MetaSemanal = typeof metasSemanais.$inferSelect;
+export type InsertMetaSemanal = typeof metasSemanais.$inferInsert;

@@ -258,6 +258,7 @@ export const adminRouter = router({
       z.object({
         mes: z.string(),
         metaValor: z.string(),
+        superMetaValor: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
