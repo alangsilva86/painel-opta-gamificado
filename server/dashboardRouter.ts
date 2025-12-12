@@ -75,12 +75,17 @@ export const dashboardRouter = router({
       // Processa contratos e aplica filtro de estágios válidos
       const contratosProcessados = processarContratos(contratosZoho);
       const contratosParaExibicao = filtrarContratosProcessadosValidos(contratosProcessados);
+      console.log(
+        `[dashboardRouter] Contratos brutos: ${contratosZoho.length} | válidos para exibição: ${contratosParaExibicao.length}`
+      );
 
-      // Busca metas do banco
-      const metasVendedorDb = await listarMetasVendedorPorMes(mesAtual);
-      const metaGlobalDb = await obterMetaGlobal(mesAtual);
-      const metasDiariasMes = await listarMetasDiariasDoMes(mesAtual);
-      const metasSemanaisMes = await listarMetasSemanaisDoMes(mesAtual);
+      // Busca metas do banco (paralelo para reduzir latência)
+      const [metasVendedorDb, metaGlobalDb, metasDiariasMes, metasSemanaisMes] = await Promise.all([
+        listarMetasVendedorPorMes(mesAtual),
+        obterMetaGlobal(mesAtual),
+        listarMetasDiariasDoMes(mesAtual),
+        listarMetasSemanaisDoMes(mesAtual),
+      ]);
 
       // Monta mapa de metas por vendedora
       const metasMap = new Map<string, number>();
