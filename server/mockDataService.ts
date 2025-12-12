@@ -14,7 +14,6 @@ export interface MockContrato {
   Produto: { display_value: string; ID: string };
   Corban: { display_value: string; ID: string };
   Estagio: { display_value: string; ID: string };
-  Metadata_Cancelado: string | null;
 }
 
 const VENDEDORAS = [
@@ -87,7 +86,6 @@ export function gerarContratosMock(): MockContrato[] {
           display_value: "Pago",
           ID: "estagio_pago",
         },
-        Metadata_Cancelado: null,
       });
     }
   });
@@ -107,4 +105,3 @@ export function shouldUseMockData(): boolean {
   // Usa mock se não tiver credenciais ou se estiver em modo demo
   return !hasZohoCredentials || process.env.DEMO_MODE === "true";
 }
-

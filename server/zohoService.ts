@@ -38,7 +38,6 @@ export interface ZohoContrato {
   Produto: { display_value: string; ID: string };
   Corban: { display_value: string; ID: string };
   Estagio: { display_value: string; ID: string }; // Blueprint.Current_Stage
-  Metadata_Cancelado: string | null;
 }
 
 interface ZohoDataResponse {
@@ -262,22 +261,21 @@ class ZohoService {
       Valor_comissao_opta: valorComissaoOpta, // NÃO EXIBIR no painel
       Base_comissionavel_vendedores: baseComissionavelVendedores,
       Vendedor: {
-        display_value: raw.sellerName?.name || "Sem vendedor",
+        display_value: raw.sellerName?.zc_display_value || raw.sellerName?.name || "Sem vendedor",
         ID: raw.sellerName?.ID || "",
       },
       Produto: {
-        display_value: raw.product?.name || "Sem produto",
+        display_value: raw.product?.zc_display_value || raw.product?.name || "Sem produto",
         ID: raw.product?.ID || "",
       },
       Corban: {
-        display_value: raw.agentId?.name || "Sem corban",
+        display_value: raw.agentId?.zc_display_value || raw.agentId?.name || "Sem corban",
         ID: raw.agentId?.ID || "",
       },
       Estagio: {
         display_value: raw["Blueprint.Current_Stage"]?.zc_display_value || "Sem estágio",
         ID: raw["Blueprint.Current_Stage"]?.ID || "",
       },
-      Metadata_Cancelado: null, // Já filtramos cancelados na query
     };
   }
 
@@ -298,8 +296,11 @@ class ZohoService {
     const dataInicioBr = `${diaIni}/${mesIni}/${anoIni}`;
     const dataFimBr = `${diaFim}/${mesFim2}/${anoFim}`;
 
-    // Monta o critério de filtro (ignora cancelados)
-    const criteria = `paymentDate >= '${dataInicioBr}' && paymentDate <= '${dataFimBr}' && (Metadata_Cancelado is null)`;
+    // Monta o critério de filtro (range de pagamento). Cancelados são filtrados posteriormente via estágio.
+    const criteria = `paymentDate >= '${dataInicioBr}' && paymentDate <= '${dataFimBr}'`;
+    console.log(
+      `[ZohoService] Critério: ${criteria} | range: ${mesInicio} -> ${mesFim} | max_records=${maxRecords}`
+    );
 
     let allData: ZohoContratoRaw[] = [];
     let cursor: string | undefined = undefined;
@@ -328,11 +329,12 @@ class ZohoService {
             "amountComission",
             "comissionPercent",
             "comissionPercentBonus",
-            "Vendedor",
-            "Produto",
+            "sellerName",
+            "typerName",
+            "product",
+            "operationType",
             "agentId",
             "Blueprint.Current_Stage",
-            "Metadata_Cancelado",
           ].join(","),
         });
 
@@ -370,6 +372,11 @@ class ZohoService {
         .map((raw) => this.transformarContrato(raw))
         .filter((c): c is ZohoContrato => c !== null);
 
+      if (allData.length === 0) {
+        console.warn(
+          `[ZohoService] Nenhum contrato retornado pelo Zoho (raw=0). Verifique se há dados no intervalo e se o token tem escopo correto.`
+        );
+      }
       console.log(
         `[ZohoService] ✓ ${contratosTransformados.length} contratos encontrados em ${pageCount} páginas (${allData.length} raw)`
       );

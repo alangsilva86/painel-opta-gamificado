@@ -132,7 +132,7 @@ O painel consome dados diretamente da API do Zoho Creator. Para configurar:
    - `Vendedor` (lookup)
    - `Produto` (lookup)
    - `Corban` (lookup)
-   - `Metadata_Cancelado`
+   - `Blueprint.Current_Stage` (para identificar cancelados/estágios inválidos)
 
 ### Modo Demonstração
 
