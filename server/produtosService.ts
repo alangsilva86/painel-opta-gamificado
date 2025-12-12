@@ -1,4 +1,5 @@
 import { zohoService } from "./zohoService";
+import { filtrarContratosZohoValidos } from "./contractUtils";
 
 export interface ProdutoStats {
   nome: string;
@@ -28,10 +29,12 @@ function getIntervaloMes(mes: string) {
  */
 export async function analisarProdutos(mes: string) {
   const { inicio, fim } = getIntervaloMes(mes);
-  const contratos = await zohoService.buscarContratos({
-    mesInicio: inicio,
-    mesFim: fim,
-  });
+  const contratos = filtrarContratosZohoValidos(
+    await zohoService.buscarContratos({
+      mesInicio: inicio,
+      mesFim: fim,
+    })
+  );
 
   const produtosMap = new Map<string, { contratos: number; comissao: number }>();
   let totalComissaoGeral = 0;
@@ -54,7 +57,7 @@ export async function analisarProdutos(mes: string) {
       nome,
       totalContratos: dados.contratos,
       totalComissao: dados.comissao,
-      comissaoMedia: dados.comissao / dados.contratos,
+      comissaoMedia: dados.contratos > 0 ? dados.comissao / dados.contratos : 0,
       percentualTotal: totalComissaoGeral > 0 ? (dados.comissao / totalComissaoGeral) * 100 : 0,
     }))
     .sort((a, b) => b.totalComissao - a.totalComissao);
@@ -71,10 +74,12 @@ export async function analisarProdutos(mes: string) {
  */
 export async function analisarPipeline(mes: string) {
   const { inicio, fim } = getIntervaloMes(mes);
-  const contratos = await zohoService.buscarContratos({
-    mesInicio: inicio,
-    mesFim: fim,
-  });
+  const contratos = filtrarContratosZohoValidos(
+    await zohoService.buscarContratos({
+      mesInicio: inicio,
+      mesFim: fim,
+    })
+  );
 
   const pipelineMap = new Map<string, { contratos: number; valor: number }>();
   let totalValorPipeline = 0;

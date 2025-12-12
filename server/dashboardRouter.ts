@@ -37,6 +37,7 @@ import {
   calcularDiasUteisDoMes,
   calcularSemanasUteisDoMes,
 } from "./metasService";
+import { filtrarContratosProcessadosValidos, filtrarContratosZohoValidos } from "./contractUtils";
 
 function getIntervaloDoMes(mes: string) {
   const [ano, mesNum] = mes.split("-").map(Number);
@@ -65,26 +66,15 @@ export const dashboardRouter = router({
         console.log("[dashboardRouter] Usando dados mock (Zoho não disponível)");
         contratosZoho = gerarContratosMock();
       } else {
-        contratosZoho = await zohoService.buscarContratosMesAtual();
+        contratosZoho = filtrarContratosZohoValidos(await zohoService.buscarContratosMesAtual());
       }
 
       // Sincroniza vendedoras do Zoho para o banco
       await sincronizarVendedorasDoZoho(contratosZoho);
 
-      // Processa contratos
+      // Processa contratos e aplica filtro de estágios válidos
       const contratosProcessados = processarContratos(contratosZoho);
-
-      // Filtro defensivo: remove estágios que não contam para produção/realizado
-      const estagiosInvalidos = new Set([
-        "Cancelado",
-        "Não Contratado",
-        "Comercial",
-        "Em Digitação",
-      ]);
-      const contratosValidos = contratosProcessados.filter(
-        (c) => !estagiosInvalidos.has(c.estagio)
-      );
-      const contratosParaExibicao = contratosValidos;
+      const contratosParaExibicao = filtrarContratosProcessadosValidos(contratosProcessados);
 
       // Busca metas do banco
       const metasVendedorDb = await listarMetasVendedorPorMes(mesAtual);
@@ -247,17 +237,12 @@ export const dashboardRouter = router({
       if (shouldUseMockData()) {
         contratosZoho = gerarContratosMock();
       } else {
-        contratosZoho = await zohoService.buscarContratos({ mesInicio: inicio, mesFim: fim });
+        contratosZoho = filtrarContratosZohoValidos(
+          await zohoService.buscarContratos({ mesInicio: inicio, mesFim: fim })
+        );
       }
 
-      let contratosProcessados = processarContratos(contratosZoho);
-      const estagiosInvalidos = new Set([
-        "Cancelado",
-        "Não Contratado",
-        "Comercial",
-        "Em Digitação",
-      ]);
-      contratosProcessados = contratosProcessados.filter((c) => !estagiosInvalidos.has(c.estagio));
+      let contratosProcessados = filtrarContratosProcessadosValidos(processarContratos(contratosZoho));
 
       if (input?.vendedoraId) {
         contratosProcessados = contratosProcessados.filter(
@@ -318,21 +303,13 @@ export const dashboardRouter = router({
         const diasUteis = calcularDiasUteisDoMes(mesAtual);
         const semanasPlanejadas = calcularSemanasUteisDoMes(mesAtual);
 
-        let contratosZoho;
-        if (shouldUseMockData()) {
-          contratosZoho = gerarContratosMock();
-        } else {
-          contratosZoho = await zohoService.buscarContratosMesAtual();
-        }
-        const estagiosInvalidos = new Set([
-          "Cancelado",
-          "Não Contratado",
-          "Comercial",
-          "Em Digitação",
-        ]);
-        const contratosProcessados = processarContratos(contratosZoho).filter(
-          (c) => !estagiosInvalidos.has(c.estagio)
-        );
+      let contratosZoho;
+      if (shouldUseMockData()) {
+        contratosZoho = gerarContratosMock();
+      } else {
+        contratosZoho = filtrarContratosZohoValidos(await zohoService.buscarContratosMesAtual());
+      }
+        const contratosProcessados = filtrarContratosProcessadosValidos(processarContratos(contratosZoho));
 
         const metasDiarias = await obterMetasDiarias(mesAtual, input.id);
         const metasSemanais = await obterMetasSemanais(mesAtual, input.id);
