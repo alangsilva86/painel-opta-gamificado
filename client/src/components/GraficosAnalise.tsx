@@ -74,7 +74,7 @@ export function GraficosAnalise({ produtos, pipeline, totalComissao, totalValorP
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Comissão Total</p>
+                <p className="text-sm text-muted-foreground">Incentivo Total</p>
                 <p className="text-2xl font-bold">{formatCurrency(totalComissao)}</p>
               </div>
               <TrendingUp className="h-8 w-8 text-blue-500 opacity-50" />
@@ -128,7 +128,7 @@ export function GraficosAnalise({ produtos, pipeline, totalComissao, totalValorP
                     formatter={(value: any) => formatCurrency(value)}
                     contentStyle={{ backgroundColor: "#1a1a1a", border: "1px solid #333" }}
                   />
-                  <Bar dataKey="comissao" fill="#3b82f6" name="Comissão" />
+                  <Bar dataKey="comissao" fill="#3b82f6" name="Incentivo" />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -188,8 +188,8 @@ export function GraficosAnalise({ produtos, pipeline, totalComissao, totalValorP
                 <tr className="border-b border-border">
                   <th className="text-left py-2 px-4 font-semibold">Produto</th>
                   <th className="text-right py-2 px-4 font-semibold">Contratos</th>
-                  <th className="text-right py-2 px-4 font-semibold">Comissão Total</th>
-                  <th className="text-right py-2 px-4 font-semibold">Comissão Média</th>
+                  <th className="text-right py-2 px-4 font-semibold">Incentivo Total</th>
+                  <th className="text-right py-2 px-4 font-semibold">Incentivo Médio</th>
                   <th className="text-right py-2 px-4 font-semibold">% Total</th>
                 </tr>
               </thead>

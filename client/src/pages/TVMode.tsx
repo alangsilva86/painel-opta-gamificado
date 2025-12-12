@@ -202,12 +202,12 @@ export default function TVMode() {
                         {formatCurrency(vendedora.realizado)}
                       </div>
                     </div>
-                    <div>
-                      <div className="text-sm text-muted-foreground">Comissão</div>
-                      <div className="text-xl font-bold text-green-400">
-                        {formatCurrency(vendedora.comissaoPrevista)}
-                      </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">Incentivo</div>
+                    <div className="text-xl font-bold text-green-400">
+                      {formatCurrency(vendedora.comissaoPrevista)}
                     </div>
+                  </div>
                   </div>
 
                   <div className="flex items-center justify-between">

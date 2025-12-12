@@ -27,8 +27,10 @@ export interface ContratoProcessado {
 export interface VendedoraStats {
   id: string;
   nome: string;
-  realizado: number; // Soma do valor líquido (volume)
-  baseComissionavelTotal: number; // Soma da base comissionável para cálculos de comissão
+  realizado: number; // Soma do valor líquido (volume de contratos pagos)
+  baseComissionavelTotal: number; // Soma da base comissionável (o que vai para comissão)
+  contratosSemComissao: number;
+  contratosComComissao: number;
   meta: number;
   percentualMeta: number;
   tier: string;
@@ -163,6 +165,8 @@ export function agregarPorVendedora(
         nome: vendedora,
         realizado: 0,
         baseComissionavelTotal: 0,
+        contratosSemComissao: 0,
+        contratosComComissao: 0,
         meta: metasMap.get(vendedoraId) || 0,
         percentualMeta: 0,
         tier: "Bronze",
@@ -178,8 +182,15 @@ export function agregarPorVendedora(
     }
 
     const stats = vendedorasMap.get(vendedoraId)!;
+    // Realizado = volume (valor líquido) dos contratos pagos
     stats.realizado += contrato.valorLiquido;
+    // Base comissionável separada para cálculos de comissão
     stats.baseComissionavelTotal += contrato.baseComissionavel;
+    if (contrato.baseComissionavel > 0) {
+      stats.contratosComComissao += 1;
+    } else {
+      stats.contratosSemComissao += 1;
+    }
     stats.contratos.push(contrato);
   });
 
@@ -192,7 +203,7 @@ export function agregarPorVendedora(
     v.tierNumero = TIERS.indexOf(tier);
     v.multiplicador = tier.multiplicador;
 
-    // Comissão base (sem acelerador) agora usa a base comissionável calculada
+    // Comissão base (sem acelerador) usa a base comissionável (não o volume)
     v.comissaoBase = v.baseComissionavelTotal * v.multiplicador;
 
     // Escada de progressão (para tooltips de próximo nível)

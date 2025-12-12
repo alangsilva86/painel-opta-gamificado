@@ -75,6 +75,12 @@ export const dashboardRouter = router({
       // Processa contratos e aplica filtro de estágios válidos
       const contratosProcessados = processarContratos(contratosZoho);
       const contratosParaExibicao = filtrarContratosProcessadosValidos(contratosProcessados);
+      const contratosSemComissao = contratosParaExibicao.filter((c) => c.baseComissionavel === 0).length;
+      const contratosComComissao = contratosParaExibicao.length - contratosSemComissao;
+      const percentualContratosSemComissao =
+        contratosParaExibicao.length > 0
+          ? (contratosSemComissao / contratosParaExibicao.length) * 100
+          : 0;
       console.log(
         `[dashboardRouter] Contratos brutos: ${contratosZoho.length} | válidos para exibição: ${contratosParaExibicao.length}`
       );
@@ -208,6 +214,9 @@ export const dashboardRouter = router({
         ultimaAtualizacao: new Date().toISOString(),
         produtos,
         totalComissao,
+        contratosSemComissao,
+        contratosComComissao,
+        percentualContratosSemComissao,
         pipeline: pipelineComPercentual,
         totalValorPipeline,
         valorEmLiberacao,

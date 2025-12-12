@@ -116,7 +116,7 @@ export default function TierBadge({ tier, size = "md", showLabel = true, animate
             {config.emoji} {config.name}
           </span>
           <span className="text-xs text-muted-foreground">
-            {config.multiplicador === 0 ? "Sem comissão" : `${config.multiplicador.toFixed(1)}x`}
+            {config.multiplicador === 0 ? "Sem incentivo" : `${config.multiplicador.toFixed(1)}x`}
           </span>
         </div>
       )}

@@ -1,16 +1,23 @@
 import { ZohoContrato } from "./zohoService";
 
-// Estágios que não devem ser considerados para produção/realizado
-export const ESTAGIOS_INVALIDOS = new Set([
-  "Cancelado",
-  "Não Contratado",
-  "Comercial",
-  "Em Digitação",
+// Estágios que contam para comissão (contratos com pagamento efetuado)
+const ESTAGIOS_VALIDOS = new Set([
+  "financeiro",
+  "aguardando comissao",
+  "dossie",
+  "comissao paga",
 ]);
 
+function normalizarEstagio(estagio: string): string {
+  return estagio
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+}
+
 export function contratoTemEstagioValido(estagio?: string): boolean {
-  if (!estagio) return true;
-  return !ESTAGIOS_INVALIDOS.has(estagio);
+  if (!estagio) return true; // mantém contratos sem estágio explícito
+  return ESTAGIOS_VALIDOS.has(normalizarEstagio(estagio));
 }
 
 /**

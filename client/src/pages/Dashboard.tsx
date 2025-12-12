@@ -304,6 +304,13 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground mt-1">
                   {data.vendedoras.length} vendedoras ativas
                 </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Sem incentivo: {data.contratosSemComissao} (
+                  {data.percentualContratosSemComissao.toFixed(1)}%)
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Com incentivo: {data.contratosComComissao}
+                </p>
               </CardContent>
             </Card>
           </motion.div>
@@ -354,7 +361,7 @@ export default function Dashboard() {
             </Card>
             <Card>
               <CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Valor em liberação (fora da comissão)</p>
+                <p className="text-xs text-muted-foreground">Valor em liberação (fora do incentivo)</p>
                 <p className="text-xl font-bold">{formatCurrency(data.valorEmLiberacao || 0)}</p>
               </CardContent>
             </Card>

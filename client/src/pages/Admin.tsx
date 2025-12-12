@@ -384,11 +384,11 @@ export default function Admin() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
                     <p className="font-medium text-blue-400">Meta Global</p>
-                    <p className="text-muted-foreground">Se atingir 100%, todas as vendedoras com ≥75% de meta individual ganham +25% na comissão</p>
+                    <p className="text-muted-foreground">Se atingir 100%, todas as vendedoras com ≥75% de meta individual ganham +25% no incentivo</p>
                   </div>
                   <div>
                     <p className="font-medium text-purple-400">Super Meta Global</p>
-                    <p className="text-muted-foreground">Se atingir 100%, todas as vendedoras com ≥75% de meta individual ganham +50% na comissão (cumulativo)</p>
+                    <p className="text-muted-foreground">Se atingir 100%, todas as vendedoras com ≥75% de meta individual ganham +50% no incentivo (cumulativo)</p>
                   </div>
                 </div>
               </CardContent>

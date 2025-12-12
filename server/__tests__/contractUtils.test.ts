@@ -9,6 +9,8 @@ describe("contractUtils - filtros de estágio", () => {
   it("deve aceitar estágios válidos", () => {
     expect(contratoTemEstagioValido("Financeiro")).toBe(true);
     expect(contratoTemEstagioValido("Comissão Paga")).toBe(true);
+    expect(contratoTemEstagioValido("Aguardando Comissão")).toBe(true);
+    expect(contratoTemEstagioValido("Dossie")).toBe(true);
     expect(contratoTemEstagioValido(undefined)).toBe(true);
   });
 
@@ -24,10 +26,18 @@ describe("contractUtils - filtros de estágio", () => {
       { estagio: "Cancelado" },
       { estagio: "Comercial" },
       { estagio: "Comissão Paga" },
+      { estagio: "Aguardando Comissão" },
     ];
     const saida = filtrarContratosProcessadosValidos(entrada);
-    expect(saida).toHaveLength(2);
-    expect(saida.every((c) => c.estagio === "Financeiro" || c.estagio === "Comissão Paga")).toBe(true);
+    expect(saida).toHaveLength(3);
+    expect(
+      saida.every(
+        (c) =>
+          c.estagio === "Financeiro" ||
+          c.estagio === "Comissão Paga" ||
+          c.estagio === "Aguardando Comissão"
+      )
+    ).toBe(true);
   });
 
   it("filtra contratos Zoho inválidos", () => {
@@ -35,10 +45,18 @@ describe("contractUtils - filtros de estágio", () => {
       { Estagio: { display_value: "Financeiro" } },
       { Estagio: { display_value: "Cancelado" } },
       { Estagio: { display_value: "Comercial" } },
-      { Estagio: { display_value: "Aguardando Averbação" } },
+      { Estagio: { display_value: "Dossie" } },
+      { Estagio: { display_value: "Comissão Paga" } },
     ] as any;
     const saida = filtrarContratosZohoValidos(entrada);
-    expect(saida).toHaveLength(2);
-    expect(saida.every((c) => c.Estagio.display_value !== "Cancelado" && c.Estagio.display_value !== "Comercial")).toBe(true);
+    expect(saida).toHaveLength(3);
+    expect(
+      saida.every(
+        (c) =>
+          c.Estagio.display_value === "Financeiro" ||
+          c.Estagio.display_value === "Dossie" ||
+          c.Estagio.display_value === "Comissão Paga"
+      )
+    ).toBe(true);
   });
 });

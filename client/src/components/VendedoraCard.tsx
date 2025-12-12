@@ -16,6 +16,7 @@ interface VendedoraCardProps {
     tier: string;
     comissaoPrevista: number;
     contratos: any[];
+    contratosSemComissao: number;
     badges: string[];
     metaDiariaPlanejada?: number;
     metaSemanalPlanejada?: number;
@@ -109,7 +110,7 @@ export function VendedoraCard({ vendedora, rank, onClick }: VendedoraCardProps) 
               </div>
 
               {/* Stats */}
-              <div className="grid grid-cols-2 gap-3 mt-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
                 <div>
                   <div className="text-xs text-muted-foreground">Realizado</div>
                   <div className="text-sm font-semibold">
@@ -125,7 +126,7 @@ export function VendedoraCard({ vendedora, rank, onClick }: VendedoraCardProps) 
                 <div>
                   <div className="text-xs text-muted-foreground flex items-center gap-1">
                     <DollarSign size={12} />
-                    Comissão {vendedora.aceleradorAplicado ? "(+acel.)" : ""}
+                    Incentivo {vendedora.aceleradorAplicado ? "(+acel.)" : ""}
                   </div>
                   <div className="text-sm font-semibold text-green-400">
                     {formatCurrency(vendedora.comissaoPrevista)}
@@ -138,6 +139,12 @@ export function VendedoraCard({ vendedora, rank, onClick }: VendedoraCardProps) 
                   </div>
                   <div className="text-sm font-semibold">
                     {vendedora.contratos.length}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Sem incentivo</div>
+                  <div className="text-sm font-semibold">
+                    {vendedora.contratosSemComissao}
                   </div>
                 </div>
               </div>
