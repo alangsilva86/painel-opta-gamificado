@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 interface AudioContextValue {
   muted: boolean;
@@ -36,7 +36,7 @@ function playToneSequence(
 
     oscillator.type = "sine";
     oscillator.frequency.value = tone.frequency;
-    gain.gain.value = 0.06;
+    gain.gain.value = 0.15; // volume um pouco mais alto
 
     oscillator.connect(gain);
     gain.connect(ctx.destination);
@@ -59,39 +59,48 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const toggleMute = useCallback(() => {
     setMuted((prev) => {
       localStorage.setItem("audio-muted", (!prev).toString());
+      console.log("[Audio] toggleMute ->", !prev);
       return !prev;
     });
   }, []);
 
   const playSale = useCallback(() => {
+    console.log("[Audio] playSale (muted=", muted, ")");
     playToneSequence(audioRef, muted, [
-      { frequency: 880, duration: 0.08 },
-      { frequency: 660, duration: 0.06, delay: 0.02 },
-      { frequency: 1040, duration: 0.1, delay: 0.03 },
+      { frequency: 880, duration: 0.14 },
+      { frequency: 660, duration: 0.12, delay: 0.03 },
+      { frequency: 1040, duration: 0.16, delay: 0.05 },
+      { frequency: 1320, duration: 0.18, delay: 0.08 }, // final mais festivo
     ]);
   }, [muted]);
 
   const playMeta = useCallback(() => {
+    console.log("[Audio] playMeta (muted=", muted, ")");
     playToneSequence(audioRef, muted, [
-      { frequency: 600, duration: 0.08 },
-      { frequency: 900, duration: 0.1, delay: 0.02 },
-      { frequency: 1200, duration: 0.16, delay: 0.04 },
+      { frequency: 600, duration: 0.12 },
+      { frequency: 900, duration: 0.14, delay: 0.03 },
+      { frequency: 1200, duration: 0.18, delay: 0.05 },
+      { frequency: 1500, duration: 0.2, delay: 0.08 },
     ]);
   }, [muted]);
 
   const playSuperMeta = useCallback(() => {
+    console.log("[Audio] playSuperMeta (muted=", muted, ")");
     playToneSequence(audioRef, muted, [
-      { frequency: 500, duration: 0.1 },
-      { frequency: 900, duration: 0.12, delay: 0.04 },
-      { frequency: 1400, duration: 0.18, delay: 0.08 },
-      { frequency: 1800, duration: 0.12, delay: 0.1 },
+      { frequency: 500, duration: 0.14 },
+      { frequency: 900, duration: 0.16, delay: 0.05 },
+      { frequency: 1400, duration: 0.22, delay: 0.1 },
+      { frequency: 1800, duration: 0.18, delay: 0.12 },
+      { frequency: 2000, duration: 0.22, delay: 0.15 }, // auge
     ]);
   }, [muted]);
 
   const playBadge = useCallback(() => {
+    console.log("[Audio] playBadge (muted=", muted, ")");
     playToneSequence(audioRef, muted, [
-      { frequency: 750, duration: 0.08 },
-      { frequency: 950, duration: 0.08, delay: 0.04 },
+      { frequency: 750, duration: 0.12 },
+      { frequency: 950, duration: 0.14, delay: 0.05 },
+      { frequency: 1150, duration: 0.14, delay: 0.08 },
     ]);
   }, [muted]);
 
@@ -106,6 +115,15 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }),
     [muted, toggleMute, playBadge, playMeta, playSale, playSuperMeta]
   );
+
+  // Expor no window para facilitar testes manuais (console)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    (window as any).__appAudio = value;
+    return () => {
+      delete (window as any).__appAudio;
+    };
+  }, [value]);
 
   return <AudioContextReact.Provider value={value}>{children}</AudioContextReact.Provider>;
 }
