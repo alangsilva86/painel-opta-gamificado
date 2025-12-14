@@ -5,7 +5,7 @@ interface ZohoTokenResponse {
   token_type: string;
 }
 
-interface ZohoContratoRaw {
+export interface ZohoContratoRaw {
   ID: string;
   contractNumber?: string;
   paymentDate?: string; // dd/mm/yyyy
@@ -282,11 +282,11 @@ class ZohoService {
   /**
    * Busca contratos do Zoho Creator
    */
-  async buscarContratos(params: {
+  async buscarContratosRaw(params: {
     mesInicio: string; // yyyy-mm-dd
     mesFim: string; // yyyy-mm-dd
     maxRecords?: 200 | 500 | 1000;
-  }): Promise<ZohoContrato[]> {
+  }): Promise<ZohoContratoRaw[]> {
     const token = await this.getAccessToken();
     const { mesInicio, mesFim, maxRecords = 1000 } = params;
 
@@ -362,15 +362,15 @@ class ZohoService {
         if (data.data && data.data.length > 0) {
           allData = allData.concat(data.data);
           console.log(`[ZohoService] Página ${pageCount}: ${data.data.length} registros`);
+          if (!data.record_cursor && data.data.length >= maxRecords) {
+            console.warn(
+              `[ZohoService] ALERTA: record_cursor ausente em cenário paginado (page=${pageCount}, batch=${data.data.length}, max_records=${maxRecords})`
+            );
+          }
         }
 
         cursor = data.record_cursor;
       } while (cursor);
-
-      // Transforma contratos
-      const contratosTransformados = allData
-        .map((raw) => this.transformarContrato(raw))
-        .filter((c): c is ZohoContrato => c !== null);
 
       if (allData.length === 0) {
         console.warn(
@@ -378,13 +378,34 @@ class ZohoService {
         );
       }
       console.log(
-        `[ZohoService] ✓ ${contratosTransformados.length} contratos encontrados em ${pageCount} páginas (${allData.length} raw)`
+        `[ZohoService] ✓ ${allData.length} contratos brutos encontrados em ${pageCount} páginas`
       );
-      return contratosTransformados;
+      return allData;
     } catch (error: any) {
       console.error("[ZohoService] Erro ao buscar contratos:", error.message);
       throw new Error("Falha ao buscar contratos do Zoho Creator");
     }
+  }
+
+  /**
+   * Busca contratos do Zoho Creator (formato usado no painel atual)
+   */
+  async buscarContratos(params: {
+    mesInicio: string; // yyyy-mm-dd
+    mesFim: string; // yyyy-mm-dd
+    maxRecords?: 200 | 500 | 1000;
+  }): Promise<ZohoContrato[]> {
+    const allData = await this.buscarContratosRaw(params);
+
+    // Transforma contratos
+    const contratosTransformados = allData
+      .map((raw) => this.transformarContrato(raw))
+      .filter((c): c is ZohoContrato => c !== null);
+
+    console.log(
+      `[ZohoService] ✓ ${contratosTransformados.length} contratos transformados (${allData.length} raw)`
+    );
+    return contratosTransformados;
   }
 
   /**

@@ -36,6 +36,13 @@
       "when": 1765468080260,
       "tag": "0004_burly_cloak",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1765743809546,
+      "tag": "0005_dapper_emma_frost",
+      "breakpoints": true
     }
   ]
 }

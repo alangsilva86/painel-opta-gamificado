@@ -8,6 +8,7 @@ import { AudioProvider } from "./contexts/AudioContext";
 import Dashboard from "./pages/Dashboard";
 import TVMode from "./pages/TVMode";
 import Admin from "./pages/Admin";
+import Gestao from "./pages/Gestao";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -16,6 +17,7 @@ function Router() {
       <Route path={"/"} component={Dashboard} />
       <Route path={"/tv"} component={TVMode} />
       <Route path={"/admin"} component={Admin} />
+      <Route path={"/gestao"} component={Gestao} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

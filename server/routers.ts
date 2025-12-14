@@ -3,6 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { dashboardRouter, adminRouter } from "./dashboardRouter";
+import { gestaoRouter } from "./gestao/gestaoRouter";
 
 export const appRouter = router({
   system: systemRouter,
@@ -20,6 +21,7 @@ export const appRouter = router({
 
   dashboard: dashboardRouter,
   admin: adminRouter,
+  gestao: gestaoRouter,
 });
 
 export type AppRouter = typeof appRouter;
