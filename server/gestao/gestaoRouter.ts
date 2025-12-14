@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from "crypto";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { z } from "zod";
-import { contratos, gestaoMetas, metasGlobal } from "../../drizzle/schema";
+import { contratos, gestaoMetas, gestaoSyncLogs, metasGlobal } from "../../drizzle/schema";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { publicProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";

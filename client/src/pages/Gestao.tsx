@@ -70,10 +70,12 @@ export default function Gestao() {
     etapaPipeline: string[];
     vendedorNome: string[];
     produto: string[];
+    tipoOperacao: string[];
   }>({
     etapaPipeline: [],
     vendedorNome: [],
     produto: [],
+    tipoOperacao: [],
   });
   const [flagFilters, setFlagFilters] = useState({
     comissaoCalculada: false,
@@ -95,11 +97,6 @@ export default function Gestao() {
   const resumoQuery = trpc.gestao.getResumo.useQuery(filters, {
     enabled: authed,
     retry: false,
-    onError(error) {
-      if (error.message.includes("Acesso Gestão não autorizado")) {
-        setAuthed(false);
-      }
-    },
   });
 
   const drilldownQuery = trpc.gestao.getDrilldown.useQuery(
@@ -116,11 +113,6 @@ export default function Gestao() {
     {
       enabled: authed,
       retry: false,
-      onError(error) {
-        if (error.message.includes("Acesso Gestão não autorizado")) {
-          setAuthed(false);
-        }
-      },
     }
   );
 
@@ -175,6 +167,12 @@ export default function Gestao() {
 
   const currencyTick = (v: number) => formatCurrency(v);
   const percentTick = (v: number) => `${(v * 100).toFixed(0)}%`;
+  const shortLabel = (label: string, max = 12) => (label.length > max ? `${label.slice(0, max)}…` : label);
+  const formatDateTick = (value: string) => {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  };
 
   const handleStageClick = (etapa: string) =>
     applyFilter({
@@ -186,7 +184,7 @@ export default function Gestao() {
     });
   const handleOperationClick = (tipoOperacao: string) =>
     applyFilter({
-      tipoOperacao: filterState.tipoOperacao?.includes(tipoOperacao)
+      tipoOperacao: filterState.tipoOperacao.includes(tipoOperacao)
         ? filterState.tipoOperacao
         : [tipoOperacao],
     });
@@ -198,13 +196,10 @@ export default function Gestao() {
   const scatterTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null;
     const p = payload[0].payload;
-    return (
-      <div className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white shadow">
-        <div className="font-semibold">{p.produto}</div>
-        <div>Ticket: {formatCurrency(p.ticket)}</div>
-        <div>Comissão média: {formatPercent(p.takeRate)}</div>
-      </div>
-    );
+    return tooltipBox(p.produto, [
+      { label: "Ticket", value: formatCurrency(p.ticket) },
+      { label: "Comissão média", value: formatPercent(p.takeRate) },
+    ]);
   };
 
   const handleSort = (col: typeof sortBy) => {
@@ -220,6 +215,70 @@ export default function Gestao() {
   const sortLabel = (col: typeof sortBy) => {
     if (sortBy !== col) return "↕";
     return sortDir === "asc" ? "↑" : "↓";
+  };
+
+  const renderEmptyChart = (message: string) => (
+    <div className="flex h-full items-center justify-center text-sm text-slate-300">
+      <div className="text-center space-y-1">
+        <div>{message}</div>
+        <Button variant="ghost" size="sm" onClick={clearFilters}>
+          Limpar filtros
+        </Button>
+      </div>
+    </div>
+  );
+
+  const tooltipBox = (title: string | undefined, rows: Array<{ label: string; value: string; emphasis?: boolean }>) => (
+    <div className="rounded-xl border border-slate-700 bg-slate-800/95 px-3 py-2 text-xs text-white shadow-md space-y-1">
+      {title && <div className="font-semibold">{title}</div>}
+      {rows.map((r) => (
+        <div key={r.label} className={r.emphasis ? "font-semibold" : ""}>
+          {r.label}: {r.value}
+        </div>
+      ))}
+    </div>
+  );
+
+  const [seriesVisibility, setSeriesVisibility] = useState<{ comissao: boolean; liquido: boolean }>({
+    comissao: true,
+    liquido: true,
+  });
+
+  const handleLegendToggle = (dataKey?: string) => {
+    if (!dataKey) return;
+    if (dataKey === "comissao" || dataKey === "liquido") {
+      setSeriesVisibility((prev) => ({ ...prev, [dataKey]: !prev[dataKey as "comissao" | "liquido"] }));
+    }
+  };
+
+  const dualLineTooltip = ({ label, payload }: any) => {
+    if (!payload || payload.length === 0) return null;
+    const date = label ? formatDateTick(label) : "";
+    const item = payload[0]?.payload;
+    return tooltipBox(date, [
+      ...(seriesVisibility.comissao
+        ? [{ label: "Comissão", value: formatCurrency(item?.comissao ?? 0), emphasis: true }]
+        : []),
+      ...(seriesVisibility.liquido
+        ? [{ label: "Líquido", value: formatCurrency(item?.liquido ?? 0) }]
+        : []),
+    ]);
+  };
+
+  const dualBarTooltip = ({ label, payload }: any) => {
+    if (!payload || payload.length === 0) return null;
+    const item = payload[0]?.payload;
+    const takeRateVal = item?.liquido > 0 ? item.comissao / item.liquido : 0;
+    return tooltipBox(label, [
+      ...(seriesVisibility.comissao
+        ? [{ label: "Comissão", value: formatCurrency(item?.comissao ?? 0), emphasis: true }]
+        : []),
+      ...(seriesVisibility.liquido
+        ? [{ label: "Líquido", value: formatCurrency(item?.liquido ?? 0) }]
+        : []),
+      ...(item?.count !== undefined ? [{ label: "Contratos", value: String(item.count) }] : []),
+      { label: "Comissão média", value: formatPercent(takeRateVal) },
+    ]);
   };
 
   const [metaInput, setMetaInput] = useState("");
@@ -252,6 +311,7 @@ export default function Gestao() {
       etapaPipeline: [],
       vendedorNome: [],
       produto: [],
+      tipoOperacao: [],
     });
 
   if (!authed) {
@@ -274,9 +334,9 @@ export default function Gestao() {
             <Button
               className="w-full"
               onClick={() => authMutation.mutate({ password })}
-              disabled={authMutation.isLoading || !password}
+              disabled={authMutation.isPending || !password}
             >
-              {authMutation.isLoading ? "Validando..." : "Entrar"}
+              {authMutation.isPending ? "Validando..." : "Entrar"}
             </Button>
             {authMutation.error && (
               <p className="text-sm text-red-400">Erro: {authMutation.error.message}</p>
@@ -396,6 +456,18 @@ export default function Gestao() {
               Produto: {v} ✕
             </Badge>
           ))}
+          {filterState.tipoOperacao.map((v) => (
+            <Badge
+              key={`tipo-${v}`}
+              variant="outline"
+              className="border-slate-700 cursor-pointer"
+              onClick={() =>
+                applyFilter({ tipoOperacao: filterState.tipoOperacao.filter((i) => i !== v) })
+              }
+            >
+              Tipo: {v} ✕
+            </Badge>
+          ))}
         </div>
       )}
 
@@ -474,9 +546,9 @@ export default function Gestao() {
                           }
                           setMetaMutation.mutate({ mes: dateFrom.slice(0, 7), valor: val });
                         }}
-                        disabled={setMetaMutation.isLoading}
+                        disabled={setMetaMutation.isPending}
                       >
-                        {setMetaMutation.isLoading ? "Salvando..." : "Salvar"}
+                        {setMetaMutation.isPending ? "Salvando..." : "Salvar"}
                       </Button>
                     </div>
                   }
@@ -657,24 +729,38 @@ export default function Gestao() {
           {/* Saúde e Pace */}
           {mode === "operacao" && (
             <div className="grid gap-4 lg:grid-cols-2">
-            <Card className="bg-slate-950 border-slate-800">
-              <CardHeader>
-                <CardTitle>Série temporal (Comissão x Líquido)</CardTitle>
-              </CardHeader>
-              <CardContent className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={resumoQuery.data.timeseries}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                    <XAxis dataKey="date" stroke="#9ca3af" />
-                    <YAxis stroke="#9ca3af" tickFormatter={currencyTick} />
-                    <Tooltip
-                      formatter={(val: any, name: string) =>
-                        name === "Comissão" || name === "Líquido" ? formatCurrency(Number(val)) : val
-                      }
-                    />
-                    <Legend />
-                    <Line type="monotone" dataKey="comissao" name="Comissão" stroke="#22c55e" dot={false} />
-                    <Line type="monotone" dataKey="liquido" name="Líquido" stroke="#3b82f6" dot={false} />
+              <Card className="bg-slate-950 border-slate-800">
+                <CardHeader>
+                  <CardTitle>Série temporal (Comissão x Líquido)</CardTitle>
+                </CardHeader>
+                <CardContent className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={resumoQuery.data.timeseries}>
+                      <CartesianGrid strokeDasharray="2 4" stroke="#1f2937" />
+                      <XAxis dataKey="date" stroke="#9ca3af" tickFormatter={formatDateTick} />
+                      <YAxis stroke="#9ca3af" tickFormatter={currencyTick} />
+                      <Tooltip content={dualLineTooltip} />
+                      <Legend onClick={(o) => handleLegendToggle((o as any).dataKey)} />
+                      <Line
+                        type="monotone"
+                        dataKey="comissao"
+                        name="Comissão"
+                        stroke="#22c55e"
+                        dot={false}
+                        strokeWidth={2}
+                        hide={!seriesVisibility.comissao}
+                        activeDot={{ r: 4 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="liquido"
+                        name="Líquido"
+                        stroke="#3b82f6"
+                        dot={false}
+                        strokeWidth={2}
+                        hide={!seriesVisibility.liquido}
+                        activeDot={{ r: 4 }}
+                      />
                     {resumoQuery.data.cards.necessarioPorDia ? (
                       <ReferenceLine
                         y={resumoQuery.data.cards.necessarioPorDia}
@@ -694,15 +780,40 @@ export default function Gestao() {
                 </CardHeader>
                 <CardContent className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={resumoQuery.data.byStage}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                      <XAxis dataKey="etapa" stroke="#9ca3af" />
-                      <YAxis stroke="#9ca3af" tickFormatter={(v) => formatCurrency(v)} />
-                      <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
-                      <Legend />
-                      <Bar dataKey="comissao" name="Comissão" fill="#22c55e" onClick={(data) => handleStageClick((data as any).etapa)} />
-                      <Bar dataKey="liquido" name="Líquido" fill="#3b82f6" onClick={(data) => handleStageClick((data as any).etapa)} />
-                    </BarChart>
+                    {resumoQuery.data.byStage.length === 0
+                      ? renderEmptyChart("Sem dados de pipeline para este recorte.")
+                      : (
+                        <BarChart data={resumoQuery.data.byStage}>
+                          <CartesianGrid strokeDasharray="2 4" stroke="#1f2937" />
+                          <XAxis dataKey="etapa" stroke="#9ca3af" tickFormatter={(v) => shortLabel(v, 14)} />
+                          <YAxis stroke="#9ca3af" tickFormatter={(v) => formatCurrency(v)} />
+                    <Tooltip content={dualBarTooltip} />
+                    <Legend
+                      onClick={(o) => handleLegendToggle((o as any).dataKey)}
+                      formatter={(value) => (
+                        <span className="text-slate-200 text-xs">
+                          {value} · clique para esconder/mostrar
+                        </span>
+                      )}
+                    />
+                          <Bar
+                            dataKey="comissao"
+                            name="Comissão"
+                            fill="#22c55e"
+                            cursor="pointer"
+                            hide={!seriesVisibility.comissao}
+                            onClick={(data) => handleStageClick((data as any).etapa)}
+                          />
+                          <Bar
+                            dataKey="liquido"
+                            name="Líquido"
+                            fill="#3b82f6"
+                            cursor="pointer"
+                            hide={!seriesVisibility.liquido}
+                            onClick={(data) => handleStageClick((data as any).etapa)}
+                          />
+                        </BarChart>
+                      )}
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
@@ -727,18 +838,36 @@ export default function Gestao() {
                         return { ...item, cumulativo: total > 0 ? (cum / total) * 100 : 0 };
                       })}
                   >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                    <XAxis dataKey="vendedor" stroke="#9ca3af" />
+                    <CartesianGrid strokeDasharray="2 4" stroke="#1f2937" />
+                    <XAxis dataKey="vendedor" stroke="#9ca3af" tickFormatter={(v) => shortLabel(v, 12)} />
                     <YAxis yAxisId="left" stroke="#9ca3af" tickFormatter={(v) => formatCurrency(v)} />
-                    <YAxis yAxisId="right" orientation="right" stroke="#9ca3af" />
-                    <Tooltip formatter={(val: any, name: string) => (name === "Cumulativo %" ? `${val.toFixed(1)}%` : formatCurrency(Number(val)))} />
-                    <Legend />
+                    <YAxis yAxisId="right" orientation="right" stroke="#9ca3af" tickFormatter={(v) => `${v.toFixed(0)}%`} />
+                    <Tooltip
+                      content={({ payload }) => {
+                        if (!payload || payload.length === 0) return null;
+                        const item = payload[0]?.payload;
+                        return tooltipBox(item?.vendedor, [
+                          { label: "Comissão", value: formatCurrency(item?.comissao ?? 0), emphasis: true },
+                          { label: "Take rate", value: formatPercent(item?.takeRate ?? 0) },
+                          { label: "Cumulativo", value: `${(item?.cumulativo ?? 0).toFixed(1)}%` },
+                        ]);
+                      }}
+                    />
+                    <Legend
+                      onClick={(o) => handleLegendToggle((o as any).dataKey)}
+                      formatter={(value) => (
+                        <span className="text-slate-200 text-xs">
+                          {value} · clique para esconder/mostrar
+                        </span>
+                      )}
+                    />
                     <Bar
                       yAxisId="left"
                       dataKey="comissao"
                       name="Comissão"
                       fill="#22c55e"
                       onClick={(data) => handleSellerClick((data as any).vendedor)}
+                      cursor="pointer"
                     />
                     <Line
                       yAxisId="right"
@@ -747,6 +876,7 @@ export default function Gestao() {
                       name="Cumulativo %"
                       stroke="#f97316"
                       dot={false}
+                      strokeWidth={2}
                     />
                   </BarChart>
                 </ResponsiveContainer>
@@ -774,7 +904,7 @@ export default function Gestao() {
                       name="Comissão média"
                       stroke="#9ca3af"
                       tickFormatter={(v) => `${(v * 100).toFixed(1)}%`}
-                      domain={[0, "dataMax"]}
+                      domain={[0, (dataMax: number) => (dataMax ? dataMax * 1.1 : 0.05)]}
                     />
                     <Tooltip content={scatterTooltip} />
                     <Scatter
@@ -801,56 +931,101 @@ export default function Gestao() {
                 </CardHeader>
                 <CardContent className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={resumoQuery.data.byProduct}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                      <XAxis dataKey="produto" stroke="#9ca3af" />
-                      <YAxis stroke="#9ca3af" tickFormatter={(v) => formatCurrency(v)} />
-                      <Tooltip formatter={(val: any) => formatCurrency(Number(val))} />
-                      <Legend />
-                      <Bar
-                        dataKey="comissao"
-                        name="Comissão"
-                        fill="#22c55e"
-                        onClick={(data) => handleProductClick((data as any).produto)}
-                      />
-                      <Bar
-                        dataKey="liquido"
-                        name="Líquido"
-                        fill="#3b82f6"
-                        onClick={(data) => handleProductClick((data as any).produto)}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-              <Card className="bg-slate-950 border-slate-800">
-                <CardHeader>
+                  {resumoQuery.data.byProduct.length === 0
+                    ? renderEmptyChart("Sem dados de produto para este recorte.")
+                    : (
+                      <BarChart data={resumoQuery.data.byProduct}>
+                        <CartesianGrid strokeDasharray="2 4" stroke="#1f2937" />
+                        <XAxis dataKey="produto" stroke="#9ca3af" tickFormatter={(v) => shortLabel(v, 14)} />
+                        <YAxis stroke="#9ca3af" tickFormatter={(v) => formatCurrency(v)} />
+                        <Tooltip
+                          formatter={(val: any, name: string, props: any) => {
+                            const item = props?.payload;
+                            const pct = item?.liquido > 0 ? item.comissao / item.liquido : 0;
+                            return [
+                              formatCurrency(Number(val)),
+                              name === "Comissão"
+                                ? `Comissão (${item.count} contratos, take rate ${formatPercent(pct)})`
+                                : "Líquido",
+                            ];
+                          }}
+                        />
+                        <Legend
+                          onClick={(o) => handleLegendToggle((o as any).dataKey)}
+                          formatter={(value) => (
+                            <span className="text-slate-200 text-xs">
+                              {value} · clique para esconder/mostrar
+                            </span>
+                          )}
+                        />
+                        <Bar
+                          dataKey="comissao"
+                          name="Comissão"
+                          fill="#22c55e"
+                          cursor="pointer"
+                          hide={!seriesVisibility.comissao}
+                          onClick={(data) => handleProductClick((data as any).produto)}
+                        />
+                        <Bar
+                          dataKey="liquido"
+                          name="Líquido"
+                          fill="#3b82f6"
+                          cursor="pointer"
+                          hide={!seriesVisibility.liquido}
+                          onClick={(data) => handleProductClick((data as any).produto)}
+                        />
+                      </BarChart>
+                    )}
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+            <Card className="bg-slate-950 border-slate-800">
+              <CardHeader>
                   <CardTitle>Mix por Tipo de Operação</CardTitle>
                 </CardHeader>
                 <CardContent className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={resumoQuery.data.byOperationType}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                      <XAxis dataKey="tipoOperacao" stroke="#9ca3af" />
-                      <YAxis stroke="#9ca3af" tickFormatter={(v) => formatCurrency(v)} />
-                      <Tooltip formatter={(val: any) => formatCurrency(Number(val))} />
-                      <Legend />
-                      <Bar
-                        dataKey="comissao"
-                        name="Comissão"
-                        fill="#22c55e"
-                        onClick={(data) => handleOperationClick((data as any).tipoOperacao)}
-                      />
-                      <Bar
-                        dataKey="liquido"
-                        name="Líquido"
-                        fill="#3b82f6"
-                        onClick={(data) => handleOperationClick((data as any).tipoOperacao)}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
+                  {resumoQuery.data.byOperationType.length === 0
+                    ? renderEmptyChart("Sem dados de tipo de operação para este recorte.")
+                    : (
+                      <BarChart data={resumoQuery.data.byOperationType}>
+                        <CartesianGrid strokeDasharray="2 4" stroke="#1f2937" />
+                        <XAxis dataKey="tipoOperacao" stroke="#9ca3af" tickFormatter={(v) => shortLabel(v, 16)} />
+                        <YAxis stroke="#9ca3af" tickFormatter={(v) => formatCurrency(v)} />
+                        <Tooltip
+                          formatter={(val: any, name: string, props: any) => {
+                            const item = props?.payload;
+                            const pct = item?.liquido > 0 ? item.comissao / item.liquido : 0;
+                            return [
+                              formatCurrency(Number(val)),
+                              name === "Comissão"
+                                ? `Comissão (${item.count} contratos, take rate ${formatPercent(pct)})`
+                                : "Líquido",
+                            ];
+                          }}
+                        />
+                        <Legend onClick={(o) => handleLegendToggle((o as any).dataKey)} />
+                        <Bar
+                          dataKey="comissao"
+                          name="Comissão"
+                          fill="#22c55e"
+                          cursor="pointer"
+                          hide={!seriesVisibility.comissao}
+                          onClick={(data) => handleOperationClick((data as any).tipoOperacao)}
+                        />
+                        <Bar
+                          dataKey="liquido"
+                          name="Líquido"
+                          fill="#3b82f6"
+                          cursor="pointer"
+                          hide={!seriesVisibility.liquido}
+                          onClick={(data) => handleOperationClick((data as any).tipoOperacao)}
+                        />
+                      </BarChart>
+                    )}
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
