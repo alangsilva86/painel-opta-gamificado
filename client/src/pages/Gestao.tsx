@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import {
   Bar,
@@ -995,10 +995,10 @@ function MetricCard({
   if (!tooltip) return content;
 
   return (
-    <Tooltip>
+    <UiTooltip>
       <TooltipTrigger asChild>{content}</TooltipTrigger>
       <TooltipContent className="text-xs max-w-xs">{tooltip}</TooltipContent>
-    </Tooltip>
+    </UiTooltip>
   );
 }
 
