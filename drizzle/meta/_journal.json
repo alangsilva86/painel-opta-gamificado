@@ -50,6 +50,13 @@
       "when": 1765746611354,
       "tag": "0006_married_gideon",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1765748391533,
+      "tag": "0007_familiar_blackheart",
+      "breakpoints": true
     }
   ]
 }

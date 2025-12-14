@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from "crypto";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { z } from "zod";
-import { contratos, metasGlobal } from "../../drizzle/schema";
+import { contratos, gestaoMetas, metasGlobal } from "../../drizzle/schema";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { publicProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
@@ -133,11 +133,11 @@ export const gestaoRouter = router({
     const pctComissaoCalculada =
       total > 0 ? rows.filter((r) => r.comissaoCalculada).length / total : 0;
 
-    // Meta e ritmo (pace)
+    // Meta e ritmo (pace) - meta de comissão da gestão (separada da meta de vendas)
     let metaComissaoCent = 0;
     const monthKey = input.dateFrom?.slice(0, 7);
     if (monthKey) {
-      const metaRow = await db.select().from(metasGlobal).where(eq(metasGlobal.mes, monthKey)).limit(1);
+      const metaRow = await db.select().from(gestaoMetas).where(eq(gestaoMetas.mes, monthKey)).limit(1);
       if (metaRow.length > 0) {
         const parsedMeta = Number.parseFloat(metaRow[0].metaValor || "0");
         metaComissaoCent = Number.isNaN(parsedMeta) ? 0 : Math.round(parsedMeta * 100);
@@ -533,20 +533,19 @@ export const gestaoRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database indisponível" });
 
-      const existing = await db.select().from(metasGlobal).where(eq(metasGlobal.mes, input.mes)).limit(1);
+      const existing = await db.select().from(gestaoMetas).where(eq(gestaoMetas.mes, input.mes)).limit(1);
       const metaValorStr = input.valor.toString();
 
       if (existing.length > 0) {
         await db
-          .update(metasGlobal)
+          .update(gestaoMetas)
           .set({ metaValor: metaValorStr, updatedAt: new Date() })
-          .where(eq(metasGlobal.id, existing[0].id));
+          .where(eq(gestaoMetas.id, existing[0].id));
       } else {
-        await db.insert(metasGlobal).values({
+        await db.insert(gestaoMetas).values({
           id: `gestao_${input.mes}`,
           mes: input.mes,
           metaValor: metaValorStr,
-          superMetaValor: "0",
         });
       }
 

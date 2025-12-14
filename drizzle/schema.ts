@@ -207,3 +207,15 @@ export const gestaoSyncLogs = mysqlTable("gestao_sync_logs", {
 
 export type GestaoSyncLog = typeof gestaoSyncLogs.$inferSelect;
 export type InsertGestaoSyncLog = typeof gestaoSyncLogs.$inferInsert;
+
+// Meta de comissão da gestão (separada da meta de vendas das vendedoras)
+export const gestaoMetas = mysqlTable("gestao_metas", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  mes: varchar("mes", { length: 7 }).notNull(), // YYYY-MM
+  metaValor: varchar("metaValor", { length: 32 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
+});
+
+export type GestaoMeta = typeof gestaoMetas.$inferSelect;
+export type InsertGestaoMeta = typeof gestaoMetas.$inferInsert;
