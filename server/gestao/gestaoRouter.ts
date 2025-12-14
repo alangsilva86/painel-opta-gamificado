@@ -132,6 +132,7 @@ export const gestaoRouter = router({
     const ticketMedio = total > 0 ? sumLiquido / total : 0;
     const pctComissaoCalculada =
       total > 0 ? rows.filter((r) => r.comissaoCalculada).length / total : 0;
+    const contratosSemComissao = rows.filter((r) => r.comissaoTotalCent === 0).length;
 
     // Meta e ritmo (pace) - meta de comissão da gestão (separada da meta de vendas)
     let metaComissaoCent = 0;
@@ -346,6 +347,7 @@ export const gestaoRouter = router({
         takeRate,
         ticketMedio: centsToNumber(ticketMedio),
         pctComissaoCalculada,
+        contratosSemComissao,
         metaComissao: centsToNumber(metaComissaoCent),
         paceComissao: centsToNumber(paceComissao),
         necessarioPorDia: centsToNumber(necessarioPorDia),

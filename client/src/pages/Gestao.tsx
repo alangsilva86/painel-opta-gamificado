@@ -173,6 +173,40 @@ export default function Gestao() {
     return { calc, liq, dataInc };
   }, [healthQuery.data]);
 
+  const currencyTick = (v: number) => formatCurrency(v);
+  const percentTick = (v: number) => `${(v * 100).toFixed(0)}%`;
+
+  const handleStageClick = (etapa: string) =>
+    applyFilter({
+      etapaPipeline: filterState.etapaPipeline.includes(etapa) ? filterState.etapaPipeline : [etapa],
+    });
+  const handleProductClick = (produto: string) =>
+    applyFilter({
+      produto: filterState.produto.includes(produto) ? filterState.produto : [produto],
+    });
+  const handleOperationClick = (tipoOperacao: string) =>
+    applyFilter({
+      tipoOperacao: filterState.tipoOperacao?.includes(tipoOperacao)
+        ? filterState.tipoOperacao
+        : [tipoOperacao],
+    });
+  const handleSellerClick = (vendedor: string) =>
+    applyFilter({
+      vendedorNome: filterState.vendedorNome.includes(vendedor) ? filterState.vendedorNome : [vendedor],
+    });
+
+  const scatterTooltip = ({ active, payload }: any) => {
+    if (!active || !payload?.length) return null;
+    const p = payload[0].payload;
+    return (
+      <div className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white shadow">
+        <div className="font-semibold">{p.produto}</div>
+        <div>Ticket: {formatCurrency(p.ticket)}</div>
+        <div>Comissão média: {formatPercent(p.takeRate)}</div>
+      </div>
+    );
+  };
+
   const handleSort = (col: typeof sortBy) => {
     setPage(1);
     if (sortBy === col) {
@@ -404,11 +438,12 @@ export default function Gestao() {
                   compact
                 />
                 <MetricCard
-                  title="Contratos"
-                  value={resumoQuery.data.cards.contratos.toLocaleString("pt-BR")}
-                  tooltip="Quantidade de contratos no período."
-                  compact
-                />
+                title="Contratos"
+                value={resumoQuery.data.cards.contratos.toLocaleString("pt-BR")}
+                tooltip="Quantidade de contratos no período."
+                hint={`Sem comissão: ${resumoQuery.data.cards.contratosSemComissao ?? 0}`}
+                compact
+              />
                 <MetricCard
                   title="% Comissão Calculada"
                   value={formatPercent(resumoQuery.data.cards.pctComissaoCalculada)}
@@ -622,17 +657,21 @@ export default function Gestao() {
           {/* Saúde e Pace */}
           {mode === "operacao" && (
             <div className="grid gap-4 lg:grid-cols-2">
-              <Card className="bg-slate-950 border-slate-800">
-                <CardHeader>
-                  <CardTitle>Série temporal (Comissão x Líquido)</CardTitle>
-                </CardHeader>
-                <CardContent className="h-64">
+            <Card className="bg-slate-950 border-slate-800">
+              <CardHeader>
+                <CardTitle>Série temporal (Comissão x Líquido)</CardTitle>
+              </CardHeader>
+              <CardContent className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={resumoQuery.data.timeseries}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                     <XAxis dataKey="date" stroke="#9ca3af" />
-                    <YAxis stroke="#9ca3af" />
-                    <Tooltip />
+                    <YAxis stroke="#9ca3af" tickFormatter={currencyTick} />
+                    <Tooltip
+                      formatter={(val: any, name: string) =>
+                        name === "Comissão" || name === "Líquido" ? formatCurrency(Number(val)) : val
+                      }
+                    />
                     <Legend />
                     <Line type="monotone" dataKey="comissao" name="Comissão" stroke="#22c55e" dot={false} />
                     <Line type="monotone" dataKey="liquido" name="Líquido" stroke="#3b82f6" dot={false} />
@@ -661,8 +700,8 @@ export default function Gestao() {
                       <YAxis stroke="#9ca3af" tickFormatter={(v) => formatCurrency(v)} />
                       <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
                       <Legend />
-                      <Bar dataKey="comissao" name="Comissão" fill="#22c55e" />
-                      <Bar dataKey="liquido" name="Líquido" fill="#3b82f6" />
+                      <Bar dataKey="comissao" name="Comissão" fill="#22c55e" onClick={(data) => handleStageClick((data as any).etapa)} />
+                      <Bar dataKey="liquido" name="Líquido" fill="#3b82f6" onClick={(data) => handleStageClick((data as any).etapa)} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -687,14 +726,20 @@ export default function Gestao() {
                         const cum = arr.slice(0, idx + 1).reduce((acc, it) => acc + it.comissao, 0);
                         return { ...item, cumulativo: total > 0 ? (cum / total) * 100 : 0 };
                       })}
-                    >
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                     <XAxis dataKey="vendedor" stroke="#9ca3af" />
                     <YAxis yAxisId="left" stroke="#9ca3af" tickFormatter={(v) => formatCurrency(v)} />
                     <YAxis yAxisId="right" orientation="right" stroke="#9ca3af" />
                     <Tooltip formatter={(val: any, name: string) => (name === "Cumulativo %" ? `${val.toFixed(1)}%` : formatCurrency(Number(val)))} />
                     <Legend />
-                    <Bar yAxisId="left" dataKey="comissao" name="Comissão" fill="#22c55e" />
+                    <Bar
+                      yAxisId="left"
+                      dataKey="comissao"
+                      name="Comissão"
+                      fill="#22c55e"
+                      onClick={(data) => handleSellerClick((data as any).vendedor)}
+                    />
                     <Line
                       yAxisId="right"
                       type="monotone"
@@ -710,7 +755,7 @@ export default function Gestao() {
 
             <Card className="bg-slate-950 border-slate-800">
               <CardHeader>
-                <CardTitle>Scatter: Take Rate x Ticket (Produto)</CardTitle>
+                <CardTitle>Scatter: Comissão Média x Ticket (Produto)</CardTitle>
               </CardHeader>
               <CardContent className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
@@ -726,27 +771,22 @@ export default function Gestao() {
                     <YAxis
                       type="number"
                       dataKey="takeRate"
-                      name="Take rate"
+                      name="Comissão média"
                       stroke="#9ca3af"
-                      tickFormatter={(v) => `${(v * 100).toFixed(0)}%`}
+                      tickFormatter={(v) => `${(v * 100).toFixed(1)}%`}
+                      domain={[0, "dataMax"]}
                     />
-                    <Tooltip
-                      formatter={(value: number, name: string) => {
-                        if (name === "ticket") return formatCurrency(value);
-                        if (name === "takeRate") return formatPercent(value);
-                        return value;
-                      }}
-                      labelFormatter={(label) => String(label)}
-                    />
+                    <Tooltip content={scatterTooltip} />
                     <Scatter
                       data={resumoQuery.data.byProduct.map((p) => ({
                         produto: p.produto,
                         ticket: p.count > 0 ? p.liquido / p.count : 0,
                         takeRate: p.takeRate,
                         liquido: p.liquido,
+                        fill: filterState.produto.includes(p.produto) ? "#22c55e" : "#8b5cf6",
                       }))}
                       name="Produto"
-                      fill="#8b5cf6"
+                      onClick={(data) => handleProductClick((data as any).produto)}
                     />
                   </ScatterChart>
                 </ResponsiveContainer>
@@ -755,42 +795,62 @@ export default function Gestao() {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <Card className="bg-slate-950 border-slate-800">
-              <CardHeader>
-                <CardTitle>Mix por Produto</CardTitle>
-              </CardHeader>
-              <CardContent className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={resumoQuery.data.byProduct}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                    <XAxis dataKey="produto" stroke="#9ca3af" />
-                    <YAxis stroke="#9ca3af" tickFormatter={(v) => formatCurrency(v)} />
-                    <Tooltip formatter={(val: any) => formatCurrency(Number(val))} />
-                    <Legend />
-                    <Bar dataKey="comissao" name="Comissão" fill="#22c55e" />
-                    <Bar dataKey="liquido" name="Líquido" fill="#3b82f6" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-            <Card className="bg-slate-950 border-slate-800">
-              <CardHeader>
-                <CardTitle>Mix por Tipo de Operação</CardTitle>
-              </CardHeader>
-              <CardContent className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={resumoQuery.data.byOperationType}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                    <XAxis dataKey="tipoOperacao" stroke="#9ca3af" />
-                    <YAxis stroke="#9ca3af" tickFormatter={(v) => formatCurrency(v)} />
-                    <Tooltip formatter={(val: any) => formatCurrency(Number(val))} />
-                    <Legend />
-                    <Bar dataKey="comissao" name="Comissão" fill="#22c55e" />
-                    <Bar dataKey="liquido" name="Líquido" fill="#3b82f6" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+              <Card className="bg-slate-950 border-slate-800">
+                <CardHeader>
+                  <CardTitle>Mix por Produto</CardTitle>
+                </CardHeader>
+                <CardContent className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={resumoQuery.data.byProduct}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                      <XAxis dataKey="produto" stroke="#9ca3af" />
+                      <YAxis stroke="#9ca3af" tickFormatter={(v) => formatCurrency(v)} />
+                      <Tooltip formatter={(val: any) => formatCurrency(Number(val))} />
+                      <Legend />
+                      <Bar
+                        dataKey="comissao"
+                        name="Comissão"
+                        fill="#22c55e"
+                        onClick={(data) => handleProductClick((data as any).produto)}
+                      />
+                      <Bar
+                        dataKey="liquido"
+                        name="Líquido"
+                        fill="#3b82f6"
+                        onClick={(data) => handleProductClick((data as any).produto)}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+              <Card className="bg-slate-950 border-slate-800">
+                <CardHeader>
+                  <CardTitle>Mix por Tipo de Operação</CardTitle>
+                </CardHeader>
+                <CardContent className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={resumoQuery.data.byOperationType}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                      <XAxis dataKey="tipoOperacao" stroke="#9ca3af" />
+                      <YAxis stroke="#9ca3af" tickFormatter={(v) => formatCurrency(v)} />
+                      <Tooltip formatter={(val: any) => formatCurrency(Number(val))} />
+                      <Legend />
+                      <Bar
+                        dataKey="comissao"
+                        name="Comissão"
+                        fill="#22c55e"
+                        onClick={(data) => handleOperationClick((data as any).tipoOperacao)}
+                      />
+                      <Bar
+                        dataKey="liquido"
+                        name="Líquido"
+                        fill="#3b82f6"
+                        onClick={(data) => handleOperationClick((data as any).tipoOperacao)}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
