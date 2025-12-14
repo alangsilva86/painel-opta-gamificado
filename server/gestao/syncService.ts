@@ -1,5 +1,5 @@
 import { inArray } from "drizzle-orm";
-import { contratos, zohoContratosSnapshot } from "../../drizzle/schema";
+import { contratos, gestaoSyncLogs, zohoContratosSnapshot } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { normalizeContratoZoho } from "./normalizeZoho";
 import { zohoService } from "../zohoService";
@@ -133,6 +133,32 @@ export async function syncContratosGestao(range: SyncRange): Promise<SyncMetrics
   console.log(
     `[GestaoSync] range ${range.mesInicio} -> ${range.mesFim} | fetched=${rawContratos.length} | upserted=${upserted} | unchanged=${unchanged} | skipped=${skipped} | duration=${durationMs}ms`
   );
+
+  const logId = `sync_${Date.now()}`;
+  await db
+    .insert(gestaoSyncLogs)
+    .values({
+      id: logId,
+      rangeInicio: range.mesInicio,
+      rangeFim: range.mesFim,
+      fetched: rawContratos.length,
+      upserted,
+      unchanged,
+      skipped,
+      durationMs,
+      warnings: warnings.length > 0 ? warnings.join(" | ") : null,
+    })
+    .onDuplicateKeyUpdate({
+      set: {
+        fetched: rawContratos.length,
+        upserted,
+        unchanged,
+        skipped,
+        durationMs,
+        warnings: warnings.length > 0 ? warnings.join(" | ") : null,
+        createdAt: new Date(),
+      },
+    });
 
   return { fetched: rawContratos.length, upserted, unchanged, skipped, durationMs, warnings, range };
 }

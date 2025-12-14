@@ -141,8 +141,9 @@ export function normalizeContratoZoho(raw: ZohoContratoRaw): NormalizacaoContrat
     return null;
   }
 
-  const inconsistenciaDataPagamento =
-    dataPagamento1 && dataPagamento2 && dataPagamento1.getTime() !== dataPagamento2.getTime();
+  const inconsistenciaDataPagamento = Boolean(
+    dataPagamento1 && dataPagamento2 && dataPagamento1.getTime() !== dataPagamento2.getTime()
+  );
 
   let liquidoLiberadoCent = parseMoneyToCents(raw.Valor_liquido_liberado);
   let liquidoFallback = false;

@@ -165,16 +165,16 @@ export const contratos = mysqlTable(
     comissaoTotalCent: int("comissao_total_cent").default(0).notNull(),
     pctComissaoBase: decimal("pct_comissao_base", { precision: 10, scale: 6 }).default("0").notNull(),
     pctComissaoBonus: decimal("pct_comissao_bonus", { precision: 10, scale: 6 }).default("0").notNull(),
-    vendedorNome: varchar("vendedor_nome", { length: 255 }).default("Sem info").notNull(),
-    digitadorNome: varchar("digitador_nome", { length: 255 }).default("Sem info").notNull(),
-    produto: varchar("produto", { length: 255 }).default("Sem info").notNull(),
-    tipoOperacao: varchar("tipo_operacao", { length: 255 }).default("Sem info").notNull(),
-    agenteId: varchar("agente_id", { length: 255 }).default("Sem info").notNull(),
-    etapaPipeline: varchar("etapa_pipeline", { length: 255 }).default("Sem info").notNull(),
-    inconsistenciaDataPagamento: boolean("inconsistencia_data_pagamento").default(false).notNull(),
-    liquidoFallback: boolean("liquido_fallback").default(false).notNull(),
-    comissaoCalculada: boolean("comissao_calculada").default(false).notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
+  vendedorNome: varchar("vendedor_nome", { length: 255 }).default("Sem info").notNull(),
+  digitadorNome: varchar("digitador_nome", { length: 255 }).default("Sem info").notNull(),
+  produto: varchar("produto", { length: 255 }).default("Sem info").notNull(),
+  tipoOperacao: varchar("tipo_operacao", { length: 255 }).default("Sem info").notNull(),
+  agenteId: varchar("agente_id", { length: 255 }).default("Sem info").notNull(),
+  etapaPipeline: varchar("etapa_pipeline", { length: 255 }).default("Sem info").notNull(),
+  inconsistenciaDataPagamento: boolean("inconsistencia_data_pagamento").default(false).notNull(),
+  liquidoFallback: boolean("liquido_fallback").default(false).notNull(),
+  comissaoCalculada: boolean("comissao_calculada").default(false).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
   },
   (table) => ({
     idxDataPagamento: index("idx_contratos_data_pagamento").on(table.dataPagamento),
@@ -190,3 +190,20 @@ export const contratos = mysqlTable(
 
 export type Contrato = typeof contratos.$inferSelect;
 export type InsertContrato = typeof contratos.$inferInsert;
+
+// Logs do sync de Gestão (qualidade/observabilidade)
+export const gestaoSyncLogs = mysqlTable("gestao_sync_logs", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  rangeInicio: varchar("range_inicio", { length: 10 }).notNull(), // yyyy-mm-dd
+  rangeFim: varchar("range_fim", { length: 10 }).notNull(), // yyyy-mm-dd
+  fetched: int("fetched").notNull(),
+  upserted: int("upserted").notNull(),
+  unchanged: int("unchanged").notNull(),
+  skipped: int("skipped").notNull(),
+  durationMs: int("duration_ms").notNull(),
+  warnings: text("warnings"), // texto/json simples
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type GestaoSyncLog = typeof gestaoSyncLogs.$inferSelect;
+export type InsertGestaoSyncLog = typeof gestaoSyncLogs.$inferInsert;

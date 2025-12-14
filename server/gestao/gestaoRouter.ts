@@ -1,8 +1,8 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { TRPCError } from "@trpc/server";
-import { and, desc, gte, inArray, lte } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { z } from "zod";
-import { contratos } from "../../drizzle/schema";
+import { contratos, metasGlobal } from "../../drizzle/schema";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { publicProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
@@ -21,6 +21,11 @@ const FILTERS_SCHEMA = z.object({
 const DRILLDOWN_SCHEMA = FILTERS_SCHEMA.extend({
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(1).max(200).default(50),
+  somenteComissaoCalculada: z.boolean().optional(),
+  somenteLiquidoFallback: z.boolean().optional(),
+  somenteInconsistenciaData: z.boolean().optional(),
+  sortBy: z.enum(["data", "comissao", "liquido", "takeRate"]).optional(),
+  sortDir: z.enum(["asc", "desc"]).optional(),
 });
 
 function parseCookies(cookieHeader?: string | null): Record<string, string> {
@@ -63,6 +68,10 @@ function centsToNumber(v: number) {
   return v / 100;
 }
 
+function formatPercent(value: number) {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
 function groupBy<T, K extends string | number>(items: T[], keyFn: (item: T) => K) {
   const map = new Map<K, T[]>();
   items.forEach((item) => {
@@ -76,6 +85,11 @@ function groupBy<T, K extends string | number>(items: T[], keyFn: (item: T) => K
 
 function formatDateKey(date: Date) {
   return date.toISOString().slice(0, 10);
+}
+
+function diffDaysInclusive(start: Date, end: Date) {
+  const ms = end.getTime() - start.getTime();
+  return Math.floor(ms / (1000 * 60 * 60 * 24)) + 1;
 }
 
 export const gestaoRouter = router({
@@ -118,6 +132,35 @@ export const gestaoRouter = router({
     const ticketMedio = total > 0 ? sumLiquido / total : 0;
     const pctComissaoCalculada =
       total > 0 ? rows.filter((r) => r.comissaoCalculada).length / total : 0;
+
+    // Meta e ritmo (pace)
+    let metaComissaoCent = 0;
+    const monthKey = input.dateFrom?.slice(0, 7);
+    if (monthKey) {
+      const metaRow = await db.select().from(metasGlobal).where(eq(metasGlobal.mes, monthKey)).limit(1);
+      if (metaRow.length > 0) {
+        const parsedMeta = Number.parseFloat(metaRow[0].metaValor || "0");
+        metaComissaoCent = Number.isNaN(parsedMeta) ? 0 : Math.round(parsedMeta * 100);
+      }
+    }
+
+    const startDate = input.dateFrom ? new Date(input.dateFrom) : rows[0]?.dataPagamento;
+    const endDate = input.dateTo ? new Date(input.dateTo) : rows[rows.length - 1]?.dataPagamento;
+    const now = new Date();
+    const effectiveStart = startDate ? startDate : now;
+    const effectiveEnd = endDate ? endDate : now;
+    const totalDias =
+      effectiveStart && effectiveEnd ? Math.max(1, diffDaysInclusive(effectiveStart, effectiveEnd)) : 1;
+    const diasDecorridos =
+      effectiveStart && effectiveEnd
+        ? Math.max(0, diffDaysInclusive(effectiveStart, now < effectiveEnd ? now : effectiveEnd))
+        : 0;
+
+    const paceComissao = diasDecorridos > 0 ? sumComissao / diasDecorridos : 0;
+    const diasRestantes = Math.max(0, totalDias - diasDecorridos);
+    const faltaMetaComissao = Math.max(0, metaComissaoCent - sumComissao);
+    const necessarioPorDia =
+      metaComissaoCent > 0 && diasRestantes > 0 ? faltaMetaComissao / diasRestantes : 0;
 
     const timeseriesMap = groupBy(rows, (r) => formatDateKey(r.dataPagamento));
     const timeseries = Array.from(timeseriesMap.entries())
@@ -205,6 +248,96 @@ export const gestaoRouter = router({
       }
     );
 
+    // Alertas
+    const alerts: Array<{
+      type: string;
+      title: string;
+      severity: "info" | "warning" | "critical";
+      detail: string;
+      filters?: Partial<z.infer<typeof FILTERS_SCHEMA>>;
+      generatedAt?: Date;
+    }> = [];
+
+    // Take rate caindo (últimos 7 dias vs 7 anteriores)
+    if (rows.length > 0) {
+      const sortedByDate = [...rows].sort(
+        (a, b) => a.dataPagamento.getTime() - b.dataPagamento.getTime()
+      );
+      const lastDate = sortedByDate[sortedByDate.length - 1].dataPagamento;
+      const toTs = lastDate.getTime();
+      const fromLast7 = toTs - 7 * 24 * 3600 * 1000;
+      const fromPrev7 = toTs - 14 * 24 * 3600 * 1000;
+
+      const slice = (from: number, to: number) =>
+        sortedByDate.filter((r) => r.dataPagamento.getTime() > from && r.dataPagamento.getTime() <= to);
+
+      const last7 = slice(fromLast7, toTs);
+      const prev7 = slice(fromPrev7, fromLast7);
+
+      const sum = (arr: typeof rows, sel: (r: typeof rows[number]) => number) =>
+        arr.reduce((acc, r) => acc + sel(r), 0);
+
+      const tr = (arr: typeof rows) => {
+        const l = sum(arr, (r) => r.liquidoLiberadoCent);
+        const c = sum(arr, (r) => r.comissaoTotalCent);
+        return l > 0 ? c / l : 0;
+      };
+
+      const takeRateLast = tr(last7);
+      const takeRatePrev = tr(prev7);
+
+      if (takeRatePrev > 0 && takeRateLast < takeRatePrev * 0.9) {
+        alerts.push({
+          type: "takeRateDown",
+          title: "Take rate caindo",
+          severity: "warning",
+          detail: `Take rate dos últimos 7 dias ${formatPercent(takeRateLast)} vs ${formatPercent(
+            takeRatePrev
+          )} na semana anterior.`,
+          generatedAt: new Date(),
+        });
+      }
+
+      // Comissão calculada subindo (% de calculada nos últimos 7 vs anteriores)
+      const calcShare = (arr: typeof rows) =>
+        arr.length > 0 ? arr.filter((r) => r.comissaoCalculada).length / arr.length : 0;
+      const calcLast = calcShare(last7);
+      const calcPrev = calcShare(prev7);
+      if (calcPrev > 0 && calcLast - calcPrev >= 0.05 && calcLast > 0.1) {
+        alerts.push({
+          type: "calculatedCommissionRising",
+          title: "% comissão calculada subindo",
+          severity: "warning",
+          detail: `${formatPercent(calcLast)} nos últimos 7 dias vs ${formatPercent(
+            calcPrev
+          )} na semana anterior.`,
+          generatedAt: new Date(),
+        });
+      }
+    }
+
+    // Concentração Top 5
+    if (sumComissao > 0) {
+      const sellersSorted = bySeller
+        .map((b) => ({ vendedor: b.vendedor, comissao: b.comissao }))
+        .sort((a, b) => b.comissao - a.comissao);
+      const top5 = sellersSorted.slice(0, 5);
+      const top5Sum = top5.reduce((acc, s) => acc + s.comissao, 0);
+      // Adjust share using cents directly to avoid mismatch
+      const sumComissaoReais = sumComissao / 100;
+      const shareReal = sumComissaoReais > 0 ? top5Sum / sumComissaoReais : 0;
+      if (shareReal >= 0.7) {
+        alerts.push({
+          type: "top5ConcentrationHigh",
+          title: "Concentração alta no Top 5",
+          severity: "info",
+          detail: `${formatPercent(shareReal)} da comissão concentrada nos Top 5 vendedores.`,
+          filters: { vendedorNome: top5.map((s) => s.vendedor) },
+          generatedAt: new Date(),
+        });
+      }
+    }
+
     return {
       cards: {
         contratos: total,
@@ -213,6 +346,11 @@ export const gestaoRouter = router({
         takeRate,
         ticketMedio: centsToNumber(ticketMedio),
         pctComissaoCalculada,
+        metaComissao: centsToNumber(metaComissaoCent),
+        paceComissao: centsToNumber(paceComissao),
+        necessarioPorDia: centsToNumber(necessarioPorDia),
+        diasDecorridos,
+        totalDias,
       },
       timeseries,
       byStage,
@@ -220,6 +358,7 @@ export const gestaoRouter = router({
       byTyper,
       byProduct,
       byOperationType,
+      alerts,
     };
   }),
 
@@ -227,19 +366,42 @@ export const gestaoRouter = router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database indisponível" });
     const where = buildWhere(input);
-    const offset = (input.page - 1) * input.pageSize;
-    const data = await db
-      .select()
-      .from(contratos)
-      .where(where)
-      .orderBy(desc(contratos.dataPagamento))
-      .limit(input.pageSize)
-      .offset(offset);
+    const all = await db.select().from(contratos).where(where);
+
+    const filtered = all.filter((row) => {
+      if (input.somenteComissaoCalculada && !row.comissaoCalculada) return false;
+      if (input.somenteLiquidoFallback && !row.liquidoFallback) return false;
+      if (input.somenteInconsistenciaData && !row.inconsistenciaDataPagamento) return false;
+      return true;
+    });
+
+    const withDerived = filtered.map((row) => {
+      const liquido = centsToNumber(row.liquidoLiberadoCent);
+      const comissaoTotal = centsToNumber(row.comissaoTotalCent);
+      const takeRate = liquido > 0 ? comissaoTotal / liquido : 0;
+      return { row, liquido, comissaoTotal, takeRate };
+    });
+
+    const dir = input.sortDir === "asc" ? 1 : -1;
+    const sorter = (a: typeof withDerived[number], b: typeof withDerived[number]) => {
+      const key = input.sortBy || "data";
+      if (key === "comissao") return (a.comissaoTotal - b.comissaoTotal) * dir;
+      if (key === "liquido") return (a.liquido - b.liquido) * dir;
+      if (key === "takeRate") return (a.takeRate - b.takeRate) * dir;
+      // data
+      return (a.row.dataPagamento.getTime() - b.row.dataPagamento.getTime()) * dir;
+    };
+
+    withDerived.sort(sorter);
+
+    const start = (input.page - 1) * input.pageSize;
+    const paginated = withDerived.slice(start, start + input.pageSize);
 
     return {
       page: input.page,
       pageSize: input.pageSize,
-      data: data.map((row) => ({
+      total: withDerived.length,
+      data: paginated.map(({ row, liquido, comissaoTotal, takeRate }) => ({
         idContrato: row.idContrato,
         numeroContrato: row.numeroContrato,
         dataPagamento: row.dataPagamento,
@@ -249,10 +411,11 @@ export const gestaoRouter = router({
         tipoOperacao: row.tipoOperacao,
         agenteId: row.agenteId,
         etapaPipeline: row.etapaPipeline,
-        liquido: centsToNumber(row.liquidoLiberadoCent),
+        liquido,
         comissaoBase: centsToNumber(row.comissaoBaseCent),
         comissaoBonus: centsToNumber(row.comissaoBonusCent),
-        comissaoTotal: centsToNumber(row.comissaoTotalCent),
+        comissaoTotal,
+        takeRate,
         flags: {
           inconsistenciaDataPagamento: row.inconsistenciaDataPagamento,
           liquidoFallback: row.liquidoFallback,
@@ -264,7 +427,7 @@ export const gestaoRouter = router({
 
   exportCSV: gestaoProcedure.input(FILTERS_SCHEMA).query(async ({ input }) => {
     const db = await getDb();
-    if (!db) throw new Error("Database indisponível");
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database indisponível" });
     const where = buildWhere(input);
     const data = await db.select().from(contratos).where(where);
 
@@ -311,6 +474,84 @@ export const gestaoRouter = router({
     const csv = [header.join(","), ...rows].join("\n");
     return { csv };
   }),
+
+  getHealth: gestaoProcedure.input(FILTERS_SCHEMA.partial()).query(async ({ input }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database indisponível" });
+
+    const where = buildWhere({
+      dateFrom: input.dateFrom,
+      dateTo: input.dateTo,
+      etapaPipeline: input.etapaPipeline,
+      vendedorNome: input.vendedorNome,
+      produto: input.produto,
+      tipoOperacao: input.tipoOperacao,
+      agenteId: input.agenteId,
+      digitadorNome: input.digitadorNome,
+    });
+
+    const all = await db.select().from(contratos).where(where);
+    const total = all.length || 1;
+    const pctComissaoCalculada = all.filter((r) => r.comissaoCalculada).length / total;
+    const pctLiquidoFallback = all.filter((r) => r.liquidoFallback).length / total;
+    const pctInconsistenciaData = all.filter((r) => r.inconsistenciaDataPagamento).length / total;
+
+    const logs = await db
+      .select()
+      .from(gestaoSyncLogs)
+      .orderBy(desc(gestaoSyncLogs.createdAt))
+      .limit(5);
+
+    const warnings = logs.map((l) => ({
+      id: l.id,
+      rangeInicio: l.rangeInicio,
+      rangeFim: l.rangeFim,
+      fetched: l.fetched,
+      upserted: l.upserted,
+      unchanged: l.unchanged,
+      skipped: l.skipped,
+      durationMs: l.durationMs,
+      warnings: l.warnings,
+      createdAt: l.createdAt,
+    }));
+
+    const lastSyncAt = logs[0]?.createdAt ?? null;
+
+    return {
+      totalRegistros: all.length,
+      pctComissaoCalculada,
+      pctLiquidoFallback,
+      pctInconsistenciaData,
+      lastSyncAt,
+      logs: warnings,
+    };
+  }),
+
+  setMetaComissao: gestaoProcedure
+    .input(z.object({ mes: z.string().min(7).max(7), valor: z.number().nonnegative() }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database indisponível" });
+
+      const existing = await db.select().from(metasGlobal).where(eq(metasGlobal.mes, input.mes)).limit(1);
+      const metaValorStr = input.valor.toString();
+
+      if (existing.length > 0) {
+        await db
+          .update(metasGlobal)
+          .set({ metaValor: metaValorStr, updatedAt: new Date() })
+          .where(eq(metasGlobal.id, existing[0].id));
+      } else {
+        await db.insert(metasGlobal).values({
+          id: `gestao_${input.mes}`,
+          mes: input.mes,
+          metaValor: metaValorStr,
+          superMetaValor: "0",
+        });
+      }
+
+      return { success: true };
+    }),
 });
 
 export type GestaoRouter = typeof gestaoRouter;
