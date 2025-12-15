@@ -305,12 +305,16 @@ class ZohoService {
     let allData: ZohoContratoRaw[] = [];
     let cursor: string | undefined = undefined;
     let pageCount = 0;
+    let page = 1;
+    const maxIterations = 500; // evita loop infinito
 
     try {
       // Loop de paginação
-      do {
+      while (pageCount < maxIterations) {
         pageCount++;
-        console.log(`[ZohoService] Buscando página ${pageCount}...`);
+        console.log(
+          `[ZohoService] Buscando página ${pageCount}${cursor ? " (cursor)" : ` (page=${page})`}...`
+        );
 
         const urlParams = new URLSearchParams({
           max_records: maxRecords.toString(),
@@ -338,6 +342,11 @@ class ZohoService {
           ].join(","),
         });
 
+        // fallback de paginação por page quando não há cursor
+        if (!cursor && page > 1) {
+          urlParams.set("page", page.toString());
+        }
+
         const url = `https://www.zohoapis.com/creator/v2.1/data/optacredito/opta-operation/report/Contratos?${urlParams.toString()}`;
 
         const headers: Record<string, string> = {
@@ -352,25 +361,53 @@ class ZohoService {
         const response = await this.fetchWithRetry(url, { headers });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          console.error("[ZohoService] Erro ao buscar contratos:", errorData);
-          throw new Error(`HTTP ${response.status}: ${JSON.stringify(errorData)}`);
+          let errorData: any = null;
+          try {
+            errorData = await response.json();
+          } catch {
+            // ignore JSON parse errors
+          }
+
+          if (response.status === 400 && errorData?.code === 9280) {
+            console.warn(
+              `[ZohoService] Sem registros para o critério informado (page=${page}, criteria=${criteria})`
+            );
+            break; // encerra paginação para este intervalo
+          }
+
+          console.error("[ZohoService] Erro ao buscar contratos:", errorData ?? response.statusText);
+          throw new Error(`HTTP ${response.status}: ${JSON.stringify(errorData ?? {})}`);
         }
 
         const data: ZohoDataResponse = await response.json();
+        const headerCursor = response.headers.get("record_cursor") || undefined;
 
         if (data.data && data.data.length > 0) {
           allData = allData.concat(data.data);
           console.log(`[ZohoService] Página ${pageCount}: ${data.data.length} registros`);
           if (!data.record_cursor && data.data.length >= maxRecords) {
             console.warn(
-              `[ZohoService] ALERTA: record_cursor ausente em cenário paginado (page=${pageCount}, batch=${data.data.length}, max_records=${maxRecords})`
+              `[ZohoService] ALERTA: record_cursor ausente em cenário paginado (page=${page}, batch=${data.data.length}, max_records=${maxRecords})`
             );
           }
         }
 
-        cursor = data.record_cursor;
-      } while (cursor);
+        const batchFull = (data.data?.length ?? 0) >= maxRecords;
+        const cursorFromBody = data.record_cursor;
+        cursor = headerCursor || cursorFromBody || undefined;
+        if (cursor) {
+          page += 1;
+          continue;
+        }
+
+        if (batchFull) {
+          // fallback: incrementa page quando não há cursor mas ainda há dados
+          page += 1;
+          continue;
+        }
+
+        break;
+      }
 
       if (allData.length === 0) {
         console.warn(
