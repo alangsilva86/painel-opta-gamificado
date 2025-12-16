@@ -3,6 +3,8 @@ import {
   aplicarAceleradorGlobal,
   calcularMetaGlobal,
   montarEscada,
+  processarContratos,
+  agregarPorVendedora,
   VendedoraStats,
 } from "./calculationService";
 
@@ -84,5 +86,30 @@ describe("calculationService", () => {
 
     const nivel100 = escada.find((s) => s.percentual === 100);
     expect(nivel100?.atingido).toBe(false);
+  });
+
+  it("não soma comissão de vendedoras para Empréstimo Garantia Veículo", () => {
+    const contratos = processarContratos([
+      {
+        ID: "ct_1",
+        Numero_do_Contrato: "123",
+        Data_de_Pagamento: "2024-05-10",
+        Valor_liquido_liberado: 10000,
+        Valor_comissao_opta: 500,
+        Base_comissionavel_vendedores: 200,
+        Vendedor: { display_value: "Ana", ID: "vend_1" },
+        Produto: { display_value: "Empréstimo Garantia Veículo", ID: "prod_egv" },
+        Corban: { display_value: "Agente X", ID: "corban_1" },
+        Estagio: { display_value: "Financeiro", ID: "est_1" },
+      },
+    ]);
+
+    const metas = new Map<string, number>([["vend_1", 10000]]);
+    const [vendedora] = agregarPorVendedora(contratos, metas);
+
+    expect(vendedora.baseComissionavelTotal).toBe(0);
+    expect(vendedora.realizado).toBe(10000);
+    expect(vendedora.contratosSemComissao).toBe(1);
+    expect(vendedora.comissaoBase).toBe(0);
   });
 });

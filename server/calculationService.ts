@@ -89,6 +89,19 @@ export const TIERS = [
 ];
 
 export const ESCADA_NIVEIS = [75, 100, 125, 150, 175, 200, 250];
+const PRODUTOS_SEM_COMISSAO_VENDEDORAS = new Set(["emprestimo garantia veiculo"]);
+
+function normalizarTextoBasico(valor: string) {
+  return valor
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim();
+}
+
+function isProdutoSemComissaoParaVendedoras(produto: string) {
+  return PRODUTOS_SEM_COMISSAO_VENDEDORAS.has(normalizarTextoBasico(produto));
+}
 
 /**
  * Calcula a escada de evolução (próximos níveis)
@@ -122,21 +135,28 @@ export function montarEscada(meta: number, realizado: number, labels?: Record<nu
  * NOVA REGRA: Usa Base_comissionavel_vendedores já calculado no zohoService
  */
 export function processarContratos(contratosZoho: ZohoContrato[]): ContratoProcessado[] {
-  return contratosZoho.map((c) => ({
-    id: c.ID,
-    numero: c.Numero_do_Contrato,
-    dataPagamento: c.Data_de_Pagamento,
-    valorLiquido: c.Valor_liquido_liberado,
-    valorComissaoOpta: c.Valor_comissao_opta, // NÃO EXIBIR
-    baseComissionavel: c.Base_comissionavel_vendedores, // Já vem calculado
-    vendedora: c.Vendedor.display_value,
-    vendedoraId: c.Vendedor.ID,
-    produto: c.Produto.display_value,
-    produtoId: c.Produto.ID,
-    corban: c.Corban.display_value,
-    estagio: c.Estagio.display_value,
-    estagioId: c.Estagio.ID,
-  }));
+  return contratosZoho.map((c) => {
+    const produtoNome = c.Produto.display_value;
+    const baseComissionavel = isProdutoSemComissaoParaVendedoras(produtoNome)
+      ? 0 // Produto não gera comissão para vendedoras, mas continua contando no volume
+      : c.Base_comissionavel_vendedores;
+
+    return {
+      id: c.ID,
+      numero: c.Numero_do_Contrato,
+      dataPagamento: c.Data_de_Pagamento,
+      valorLiquido: c.Valor_liquido_liberado,
+      valorComissaoOpta: c.Valor_comissao_opta, // NÃO EXIBIR
+      baseComissionavel, // Já vem calculado, exceto para produtos sem comissão de vendedoras
+      vendedora: c.Vendedor.display_value,
+      vendedoraId: c.Vendedor.ID,
+      produto: produtoNome,
+      produtoId: c.Produto.ID,
+      corban: c.Corban.display_value,
+      estagio: c.Estagio.display_value,
+      estagioId: c.Estagio.ID,
+    };
+  });
 }
 
 /**
