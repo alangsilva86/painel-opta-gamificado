@@ -7,7 +7,7 @@ import { getSessionCookieOptions } from "../_core/cookies";
 import { publicProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { nanoid } from "nanoid";
-import { syncContratosGestao, syncContratosGestaoIntervalo } from "./syncService";
+import { splitRangeByMonth, syncContratosGestao, syncContratosGestaoIntervalo } from "./syncService";
 
 const FILTERS_SCHEMA = z.object({
   dateFrom: z.string().optional(),
