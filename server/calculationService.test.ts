@@ -108,8 +108,9 @@ describe("calculationService", () => {
     const [vendedora] = agregarPorVendedora(contratos, metas);
 
     expect(vendedora.baseComissionavelTotal).toBe(0);
-    expect(vendedora.realizado).toBe(10000);
-    expect(vendedora.contratosSemComissao).toBe(1);
+    expect(vendedora.realizado).toBe(0);
+    expect(vendedora.contratosSemComissao).toBe(0);
+    expect(vendedora.contratos.length).toBe(0);
     expect(vendedora.comissaoBase).toBe(0);
   });
 });

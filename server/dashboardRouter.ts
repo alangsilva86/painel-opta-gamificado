@@ -75,11 +75,14 @@ export const dashboardRouter = router({
       // Processa contratos e aplica filtro de estágios válidos
       const contratosProcessados = processarContratos(contratosZoho);
       const contratosParaExibicao = filtrarContratosProcessadosValidos(contratosProcessados);
-      const contratosSemComissao = contratosParaExibicao.filter((c) => c.baseComissionavel === 0).length;
-      const contratosComComissao = contratosParaExibicao.length - contratosSemComissao;
+      const contratosParaPainelVendedoras = contratosParaExibicao.filter(
+        (c) => !c.ignoradoPainelVendedoras
+      );
+      const contratosSemComissao = contratosParaPainelVendedoras.filter((c) => c.baseComissionavel === 0).length;
+      const contratosComComissao = contratosParaPainelVendedoras.length - contratosSemComissao;
       const percentualContratosSemComissao =
-        contratosParaExibicao.length > 0
-          ? (contratosSemComissao / contratosParaExibicao.length) * 100
+        contratosParaPainelVendedoras.length > 0
+          ? (contratosSemComissao / contratosParaPainelVendedoras.length) * 100
           : 0;
       console.log(
         `[dashboardRouter] Contratos brutos: ${contratosZoho.length} | válidos para exibição: ${contratosParaExibicao.length}`
@@ -119,7 +122,7 @@ export const dashboardRouter = router({
       });
 
       // Agrega por vendedora
-      let vendedoras: VendedoraStats[] = agregarPorVendedora(contratosParaExibicao, metasMap).map((v) => {
+      let vendedoras: VendedoraStats[] = agregarPorVendedora(contratosParaPainelVendedoras, metasMap).map((v) => {
         const planejada = metasPlanejadasMap.get(v.id);
         const metaDiaria =
           planejada && planejada.metaDiaria > 0
@@ -171,7 +174,7 @@ export const dashboardRouter = router({
       const produtosMap = new Map<string, { contratos: number; comissao: number }>();
       let totalComissao = 0;
 
-      contratosParaExibicao.forEach((c) => {
+      contratosParaPainelVendedoras.forEach((c) => {
         const atual = produtosMap.get(c.produto) || { contratos: 0, comissao: 0 };
         atual.contratos += 1;
         atual.comissao += c.baseComissionavel;
@@ -190,7 +193,7 @@ export const dashboardRouter = router({
         .sort((a, b) => b.totalComissao - a.totalComissao);
 
       // Pipeline
-      const pipelineBruto = calcularPipelinePorEstagio(contratosParaExibicao);
+      const pipelineBruto = calcularPipelinePorEstagio(contratosParaPainelVendedoras);
       const pipeline = pipelineBruto.map((p) => ({
         estagio: p.estagio,
         totalValor: p.valorLiquido,
@@ -201,7 +204,7 @@ export const dashboardRouter = router({
         ...p,
         percentualPipeline: totalValorPipeline > 0 ? (p.totalValor / totalValorPipeline) * 100 : 0,
       }));
-      const valorEmLiberacao = contratosParaExibicao
+      const valorEmLiberacao = contratosParaPainelVendedoras
         .filter((c) => c.valorComissaoOpta === 0 && c.valorLiquido > 0)
         .reduce((acc, c) => acc + c.valorLiquido, 0);
 
@@ -210,7 +213,7 @@ export const dashboardRouter = router({
         metaGlobal,
         vendedoras: vendedorasVisiveis2, // Retorna apenas visíveis
         ranking,
-        totalContratos: contratosParaExibicao.length,
+        totalContratos: contratosParaPainelVendedoras.length,
         ultimaAtualizacao: new Date().toISOString(),
         produtos,
         totalComissao,
@@ -264,10 +267,12 @@ export const dashboardRouter = router({
         );
       }
 
+      const contratosParaPainelVendedoras = contratosProcessados.filter((c) => !c.ignoradoPainelVendedoras);
+
       const produtosMap = new Map<string, { contratos: number; comissao: number }>();
       let totalComissao = 0;
 
-      contratosProcessados.forEach((c) => {
+      contratosParaPainelVendedoras.forEach((c) => {
         const atual = produtosMap.get(c.produto) || { contratos: 0, comissao: 0 };
         atual.contratos += 1;
         atual.comissao += c.baseComissionavel;
@@ -285,7 +290,7 @@ export const dashboardRouter = router({
         }))
         .sort((a, b) => b.totalComissao - a.totalComissao);
 
-      const pipelineBruto = calcularPipelinePorEstagio(contratosProcessados);
+      const pipelineBruto = calcularPipelinePorEstagio(contratosParaPainelVendedoras);
       const pipeline = pipelineBruto.map((p) => ({
         estagio: p.estagio,
         totalValor: p.valorLiquido,

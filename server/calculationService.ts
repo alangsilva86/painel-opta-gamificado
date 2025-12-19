@@ -22,6 +22,7 @@ export interface ContratoProcessado {
   corban: string;
   estagio: string;
   estagioId: string;
+  ignoradoPainelVendedoras?: boolean;
 }
 
 export interface VendedoraStats {
@@ -89,6 +90,7 @@ export const TIERS = [
 ];
 
 export const ESCADA_NIVEIS = [75, 100, 125, 150, 175, 200, 250];
+// Produtos que não contam para comissão nem para produção no painel das vendedoras
 const PRODUTOS_SEM_COMISSAO_VENDEDORAS = new Set(["emprestimo garantia veiculo"]);
 
 function normalizarTextoBasico(valor: string) {
@@ -101,6 +103,10 @@ function normalizarTextoBasico(valor: string) {
 
 function isProdutoSemComissaoParaVendedoras(produto: string) {
   return PRODUTOS_SEM_COMISSAO_VENDEDORAS.has(normalizarTextoBasico(produto));
+}
+
+export function isProdutoIgnoradoNoPainelVendedoras(produto: string) {
+  return isProdutoSemComissaoParaVendedoras(produto);
 }
 
 /**
@@ -137,8 +143,9 @@ export function montarEscada(meta: number, realizado: number, labels?: Record<nu
 export function processarContratos(contratosZoho: ZohoContrato[]): ContratoProcessado[] {
   return contratosZoho.map((c) => {
     const produtoNome = c.Produto.display_value;
-    const baseComissionavel = isProdutoSemComissaoParaVendedoras(produtoNome)
-      ? 0 // Produto não gera comissão para vendedoras, mas continua contando no volume
+    const ignoradoPainelVendedoras = isProdutoIgnoradoNoPainelVendedoras(produtoNome);
+    const baseComissionavel = ignoradoPainelVendedoras
+      ? 0 // Produto não gera comissão/produção para vendedoras
       : c.Base_comissionavel_vendedores;
 
     return {
@@ -155,6 +162,7 @@ export function processarContratos(contratosZoho: ZohoContrato[]): ContratoProce
       corban: c.Corban.display_value,
       estagio: c.Estagio.display_value,
       estagioId: c.Estagio.ID,
+      ignoradoPainelVendedoras,
     };
   });
 }
@@ -202,6 +210,12 @@ export function agregarPorVendedora(
     }
 
     const stats = vendedorasMap.get(vendedoraId)!;
+    const ignoradoPainelVendedoras =
+      contrato.ignoradoPainelVendedoras ?? isProdutoIgnoradoNoPainelVendedoras(contrato.produto);
+
+    if (ignoradoPainelVendedoras) {
+      return;
+    }
     // Realizado = volume (valor líquido) dos contratos pagos
     stats.realizado += contrato.valorLiquido;
     // Base comissionável separada para cálculos de comissão
@@ -368,6 +382,9 @@ export function calcularProdutosMaisVendidos(
   const produtosMap = new Map<string, number>();
 
   contratos.forEach((c) => {
+    if (c.ignoradoPainelVendedoras) {
+      return;
+    }
     produtosMap.set(c.produto, (produtosMap.get(c.produto) || 0) + 1);
   });
 
@@ -385,6 +402,9 @@ export function calcularProdutosRentaveis(
   const produtosMap = new Map<string, number>();
 
   contratos.forEach((c) => {
+    if (c.ignoradoPainelVendedoras) {
+      return;
+    }
     produtosMap.set(c.produto, (produtosMap.get(c.produto) || 0) + c.baseComissionavel);
   });
 
@@ -402,6 +422,9 @@ export function calcularPipelinePorEstagio(
   const estagiosMap = new Map<string, { valorLiquido: number; quantidade: number }>();
 
   contratos.forEach((c) => {
+    if (c.ignoradoPainelVendedoras) {
+      return;
+    }
     // Passa a considerar todos os contratos para visibilidade de pipeline
     if (c.valorLiquido > 0) {
       const stats = estagiosMap.get(c.estagio) || { valorLiquido: 0, quantidade: 0 };
