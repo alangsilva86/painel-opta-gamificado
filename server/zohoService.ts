@@ -1,3 +1,5 @@
+import { parseMoneyToNumber, parsePercentToPercent } from "@shared/zohoParsing";
+
 interface ZohoTokenResponse {
   access_token: string;
   expires_in: number;
@@ -45,33 +47,9 @@ interface ZohoDataResponse {
   record_cursor?: string;
 }
 
-function parseMoney(value: unknown): number {
-  if (typeof value === "number") return value;
-  if (typeof value !== "string") return 0;
-
-  const trimmed = value.trim();
-  if (!trimmed) return 0;
-
-  // Remove prefixo de moeda e espaços
-  let normalized = trimmed.replace(/[R$\s]/gi, "");
-
-  // Se tiver vírgula como decimal, troca por ponto
-  // Remove pontos de milhar (ponto seguido de 3 dígitos)
-  normalized = normalized.replace(/\.(?=\d{3}(\D|$))/g, "");
-  normalized = normalized.replace(",", ".");
-
-  const result = parseFloat(normalized);
-  return isNaN(result) ? 0 : result;
-}
-
-function parsePercent(value: unknown): number {
-  // Percentual pode vir como "4.2000" ou "4,2". Reaproveita a lógica de moeda.
-  return parseMoney(value);
-}
-
 function firstNumber(...values: Array<unknown>): number {
   for (const v of values) {
-    const n = parseMoney(v);
+    const n = parseMoneyToNumber(v);
     if (n !== 0) return n;
   }
   return 0;
@@ -85,11 +63,15 @@ class ZohoService {
   private tokenExpiry: number = 0;
   private lastRequestTime: number = 0;
   private minRequestInterval: number = 1200; // 1.2s entre requisições (50 req/min)
+  private cacheTtlMs: number;
+  private contratosCache = new Map<string, { data: ZohoContratoRaw[]; expiresAt: number }>();
 
   constructor() {
     this.clientId = process.env.ZOHO_CLIENT_ID || "";
     this.clientSecret = process.env.ZOHO_CLIENT_SECRET || "";
     this.refreshToken = process.env.ZOHO_REFRESH_TOKEN || "";
+    const ttlEnv = Number(process.env.ZOHO_CACHE_TTL_MS);
+    this.cacheTtlMs = Number.isFinite(ttlEnv) ? ttlEnv : 60_000;
 
     if (!this.clientId || !this.clientSecret || !this.refreshToken) {
       console.warn(
@@ -119,15 +101,22 @@ class ZohoService {
   private async fetchWithRetry(
     url: string,
     options: RequestInit,
-    maxRetries: number = 3
+    maxRetries: number = 3,
+    timeoutMs: number = 20_000
   ): Promise<Response> {
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         await this.respeitarRateLimit();
-
-        const response = await fetch(url, options);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), timeoutMs);
+        let response: Response;
+        try {
+          response = await fetch(url, { ...options, signal: controller.signal });
+        } finally {
+          clearTimeout(timeout);
+        }
 
         // Se receber 429 (Too Many Requests), aguarda e tenta novamente
         if (response.status === 429) {
@@ -144,7 +133,8 @@ class ZohoService {
         return response;
       } catch (error: any) {
         lastError = error;
-        console.warn(`[ZohoService] Tentativa ${attempt + 1}/${maxRetries} falhou:`, error.message);
+        const motivo = error?.name === "AbortError" ? "timeout" : error.message;
+        console.warn(`[ZohoService] Tentativa ${attempt + 1}/${maxRetries} falhou:`, motivo);
 
         if (attempt < maxRetries - 1) {
           const waitTime = Math.pow(2, attempt) * 1000;
@@ -236,8 +226,8 @@ class ZohoService {
     // 1) Se existir amountComission (Zoho), usa.
     // 2) Senão, tenta Valor_comissao/Comissao.
     // 3) Se ainda zero, calcula por percentual * valor líquido.
-    const comissaoPercent = parsePercent(raw.comissionPercent);
-    const comissaoPercentBonus = parsePercent(raw.comissionPercentBonus);
+    const comissaoPercent = parsePercentToPercent(raw.comissionPercent);
+    const comissaoPercentBonus = parsePercentToPercent(raw.comissionPercentBonus);
     const comissaoPercentTotal = comissaoPercent + comissaoPercentBonus;
     const comissaoCalculadaPorPercentual = valorLiquido * (comissaoPercentTotal / 100);
 
@@ -247,7 +237,7 @@ class ZohoService {
       raw.Comissao,
       comissaoCalculadaPorPercentual
     );
-    const comissaoBonus = parseMoney(raw.Comissao_Bonus);
+    const comissaoBonus = parseMoneyToNumber(raw.Comissao_Bonus);
     let valorComissaoOpta = comissaoPrincipal + comissaoBonus;
     
     // Cálculo oficial: Base Comissionável = Valor_comissao_opta * 0.55 * 0.06
@@ -287,8 +277,14 @@ class ZohoService {
     mesFim: string; // yyyy-mm-dd
     maxRecords?: 200 | 500 | 1000;
   }): Promise<ZohoContratoRaw[]> {
-    const token = await this.getAccessToken();
     const { mesInicio, mesFim, maxRecords = 1000 } = params;
+    const cacheKey = JSON.stringify({ mesInicio, mesFim, maxRecords });
+    const cached = this.getCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const token = await this.getAccessToken();
 
     // Converte datas para formato dd/mm/yyyy
     const [anoIni, mesIni, diaIni] = mesInicio.split("-");
@@ -417,11 +413,31 @@ class ZohoService {
       console.log(
         `[ZohoService] ✓ ${allData.length} contratos brutos encontrados em ${pageCount} páginas`
       );
+      this.setCache(cacheKey, allData);
       return allData;
     } catch (error: any) {
       console.error("[ZohoService] Erro ao buscar contratos:", error.message);
       throw new Error("Falha ao buscar contratos do Zoho Creator");
     }
+  }
+
+  private getCache(cacheKey: string): ZohoContratoRaw[] | null {
+    if (this.cacheTtlMs <= 0) return null;
+    const cached = this.contratosCache.get(cacheKey);
+    if (!cached) return null;
+    if (Date.now() > cached.expiresAt) {
+      this.contratosCache.delete(cacheKey);
+      return null;
+    }
+    return cached.data;
+  }
+
+  private setCache(cacheKey: string, data: ZohoContratoRaw[]): void {
+    if (this.cacheTtlMs <= 0) return;
+    this.contratosCache.set(cacheKey, {
+      data,
+      expiresAt: Date.now() + this.cacheTtlMs,
+    });
   }
 
   /**

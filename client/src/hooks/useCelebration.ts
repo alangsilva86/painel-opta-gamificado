@@ -1,8 +1,14 @@
 import confetti from "canvas-confetti";
 import { useCallback } from "react";
 
+function shouldReduceMotion() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 export function useCelebration() {
   const celebrate = useCallback((type: "small" | "medium" | "large" = "medium") => {
+    if (shouldReduceMotion()) return;
     const configs = {
       small: {
         particleCount: 50,
@@ -34,6 +40,7 @@ export function useCelebration() {
   }, []);
 
   const celebrateMetaAlcancada = useCallback(() => {
+    if (shouldReduceMotion()) return;
     // Explosão dupla para meta alcançada
     const duration = 3 * 1000;
     const animationEnd = Date.now() + duration;
@@ -68,6 +75,7 @@ export function useCelebration() {
   }, []);
 
   const celebrateSuperMeta = useCallback(() => {
+    if (shouldReduceMotion()) return;
     // Explosão dourada para supermeta
     const duration = 5 * 1000;
     const animationEnd = Date.now() + duration;
@@ -102,6 +110,7 @@ export function useCelebration() {
   }, []);
 
   const celebrateLevelUp = useCallback(() => {
+    if (shouldReduceMotion()) return;
     // Explosão central para level up
     confetti({
       particleCount: 150,
@@ -120,4 +129,3 @@ export function useCelebration() {
     celebrateLevelUp,
   };
 }
-

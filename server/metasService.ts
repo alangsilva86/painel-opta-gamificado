@@ -1,62 +1,21 @@
-import { getDb } from "./db";
+import { and, eq } from "drizzle-orm";
+import {
+  calcularDiasUteisDoMes,
+  calcularSemanaDoMes,
+  calcularSemanasUteisDoMes,
+  contarDiasUteis,
+  obterIntervaloSemana,
+} from "@shared/dateUtils";
 import { metasDiarias, metasSemanais, metasVendedor } from "../drizzle/schema";
-import { eq, and } from "drizzle-orm";
+import { getDb } from "./db";
 
-/**
- * Calcula quantos dias úteis existem entre duas datas
- */
-export function contarDiasUteis(dataInicio: Date, dataFim: Date): number {
-  let dias = 0;
-  const data = new Date(dataInicio);
-
-  while (data <= dataFim) {
-    const dia = data.getDay();
-    if (dia !== 0 && dia !== 6) dias++; // Não conta sábado (6) e domingo (0)
-    data.setDate(data.getDate() + 1);
-  }
-
-  return dias;
-}
-
-/**
- * Calcula a semana do mês para um dia específico
- */
-export function calcularSemanaDoMes(dia: number): number {
-  return Math.ceil(dia / 7);
-}
-
-/**
- * Calcula o intervalo de dias de uma semana específica do mês
- */
-export function obterIntervaloSemana(mes: string, semana: number) {
-  const [ano, mesNum] = mes.split("-").map(Number);
-  const ultimoDia = new Date(ano, mesNum, 0).getDate();
-
-  const diaInicio = (semana - 1) * 7 + 1;
-  const diaFim = Math.min(semana * 7, ultimoDia);
-
-  return { diaInicio, diaFim };
-}
-
-/**
- * Calcula dias úteis do mês (YYYY-MM)
- */
-export function calcularDiasUteisDoMes(mes: string): number {
-  const [ano, mesNum] = mes.split("-").map(Number);
-  const inicio = new Date(ano, mesNum - 1, 1);
-  const fim = new Date(ano, mesNum, 0);
-  return contarDiasUteis(inicio, fim);
-}
-
-/**
- * Calcula quantas semanas úteis o mês possui
- */
-export function calcularSemanasUteisDoMes(mes: string): number {
-  const [ano, mesNum] = mes.split("-").map(Number);
-  const ultimoDia = new Date(ano, mesNum, 0).getDate();
-  const semanas = Math.ceil(ultimoDia / 7);
-  return semanas;
-}
+export {
+  calcularDiasUteisDoMes,
+  calcularSemanaDoMes,
+  calcularSemanasUteisDoMes,
+  contarDiasUteis,
+  obterIntervaloSemana,
+};
 
 /**
  * Gera metas diárias automáticas para uma vendedora
@@ -73,17 +32,11 @@ export async function gerarMetasDiarias(
   const [ano, mesNum] = mes.split("-").map(Number);
   const ultimoDia = new Date(ano, mesNum, 0).getDate();
 
-  // Contar dias úteis do mês
-  let diasUteis = 0;
-  for (let d = 1; d <= ultimoDia; d++) {
-    const data = new Date(ano, mesNum - 1, d);
-    const dia = data.getDay();
-    if (dia !== 0 && dia !== 6) diasUteis++;
-  }
-
+  const diasUteis = calcularDiasUteisDoMes(mes);
   const metaDiaria = diasUteis > 0 ? metaMensal / diasUteis : 0;
 
   // Gerar metas para cada dia útil
+  const rows: Array<typeof metasDiarias.$inferInsert> = [];
   for (let d = 1; d <= ultimoDia; d++) {
     const data = new Date(ano, mesNum - 1, d);
     const dia = data.getDay();
@@ -93,16 +46,20 @@ export async function gerarMetasDiarias(
 
     const id = `meta_dia_${mes}_${d}_${vendedoraId}`;
 
+    rows.push({
+      id,
+      mes,
+      dia: d,
+      vendedoraId,
+      metaValor: metaDiaria.toString(),
+      tipo: "automatica",
+    });
+  }
+
+  if (rows.length > 0) {
     await db
       .insert(metasDiarias)
-      .values({
-        id,
-        mes,
-        dia: d,
-        vendedoraId,
-        metaValor: metaDiaria.toString(),
-        tipo: "automatica",
-      })
+      .values(rows)
       .onDuplicateKeyUpdate({
         set: {
           metaValor: metaDiaria.toString(),
@@ -125,11 +82,8 @@ export async function gerarMetasSemanais(
   if (!db) return;
 
   const [ano, mesNum] = mes.split("-").map(Number);
-  const ultimoDia = new Date(ano, mesNum, 0).getDate();
-
-  // Contar semanas com dias úteis
-  const semanas = Math.ceil(ultimoDia / 7);
-  let diasUteisPorSemana: number[] = [];
+  const semanas = calcularSemanasUteisDoMes(mes);
+  const diasUteisPorSemana: number[] = [];
 
   for (let s = 1; s <= semanas; s++) {
     const { diaInicio, diaFim } = obterIntervaloSemana(mes, s);

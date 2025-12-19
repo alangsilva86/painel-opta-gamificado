@@ -21,54 +21,54 @@
 - [x] Ajustar tier "Lendário" (≥250% - 3,50x)
 
 ## 4. Acelerador Global (Meta & Super Meta)
-- [ ] Adicionar campo `superMetaValor` na tabela `metas_global`
-- [ ] Atualizar schema do banco com novo campo
-- [ ] Implementar lógica: Meta Global batida = +25%, Super Meta batida = +50%
-- [ ] Acelerador só para vendedoras com ≥75% da meta
-- [ ] Atualizar painel admin para configurar Meta e Super Meta separadamente
-- [ ] Atualizar dashboard para exibir ambas as metas
+- [x] Adicionar campo `superMetaValor` na tabela `metas_global`
+- [x] Atualizar schema do banco com novo campo
+- [x] Implementar lógica: Meta Global batida = +25%, Super Meta batida = +50%
+- [x] Acelerador só para vendedoras com ≥75% da meta
+- [x] Atualizar painel admin para configurar Meta e Super Meta separadamente
+- [x] Atualizar dashboard para exibir ambas as metas
 
 ## 5. Metas Diárias e Semanais
-- [ ] Calcular automaticamente dias úteis do mês
-- [ ] Calcular meta diária = MetaMensal / DiasUteis
-- [ ] Calcular meta semanal = MetaMensal / Semanas
-- [ ] Adicionar campos editáveis para meta diária e semanal no admin
-- [ ] Exibir metas diárias e semanais no dashboard
+- [x] Calcular automaticamente dias úteis do mês
+- [x] Calcular meta diária = MetaMensal / DiasUteis
+- [x] Calcular meta semanal = MetaMensal / Semanas
+- [x] Adicionar campos editáveis para meta diária e semanal no admin
+- [x] Exibir metas diárias e semanais no dashboard
 
 ## 6. Escada de Aceleradores
-- [ ] Criar componente para exibir escada (75%, 100%, 125%, 150%, 175%, 200%, 250%)
-- [ ] Calcular valores para cada vendedora
-- [ ] Adicionar tooltips "próximo nível"
+- [x] Criar componente para exibir escada (75%, 100%, 125%, 150%, 175%, 200%, 250%)
+- [x] Calcular valores para cada vendedora
+- [x] Adicionar tooltips "próximo nível"
 
 ## 7. Produtos & Rentabilidade
-- [ ] Criar endpoint para listar produtos mais vendidos
-- [ ] Criar endpoint para produtos mais rentáveis por vendedora
-- [ ] Implementar gráfico de top produtos (quantidade)
-- [ ] Implementar gráfico de produtos rentáveis (comissão)
-- [ ] Adicionar filtros por período e vendedora
+- [x] Criar endpoint para listar produtos mais vendidos
+- [x] Criar endpoint para produtos mais rentáveis por vendedora
+- [x] Implementar gráfico de top produtos (quantidade)
+- [x] Implementar gráfico de produtos rentáveis (comissão)
+- [x] Adicionar filtros por período e vendedora
 
 ## 8. Pipeline por Estágio
-- [ ] Consumir campo `Blueprint.Current_Stage`
-- [ ] Criar bloco informativo "Valor em liberação"
-- [ ] Exibir total por estágio
-- [ ] Exibir distribuição por vendedora
-- [ ] Deixar claro que não entra no cálculo de comissão
+- [x] Consumir campo `Blueprint.Current_Stage`
+- [x] Criar bloco informativo "Valor em liberação"
+- [x] Exibir total por estágio
+- [x] Exibir distribuição por vendedora
+- [x] Deixar claro que não entra no cálculo de comissão
 
 ## 9. Badges & Tooltips
-- [ ] Adicionar tooltips em todas as badges de sequência
-- [ ] Adicionar tooltips em badges de ranking
-- [ ] Adicionar tooltips em badges de meta
-- [ ] Usar biblioteca de tooltips (ex: Radix UI Tooltip)
+- [x] Adicionar tooltips em todas as badges de sequência
+- [x] Adicionar tooltips em badges de ranking
+- [x] Adicionar tooltips em badges de meta
+- [x] Usar biblioteca de tooltips (ex: Radix UI Tooltip)
 
 ## 10. Gamificação Visual & Sons
-- [ ] Adicionar som de celebração para nova venda
+- [x] Adicionar som de celebração para nova venda
 - [ ] Adicionar som de conquista para meta 100%
-- [ ] Adicionar som de comemoração para Meta Global
-- [ ] Adicionar som especial para Super Meta Global
-- [ ] Implementar botão de mute global
-- [ ] Garantir que animações não travem a UI
-- [ ] Adicionar confetes para nova venda registrada
-- [ ] Adicionar animação especial para Meta Global batida
+- [x] Adicionar som de comemoração para Meta Global
+- [x] Adicionar som especial para Super Meta Global
+- [x] Implementar botão de mute global
+- [x] Garantir que animações não travem a UI
+- [x] Adicionar confetes para nova venda registrada
+- [x] Adicionar animação especial para Meta Global batida
 - [ ] Adicionar animação full-screen para Super Meta batida
 
 ## 11. Testes & Validação

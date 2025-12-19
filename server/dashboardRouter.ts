@@ -9,7 +9,8 @@ import {
   aplicarAceleradorGlobal,
   detectarBadges,
   calcularRanking,
-  calcularPipelinePorEstagio,
+  calcularAnalisePipeline,
+  calcularAnaliseProdutos,
   filtrarContratosPainelVendedoras,
   VendedoraStats,
 } from "./calculationService";
@@ -46,6 +47,38 @@ function getIntervaloDoMes(mes: string) {
   const ultimoDia = new Date(ano, mesNum, 0).getDate();
   const fim = `${ano}-${String(mesNum).padStart(2, "0")}-${String(ultimoDia).padStart(2, "0")}`;
   return { inicio, fim };
+}
+
+function obterIntervalosOperacionais() {
+  const agora = new Date();
+  const inicioDoDia = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  const inicioDaSemana = new Date(inicioDoDia);
+  const diasParaSegunda = (inicioDoDia.getDay() + 6) % 7; // 0 = domingo -> 6, 1 = segunda -> 0
+  inicioDaSemana.setDate(inicioDaSemana.getDate() - diasParaSegunda);
+  return { agora, inicioDoDia, inicioDaSemana };
+}
+
+function parseDataPagamento(dataPagamento: string): Date | null {
+  if (!dataPagamento) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dataPagamento);
+  if (match) {
+    const [, year, month, day] = match;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+  const parsed = new Date(dataPagamento);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function somarRealizadoPeriodo(
+  contratos: Array<{ dataPagamento: string; valorLiquido: number }>,
+  inicio: Date,
+  fim: Date
+) {
+  return contratos.reduce((acc, contrato) => {
+    const dataPag = parseDataPagamento(contrato.dataPagamento);
+    if (!dataPag) return acc;
+    return dataPag >= inicio && dataPag <= fim ? acc + (contrato.valorLiquido || 0) : acc;
+  }, 0);
 }
 
 /**
@@ -103,6 +136,8 @@ export const dashboardRouter = router({
 
       // Mapa de metas operacionais (diárias/semanais) por vendedora
       const metasPlanejadasMap = new Map<string, { metaDiaria: number; metaSemanal: number }>();
+      const metasDiariasCount = new Map<string, number>();
+      const metasSemanaisCount = new Map<string, number>();
 
       metasDiariasMes.forEach((m) => {
         const valor = parseFloat(m.metaValor);
@@ -110,6 +145,7 @@ export const dashboardRouter = router({
         const atual = metasPlanejadasMap.get(m.vendedoraId) || { metaDiaria: 0, metaSemanal: 0 };
         atual.metaDiaria += valor;
         metasPlanejadasMap.set(m.vendedoraId, atual);
+        metasDiariasCount.set(m.vendedoraId, (metasDiariasCount.get(m.vendedoraId) || 0) + 1);
       });
 
       metasSemanaisMes.forEach((m) => {
@@ -118,32 +154,50 @@ export const dashboardRouter = router({
         const atual = metasPlanejadasMap.get(m.vendedoraId) || { metaDiaria: 0, metaSemanal: 0 };
         atual.metaSemanal += valor;
         metasPlanejadasMap.set(m.vendedoraId, atual);
+        metasSemanaisCount.set(m.vendedoraId, (metasSemanaisCount.get(m.vendedoraId) || 0) + 1);
       });
+
+      const { agora, inicioDoDia, inicioDaSemana } = obterIntervalosOperacionais();
 
       // Agrega por vendedora
       let vendedoras: VendedoraStats[] = agregarPorVendedora(contratosParaPainelVendedoras, metasMap).map((v) => {
         const planejada = metasPlanejadasMap.get(v.id);
+        const metasDiariasEntradas = metasDiariasCount.get(v.id) || 0;
+        const metasSemanaisEntradas = metasSemanaisCount.get(v.id) || 0;
         const metaDiaria =
           planejada && planejada.metaDiaria > 0
-            ? planejada.metaDiaria / Math.max(1, metasDiariasMes.filter((m) => m.vendedoraId === v.id).length || diasUteis || 1)
+            ? planejada.metaDiaria / Math.max(1, metasDiariasEntradas || diasUteis || 1)
             : diasUteis > 0
               ? v.meta / diasUteis
               : 0;
         const metaSemanal =
           planejada && planejada.metaSemanal > 0
-            ? planejada.metaSemanal / Math.max(1, metasSemanaisMes.filter((m) => m.vendedoraId === v.id).length || semanasPlanejadas || 1)
+            ? planejada.metaSemanal / Math.max(1, metasSemanaisEntradas || semanasPlanejadas || 1)
             : semanasPlanejadas > 0
               ? v.meta / semanasPlanejadas
               : 0;
+        const realizadoDia = somarRealizadoPeriodo(v.contratos, inicioDoDia, agora);
+        const realizadoSemana = somarRealizadoPeriodo(v.contratos, inicioDaSemana, agora);
 
         return {
           ...v,
           metaDiariaPlanejada: metaDiaria,
           metaSemanalPlanejada: metaSemanal,
+          realizadoDia,
+          realizadoSemana,
           diasUteis,
           semanasPlanejadas,
         };
       });
+
+      const realizadoDiaGlobal = vendedoras.reduce(
+        (acc, v) => acc + (typeof v.realizadoDia === "number" ? v.realizadoDia : 0),
+        0
+      );
+      const realizadoSemanaGlobal = vendedoras.reduce(
+        (acc, v) => acc + (typeof v.realizadoSemana === "number" ? v.realizadoSemana : 0),
+        0
+      );
 
       // Busca vendedoras visíveis do banco
       const vendedorasVisiveis = await listarVendedoras();
@@ -169,40 +223,9 @@ export const dashboardRouter = router({
       // Calcula ranking (apenas com visíveis)
       const ranking = calcularRanking(vendedorasVisiveis2);
 
-      // Produtos e rentabilidade
-      const produtosMap = new Map<string, { contratos: number; comissao: number }>();
-      let totalComissao = 0;
-
-      contratosParaPainelVendedoras.forEach((c) => {
-        const atual = produtosMap.get(c.produto) || { contratos: 0, comissao: 0 };
-        atual.contratos += 1;
-        atual.comissao += c.baseComissionavel;
-        produtosMap.set(c.produto, atual);
-        totalComissao += c.baseComissionavel;
-      });
-
-      const produtos = Array.from(produtosMap.entries())
-        .map(([nome, dados]) => ({
-          nome,
-          totalContratos: dados.contratos,
-          totalComissao: dados.comissao,
-          comissaoMedia: dados.contratos > 0 ? dados.comissao / dados.contratos : 0,
-          percentualTotal: totalComissao > 0 ? (dados.comissao / totalComissao) * 100 : 0,
-        }))
-        .sort((a, b) => b.totalComissao - a.totalComissao);
-
-      // Pipeline
-      const pipelineBruto = calcularPipelinePorEstagio(contratosParaPainelVendedoras);
-      const pipeline = pipelineBruto.map((p) => ({
-        estagio: p.estagio,
-        totalValor: p.valorLiquido,
-        totalContratos: p.quantidade,
-      }));
-      const totalValorPipeline = pipeline.reduce((acc, item) => acc + item.totalValor, 0);
-      const pipelineComPercentual = pipeline.map((p) => ({
-        ...p,
-        percentualPipeline: totalValorPipeline > 0 ? (p.totalValor / totalValorPipeline) * 100 : 0,
-      }));
+      const { produtos, totalComissao } = calcularAnaliseProdutos(contratosParaPainelVendedoras);
+      const { pipeline, totalValor: totalValorPipeline } =
+        calcularAnalisePipeline(contratosParaPainelVendedoras);
       const valorEmLiberacao = contratosParaPainelVendedoras
         .filter((c) => c.valorComissaoOpta === 0 && c.valorLiquido > 0)
         .reduce((acc, c) => acc + c.valorLiquido, 0);
@@ -213,13 +236,15 @@ export const dashboardRouter = router({
         vendedoras: vendedorasVisiveis2, // Retorna apenas visíveis
         ranking,
         totalContratos: contratosParaPainelVendedoras.length,
+        realizadoDiaGlobal,
+        realizadoSemanaGlobal,
         ultimaAtualizacao: new Date().toISOString(),
         produtos,
         totalComissao,
         contratosSemComissao,
         contratosComComissao,
         percentualContratosSemComissao,
-        pipeline: pipelineComPercentual,
+        pipeline,
         totalValorPipeline,
         valorEmLiberacao,
         operacional: {
@@ -267,44 +292,15 @@ export const dashboardRouter = router({
         );
       }
 
-      const produtosMap = new Map<string, { contratos: number; comissao: number }>();
-      let totalComissao = 0;
-
-      contratosParaPainelVendedoras.forEach((c) => {
-        const atual = produtosMap.get(c.produto) || { contratos: 0, comissao: 0 };
-        atual.contratos += 1;
-        atual.comissao += c.baseComissionavel;
-        produtosMap.set(c.produto, atual);
-        totalComissao += c.baseComissionavel;
-      });
-
-      const produtos = Array.from(produtosMap.entries())
-        .map(([nome, dados]) => ({
-          nome,
-          totalContratos: dados.contratos,
-          totalComissao: dados.comissao,
-          comissaoMedia: dados.contratos > 0 ? dados.comissao / dados.contratos : 0,
-          percentualTotal: totalComissao > 0 ? (dados.comissao / totalComissao) * 100 : 0,
-        }))
-        .sort((a, b) => b.totalComissao - a.totalComissao);
-
-      const pipelineBruto = calcularPipelinePorEstagio(contratosParaPainelVendedoras);
-      const pipeline = pipelineBruto.map((p) => ({
-        estagio: p.estagio,
-        totalValor: p.valorLiquido,
-        totalContratos: p.quantidade,
-      }));
-      const totalValorPipeline = pipeline.reduce((acc, item) => acc + item.totalValor, 0);
-      const pipelineComPercentual = pipeline.map((p) => ({
-        ...p,
-        percentualPipeline: totalValorPipeline > 0 ? (p.totalValor / totalValorPipeline) * 100 : 0,
-      }));
+      const { produtos, totalComissao } = calcularAnaliseProdutos(contratosParaPainelVendedoras);
+      const { pipeline, totalValor: totalValorPipeline } =
+        calcularAnalisePipeline(contratosParaPainelVendedoras);
 
       return {
         mes,
         produtos,
         totalComissao,
-        pipeline: pipelineComPercentual,
+        pipeline,
         totalValorPipeline,
       };
     }),
@@ -373,6 +369,13 @@ export const dashboardRouter = router({
         vendedoraFinal.metaSemanalPlanejada = metaSemanalPlanejada;
         vendedoraFinal.diasUteis = diasUteis;
         vendedoraFinal.semanasPlanejadas = semanasPlanejadas;
+        const { agora, inicioDoDia, inicioDaSemana } = obterIntervalosOperacionais();
+        vendedoraFinal.realizadoDia = somarRealizadoPeriodo(vendedoraFinal.contratos, inicioDoDia, agora);
+        vendedoraFinal.realizadoSemana = somarRealizadoPeriodo(
+          vendedoraFinal.contratos,
+          inicioDaSemana,
+          agora
+        );
 
         return {
           vendedora: vendedoraFinal,

@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "./db";
 import {
   vendedoras,
@@ -250,10 +250,19 @@ export async function sincronizarVendedorasDoZoho(contratosZoho: any[]) {
     }
   });
 
+  const ids = Array.from(vendedorasMap.keys());
+  if (ids.length === 0) {
+    console.log("[sincronizarVendedoras] Nenhuma vendedora encontrada para sincronizar");
+    return;
+  }
+
+  const existentes = await db.select().from(vendedoras).where(inArray(vendedoras.id, ids));
+  const existentesMap = new Map(existentes.map((v) => [v.id, v]));
+
   // Insere ou atualiza vendedoras no banco
-  for (const id of Array.from(vendedorasMap.keys())) {
+  for (const id of ids) {
     const vendedora = vendedorasMap.get(id)!;
-    const existente = await obterVendedora(id);
+    const existente = existentesMap.get(id);
 
     if (!existente) {
       // Cria nova vendedora

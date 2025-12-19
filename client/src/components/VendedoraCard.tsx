@@ -123,24 +123,34 @@ export function VendedoraCard({ vendedora, rank, onClick }: VendedoraCardProps) 
       <Card className="relative overflow-hidden hover:shadow-lg transition-shadow">
         {/* Fita de meta alcançada */}
         {vendedora.percentualMeta >= 100 && (
-          <motion.div
-            initial={{ x: -100 }}
-            animate={{ x: 0 }}
-            className="absolute top-4 -left-8 bg-green-500 text-white px-12 py-1 text-xs font-bold transform -rotate-45 shadow-lg"
-          >
-            META ALCANÇADA
-          </motion.div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <motion.div
+                initial={{ x: -100 }}
+                animate={{ x: 0 }}
+                className="absolute top-4 -left-8 bg-green-500 text-white px-12 py-1 text-xs font-bold transform -rotate-45 shadow-lg"
+              >
+                META ALCANÇADA
+              </motion.div>
+            </TooltipTrigger>
+            <TooltipContent side="top">Meta individual ≥ 100%</TooltipContent>
+          </Tooltip>
         )}
 
         {/* Ranking badge */}
         {rank && rank <= 3 && (
           <div className="absolute top-2 right-2">
-            <div
-              className={`flex items-center gap-1 ${getRankColor()} font-bold text-lg`}
-            >
-              <Trophy size={20} />
-              <span>#{rank}</span>
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  className={`flex items-center gap-1 ${getRankColor()} font-bold text-lg`}
+                >
+                  <Trophy size={20} />
+                  <span>#{rank}</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top">Top {rank} do mês</TooltipContent>
+            </Tooltip>
           </div>
         )}
 

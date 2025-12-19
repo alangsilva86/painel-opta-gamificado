@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Calendar, RefreshCw, Edit2 } from "lucide-react";
+import { calcularDiasUteisDoMes } from "@shared/dateUtils";
 
 interface MetaDiaria {
   dia: number;
@@ -38,13 +39,7 @@ export function MetasCalendario({
   // Gerar array de dias do mês
   const dias = Array.from({ length: ultimoDia }, (_, i) => i + 1);
 
-  // Calcular dias úteis
-  let diasUteis = 0;
-  for (let d = 1; d <= ultimoDia; d++) {
-    const data = new Date(ano, mesNum - 1, d);
-    const dia = data.getDay();
-    if (dia !== 0 && dia !== 6) diasUteis++;
-  }
+  const diasUteis = calcularDiasUteisDoMes(mes);
 
   const metaDiaria = diasUteis > 0 ? metaMensal / diasUteis : 0;
 

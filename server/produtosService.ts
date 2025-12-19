@@ -1,5 +1,11 @@
+import {
+  calcularAnalisePipeline,
+  calcularAnaliseProdutos,
+  filtrarContratosPainelVendedoras,
+  processarContratos,
+} from "./calculationService";
+import { filtrarContratosProcessadosValidos, filtrarContratosZohoValidos } from "./contractUtils";
 import { zohoService } from "./zohoService";
-import { filtrarContratosZohoValidos } from "./contractUtils";
 
 export interface ProdutoStats {
   nome: string;
@@ -29,43 +35,20 @@ function getIntervaloMes(mes: string) {
  */
 export async function analisarProdutos(mes: string) {
   const { inicio, fim } = getIntervaloMes(mes);
-  const contratos = filtrarContratosZohoValidos(
+  const contratosZoho = filtrarContratosZohoValidos(
     await zohoService.buscarContratos({
       mesInicio: inicio,
       mesFim: fim,
     })
   );
-
-  const produtosMap = new Map<string, { contratos: number; comissao: number }>();
-  let totalComissaoGeral = 0;
-
-  for (const contrato of contratos) {
-    const produtoNome = contrato.Produto?.display_value || "Sem produto";
-    const comissao = contrato.Base_comissionavel_vendedores || 0;
-
-    const atual = produtosMap.get(produtoNome) || { contratos: 0, comissao: 0 };
-    atual.contratos++;
-    atual.comissao += comissao;
-    produtosMap.set(produtoNome, atual);
-
-    totalComissaoGeral += comissao;
-  }
-
-  // Converter para array e calcular percentuais
-  const produtos: ProdutoStats[] = Array.from(produtosMap.entries())
-    .map(([nome, dados]) => ({
-      nome,
-      totalContratos: dados.contratos,
-      totalComissao: dados.comissao,
-      comissaoMedia: dados.contratos > 0 ? dados.comissao / dados.contratos : 0,
-      percentualTotal: totalComissaoGeral > 0 ? (dados.comissao / totalComissaoGeral) * 100 : 0,
-    }))
-    .sort((a, b) => b.totalComissao - a.totalComissao);
+  const contratosProcessados = filtrarContratosProcessadosValidos(processarContratos(contratosZoho));
+  const contratosParaPainel = filtrarContratosPainelVendedoras(contratosProcessados);
+  const { produtos, totalComissao, totalContratos } = calcularAnaliseProdutos(contratosParaPainel);
 
   return {
     produtos,
-    totalComissao: totalComissaoGeral,
-    totalContratos: contratos.length,
+    totalComissao,
+    totalContratos,
   };
 }
 
@@ -74,42 +57,20 @@ export async function analisarProdutos(mes: string) {
  */
 export async function analisarPipeline(mes: string) {
   const { inicio, fim } = getIntervaloMes(mes);
-  const contratos = filtrarContratosZohoValidos(
+  const contratosZoho = filtrarContratosZohoValidos(
     await zohoService.buscarContratos({
       mesInicio: inicio,
       mesFim: fim,
     })
   );
-
-  const pipelineMap = new Map<string, { contratos: number; valor: number }>();
-  let totalValorPipeline = 0;
-
-  for (const contrato of contratos) {
-    const estagio = contrato.Estagio?.display_value || "Sem estágio";
-    const valor = contrato.Valor_liquido_liberado || 0;
-
-    const atual = pipelineMap.get(estagio) || { contratos: 0, valor: 0 };
-    atual.contratos++;
-    atual.valor += valor;
-    pipelineMap.set(estagio, atual);
-
-    totalValorPipeline += valor;
-  }
-
-  // Converter para array e calcular percentuais
-  const pipeline: PipelineStats[] = Array.from(pipelineMap.entries())
-    .map(([estagio, dados]) => ({
-      estagio,
-      totalContratos: dados.contratos,
-      totalValor: dados.valor,
-      percentualPipeline: totalValorPipeline > 0 ? (dados.valor / totalValorPipeline) * 100 : 0,
-    }))
-    .sort((a, b) => b.totalValor - a.totalValor);
+  const contratosProcessados = filtrarContratosProcessadosValidos(processarContratos(contratosZoho));
+  const contratosParaPainel = filtrarContratosPainelVendedoras(contratosProcessados);
+  const { pipeline, totalValor, totalContratos } = calcularAnalisePipeline(contratosParaPainel);
 
   return {
     pipeline,
-    totalValor: totalValorPipeline,
-    totalContratos: contratos.length,
+    totalValor,
+    totalContratos,
   };
 }
 

@@ -55,8 +55,8 @@ describe("normalizeContratoZoho", () => {
     expect(contrato.comissaoBonusCent).toBe(1000);
     expect(contrato.comissaoTotalCent).toBe(6000);
     expect(contrato.comissaoCalculada).toBe(true);
-    expect(contrato.pctComissaoBase).toBeCloseTo(0.05);
-    expect(contrato.pctComissaoBonus).toBeCloseTo(0.015);
+    expect(Number(contrato.pctComissaoBase)).toBeCloseTo(0.05);
+    expect(Number(contrato.pctComissaoBonus)).toBeCloseTo(0.015);
 
     // dimensões normalizadas
     expect(contrato.vendedorNome).toBe("Ana Silva");

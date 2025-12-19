@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import { parseMoneyToCents as parseMoneyToCentsShared, parsePercentToFraction } from "@shared/zohoParsing";
 import { InsertContrato, InsertZohoContratoSnapshot } from "../../drizzle/schema";
 import { ZohoContratoRaw } from "../zohoService";
 
@@ -8,41 +9,8 @@ export interface NormalizacaoContratoResult {
   warnings: string[];
 }
 
-export function parseMoneyToCents(value: unknown): number {
-  if (value === null || value === undefined) return 0;
-  if (typeof value === "number") return Math.round(value * 100);
-  if (typeof value !== "string") return 0;
-
-  const trimmed = value.trim();
-  if (!trimmed) return 0;
-
-  let normalized = trimmed.replace(/[R$\s]/gi, "");
-  normalized = normalized.replace(/\.(?=\d{3}(\D|$))/g, "");
-  normalized = normalized.replace(",", ".");
-
-  const parsed = Number.parseFloat(normalized);
-  if (Number.isNaN(parsed)) return 0;
-
-  return Math.round(parsed * 100);
-}
-
-export function parsePercent(value: unknown): number {
-  if (value === null || value === undefined) return 0;
-  if (typeof value === "number") {
-    if (Number.isNaN(value) || value === 0) return 0;
-    return value > 1 ? value / 100 : value;
-  }
-
-  if (typeof value !== "string") return 0;
-
-  const normalized = value.replace("%", "").trim().replace(",", ".");
-  if (!normalized) return 0;
-
-  const parsed = Number.parseFloat(normalized);
-  if (Number.isNaN(parsed) || parsed === 0) return 0;
-
-  return parsed > 1 ? parsed / 100 : parsed;
-}
+export const parseMoneyToCents = parseMoneyToCentsShared;
+export const parsePercent = parsePercentToFraction;
 
 export function normalizeText(value: unknown, fallback: string = "Sem info"): string {
   if (typeof value === "string") {
@@ -184,8 +152,8 @@ export function normalizeContratoZoho(raw: ZohoContratoRaw): NormalizacaoContrat
     comissaoBaseCent,
     comissaoBonusCent,
     comissaoTotalCent,
-    pctComissaoBase,
-    pctComissaoBonus,
+    pctComissaoBase: pctComissaoBase.toString(),
+    pctComissaoBonus: pctComissaoBonus.toString(),
     vendedorNome: normalizeText(raw.sellerName),
     digitadorNome: normalizeText(raw.typerName),
     produto: normalizeText(raw.product),

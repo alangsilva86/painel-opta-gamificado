@@ -21,7 +21,7 @@ export async function getDb() {
           rejectUnauthorized: true,
         },
       });
-      _db = drizzle(pool);
+      _db = drizzle(pool as any);
       console.log(
         `[Database] Pool criado com sucesso -> host: ${url.hostname}:${url.port || 3306}, db: ${
           url.pathname || ""

@@ -452,16 +452,12 @@ export const gestaoRouter = router({
               ? asc(contratos.dataPagamento)
               : desc(contratos.dataPagamento);
 
-    let totalQuery = db.select({ total: count() }).from(contratos);
-    if (whereClause) {
-      totalQuery = totalQuery.where(whereClause);
-    }
-    const totalResult = await totalQuery;
+    const totalResult = await db.select({ total: count() }).from(contratos).where(whereClause);
     const total = totalResult[0]?.total ?? 0;
 
     const offset = (input.page - 1) * input.pageSize;
 
-    let query = db.select({
+    const query = db.select({
       idContrato: contratos.idContrato,
       numeroContrato: contratos.numeroContrato,
       dataPagamento: contratos.dataPagamento,
@@ -478,11 +474,12 @@ export const gestaoRouter = router({
       inconsistenciaDataPagamento: contratos.inconsistenciaDataPagamento,
       liquidoFallback: contratos.liquidoFallback,
       comissaoCalculada: contratos.comissaoCalculada,
-    }).from(contratos);
-    if (whereClause) {
-      query = query.where(whereClause);
-    }
-    query = query.orderBy(sortExpr, desc(contratos.idContrato)).limit(input.pageSize).offset(offset);
+    })
+      .from(contratos)
+      .where(whereClause)
+      .orderBy(sortExpr, desc(contratos.idContrato))
+      .limit(input.pageSize)
+      .offset(offset);
 
     const paginated = await query;
 

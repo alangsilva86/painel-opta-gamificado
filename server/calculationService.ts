@@ -6,6 +6,7 @@
  * NÃO do valor líquido (amount)
  */
 
+import { ESCADA_NIVEIS, TIERS } from "@shared/tiers";
 import { ZohoContrato } from "./zohoService";
 
 export interface ContratoProcessado {
@@ -44,6 +45,8 @@ export interface VendedoraStats {
   metaSemanalPlanejada?: number;
   diasUteis?: number;
   semanasPlanejadas?: number;
+  realizadoDia?: number;
+  realizadoSemana?: number;
   escada?: EscadaStep[];
   contratos: ContratoProcessado[];
   badges: string[];
@@ -73,23 +76,25 @@ export interface EscadaStep {
   atingido: boolean;
 }
 
+export interface ProdutoAnalise {
+  nome: string;
+  totalContratos: number;
+  totalComissao: number;
+  comissaoMedia: number;
+  percentualTotal: number;
+}
+
+export interface PipelineAnalise {
+  estagio: string;
+  totalContratos: number;
+  totalValor: number;
+  percentualPipeline: number;
+}
+
 /**
- * Tabela de tiers ATUALIZADA - Dezembro 2025
- * 
+ * Tiers e escada compartilhados em @shared/tiers
  * REGRA CRÍTICA: Bronze (1-75%) NÃO recebe comissão, mesmo com acelerador global
  */
-export const TIERS = [
-  { min: 1, max: 74.99, multiplicador: 0.0, nome: "Bronze", emoji: "🥉", cor: "gray" },
-  { min: 75, max: 99.99, multiplicador: 0.5, nome: "Prata", emoji: "🥈", cor: "silver" },
-  { min: 100, max: 124.99, multiplicador: 1.0, nome: "Ouro", emoji: "🥇", cor: "gold" },
-  { min: 125, max: 149.99, multiplicador: 1.5, nome: "Platina", emoji: "💎", cor: "blue" },
-  { min: 150, max: 174.99, multiplicador: 2.0, nome: "Brilhante", emoji: "✨", cor: "cyan" },
-  { min: 175, max: 199.99, multiplicador: 2.5, nome: "Diamante", emoji: "🔷", cor: "teal" },
-  { min: 200, max: 249.99, multiplicador: 3.0, nome: "Mestre", emoji: "👑", cor: "orange" },
-  { min: 250, max: Infinity, multiplicador: 3.5, nome: "Lendário", emoji: "⚡", cor: "purple" },
-];
-
-export const ESCADA_NIVEIS = [75, 100, 125, 150, 175, 200, 250];
 // Produtos que não contam para comissão nem para produção no painel das vendedoras
 const PRODUTOS_SEM_COMISSAO_VENDEDORAS = new Set(["emprestimo garantia veiculo"]);
 const PRODUTOS_SEM_COMISSAO_KEYWORDS = ["emprestimo garantia veiculo", "egv"];
@@ -97,7 +102,7 @@ const PRODUTOS_SEM_COMISSAO_KEYWORDS = ["emprestimo garantia veiculo", "egv"];
 function normalizarTextoBasico(valor: string) {
   return valor
     .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
 }
@@ -183,7 +188,7 @@ export function processarContratos(contratosZoho: ZohoContrato[]): ContratoProce
 /**
  * Determina o tier baseado no percentual da meta
  */
-export function determinarTier(percentualMeta: number): (typeof TIERS)[0] {
+export function determinarTier(percentualMeta: number): (typeof TIERS)[number] {
   const tier = TIERS.find((t) => percentualMeta >= t.min && percentualMeta <= t.max);
   return tier || TIERS[0]; // Default: Bronze
 }
@@ -426,6 +431,41 @@ export function calcularProdutosRentaveis(
 }
 
 /**
+ * Consolida analise de produtos (quantidade e incentivo)
+ */
+export function calcularAnaliseProdutos(contratos: ContratoProcessado[]) {
+  const produtosMap = new Map<string, { contratos: number; comissao: number }>();
+  let totalComissao = 0;
+
+  contratos.forEach((c) => {
+    if (isContratoIgnoradoPainelVendedoras(c)) {
+      return;
+    }
+    const atual = produtosMap.get(c.produto) || { contratos: 0, comissao: 0 };
+    atual.contratos += 1;
+    atual.comissao += c.baseComissionavel;
+    produtosMap.set(c.produto, atual);
+    totalComissao += c.baseComissionavel;
+  });
+
+  const produtos: ProdutoAnalise[] = Array.from(produtosMap.entries())
+    .map(([nome, dados]) => ({
+      nome,
+      totalContratos: dados.contratos,
+      totalComissao: dados.comissao,
+      comissaoMedia: dados.contratos > 0 ? dados.comissao / dados.contratos : 0,
+      percentualTotal: totalComissao > 0 ? (dados.comissao / totalComissao) * 100 : 0,
+    }))
+    .sort((a, b) => b.totalComissao - a.totalComissao);
+
+  return {
+    produtos,
+    totalComissao,
+    totalContratos: contratos.length,
+  };
+}
+
+/**
  * Calcula pipeline por estágio (contratos sem comissão ainda)
  */
 export function calcularPipelinePorEstagio(
@@ -449,4 +489,25 @@ export function calcularPipelinePorEstagio(
   return Array.from(estagiosMap.entries())
     .map(([estagio, stats]) => ({ estagio, ...stats }))
     .sort((a, b) => b.valorLiquido - a.valorLiquido);
+}
+
+/**
+ * Consolida analise do pipeline (quantidade, valor e percentual)
+ */
+export function calcularAnalisePipeline(contratos: ContratoProcessado[]) {
+  const pipelineBruto = calcularPipelinePorEstagio(contratos);
+  const totalValor = pipelineBruto.reduce((acc, item) => acc + item.valorLiquido, 0);
+
+  const pipeline: PipelineAnalise[] = pipelineBruto.map((p) => ({
+    estagio: p.estagio,
+    totalValor: p.valorLiquido,
+    totalContratos: p.quantidade,
+    percentualPipeline: totalValor > 0 ? (p.valorLiquido / totalValor) * 100 : 0,
+  }));
+
+  return {
+    pipeline,
+    totalValor,
+    totalContratos: contratos.length,
+  };
 }

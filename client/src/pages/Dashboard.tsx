@@ -37,8 +37,9 @@ export default function Dashboard() {
   const { playSale, playMeta, playSuperMeta, muted, toggleMute } = useAudio();
   const celebrationRef = useRef({ meta: false, superMeta: false });
   const lastContractsRef = useRef<number>(0);
+  const lastSaleAudioAtRef = useRef<number>(0);
+  const lastSaleCelebrationAtRef = useRef<number>(0);
   const lastContractsPorVendedoraRef = useRef<Map<string, number>>(new Map());
-  const saleCelebrationTimeout = useRef<NodeJS.Timeout | null>(null);
   const [saleCelebration, setSaleCelebration] = useState<{ nome: string; id: string } | null>(null);
 
   useEffect(() => {
@@ -60,8 +61,12 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!data) return;
+    const now = Date.now();
     if (lastContractsRef.current && data.totalContratos > lastContractsRef.current) {
-      playSale();
+      if (now - lastSaleAudioAtRef.current > 3000) {
+        playSale();
+        lastSaleAudioAtRef.current = now;
+      }
     }
     lastContractsRef.current = data.totalContratos;
 
@@ -80,26 +85,13 @@ export default function Dashboard() {
     data.vendedoras.forEach((v) => nextMap.set(v.id, v.contratos.length));
     lastContractsPorVendedoraRef.current = nextMap;
 
-    if (deltas.length > 0) {
+    if (deltas.length > 0 && now - lastSaleCelebrationAtRef.current > 5000) {
       const destaque = deltas[0];
-      if (saleCelebrationTimeout.current) {
-        clearTimeout(saleCelebrationTimeout.current);
-      }
       setSaleCelebration({ nome: destaque.nome, id: destaque.id });
       celebrate("small");
-      saleCelebrationTimeout.current = setTimeout(() => {
-        setSaleCelebration(null);
-      }, 2000);
+      lastSaleCelebrationAtRef.current = now;
     }
   }, [data, playSale, celebrate]);
-
-  useEffect(() => {
-    return () => {
-      if (saleCelebrationTimeout.current) {
-        clearTimeout(saleCelebrationTimeout.current);
-      }
-    };
-  }, []);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -128,10 +120,22 @@ export default function Dashboard() {
   const diasParaSegunda = (agora.getDay() + 6) % 7; // 0 = domingo -> 6, 1 = segunda -> 0
   inicioDaSemana.setDate(inicioDaSemana.getDate() - diasParaSegunda);
 
+  const parseDataPagamento = (dataPagamento: string) => {
+    if (!dataPagamento) return null;
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dataPagamento);
+    if (match) {
+      const [, year, month, day] = match;
+      return new Date(Number(year), Number(month) - 1, Number(day));
+    }
+    const parsed = new Date(dataPagamento);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
   const somarRealizadoDesde = (contratos: any[] | undefined, dataInicio: Date) => {
     if (!contratos?.length) return 0;
     return contratos.reduce((acc, contrato) => {
-      const dataPag = new Date(contrato.dataPagamento);
+      const dataPag = parseDataPagamento(contrato.dataPagamento);
+      if (!dataPag) return acc;
       return dataPag >= dataInicio && dataPag <= agora ? acc + (contrato.valorLiquido || 0) : acc;
     }, 0);
   };
@@ -176,19 +180,37 @@ export default function Dashboard() {
 
   const faltaAcelerador = getFaltaParaProximoAcelerador();
   const ranking = data.ranking.map((vendedora) => {
-    const realizadoDia = somarRealizadoDesde(vendedora.contratos, inicioDoDia);
-    const realizadoSemana = somarRealizadoDesde(vendedora.contratos, inicioDaSemana);
+    const realizadoDia =
+      typeof vendedora.realizadoDia === "number"
+        ? vendedora.realizadoDia
+        : somarRealizadoDesde(vendedora.contratos, inicioDoDia);
+    const realizadoSemana =
+      typeof vendedora.realizadoSemana === "number"
+        ? vendedora.realizadoSemana
+        : somarRealizadoDesde(vendedora.contratos, inicioDaSemana);
     return { ...vendedora, realizadoDia, realizadoSemana };
   });
 
-  const realizadoDiaGlobal = data.vendedoras.reduce(
-    (acc, v) => acc + somarRealizadoDesde(v.contratos, inicioDoDia),
-    0
-  );
-  const realizadoSemanaGlobal = data.vendedoras.reduce(
-    (acc, v) => acc + somarRealizadoDesde(v.contratos, inicioDaSemana),
-    0
-  );
+  const realizadoDiaGlobal =
+    typeof data.realizadoDiaGlobal === "number"
+      ? data.realizadoDiaGlobal
+      : data.vendedoras.reduce((acc, v) => {
+          const valor =
+            typeof v.realizadoDia === "number"
+              ? v.realizadoDia
+              : somarRealizadoDesde(v.contratos, inicioDoDia);
+          return acc + valor;
+        }, 0);
+  const realizadoSemanaGlobal =
+    typeof data.realizadoSemanaGlobal === "number"
+      ? data.realizadoSemanaGlobal
+      : data.vendedoras.reduce((acc, v) => {
+          const valor =
+            typeof v.realizadoSemana === "number"
+              ? v.realizadoSemana
+              : somarRealizadoDesde(v.contratos, inicioDaSemana);
+          return acc + valor;
+        }, 0);
   const metaDiariaGlobal =
     data.operacional?.diasUteis && data.operacional.diasUteis > 0
       ? data.metaGlobal.metaValor / data.operacional.diasUteis
@@ -217,8 +239,11 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background">
       {saleCelebration && (
-        <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-50">
-          <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
+        <button
+          type="button"
+          onClick={() => setSaleCelebration(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-background/60 backdrop-blur-sm"
+        >
           <motion.div
             initial={{ scale: 0.7, opacity: 0 }}
             animate={{ scale: 1.05, opacity: 1 }}
@@ -233,9 +258,9 @@ export default function Dashboard() {
               {saleCelebration.nome}
             </div>
             <div className="h-1 w-24 bg-white/50 rounded-full" />
-            <span className="text-sm text-white/80">+ energia no time 🔥</span>
+            <span className="text-sm text-white/80">Clique para fechar</span>
           </motion.div>
-        </div>
+        </button>
       )}
 
       {/* Header */}

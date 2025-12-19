@@ -24,6 +24,7 @@ import { useLocation } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MetasCalendario } from "@/components/MetasCalendario";
+import { calcularDiasUteisDoMes, calcularSemanasUteisDoMes } from "@shared/dateUtils";
 
 export default function Admin() {
   const { user, isAuthenticated } = useAuth();
@@ -227,22 +228,8 @@ export default function Admin() {
     }).format(num);
   };
 
-  // Calcular dias úteis do mês
-  const calcularDiasUteis = (mes: string) => {
-    const [ano, mesNum] = mes.split("-").map(Number);
-    let dias = 0;
-    const ultimoDia = new Date(ano, mesNum, 0).getDate();
-    
-    for (let d = 1; d <= ultimoDia; d++) {
-      const data = new Date(ano, mesNum - 1, d);
-      const dia = data.getDay();
-      if (dia !== 0 && dia !== 6) dias++; // Não conta sábado (6) e domingo (0)
-    }
-    return dias;
-  };
-
-  const diasUteis = calcularDiasUteis(mesAtual);
-  const semanas = Math.ceil(diasUteis / 5);
+  const diasUteis = calcularDiasUteisDoMes(mesAtual);
+  const semanas = calcularSemanasUteisDoMes(mesAtual);
 
   return (
     <div className="min-h-screen bg-background">
@@ -286,7 +273,7 @@ export default function Admin() {
                     Meta Global
                   </CardTitle>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Atingir 100% = +25% acelerador para todas
+                    Atingir 100% = +25% acelerador para vendedoras 75%+
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-6">
@@ -335,7 +322,7 @@ export default function Admin() {
                     Super Meta Global
                   </CardTitle>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Atingir 100% = +50% acelerador para todas
+                    Atingir 100% = +50% acelerador para vendedoras 75%+
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-6">
@@ -388,7 +375,7 @@ export default function Admin() {
                   </div>
                   <div>
                     <p className="font-medium text-purple-400">Super Meta Global</p>
-                    <p className="text-muted-foreground">Se atingir 100%, todas as vendedoras com ≥75% de meta individual ganham +50% no incentivo (cumulativo)</p>
+                    <p className="text-muted-foreground">Se atingir 100%, todas as vendedoras com ≥75% de meta individual ganham +50% no incentivo (não cumulativo; substitui o +25%)</p>
                   </div>
                 </div>
               </CardContent>
