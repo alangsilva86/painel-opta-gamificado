@@ -33,10 +33,13 @@ export default function Dashboard() {
     }
   );
 
-  const { celebrateMetaAlcancada, celebrateSuperMeta } = useCelebration();
+  const { celebrate, celebrateMetaAlcancada, celebrateSuperMeta } = useCelebration();
   const { playSale, playMeta, playSuperMeta, muted, toggleMute } = useAudio();
   const celebrationRef = useRef({ meta: false, superMeta: false });
   const lastContractsRef = useRef<number>(0);
+  const lastContractsPorVendedoraRef = useRef<Map<string, number>>(new Map());
+  const saleCelebrationTimeout = useRef<NodeJS.Timeout | null>(null);
+  const [saleCelebration, setSaleCelebration] = useState<{ nome: string; id: string } | null>(null);
 
   useEffect(() => {
     if (!data) return;
@@ -61,7 +64,42 @@ export default function Dashboard() {
       playSale();
     }
     lastContractsRef.current = data.totalContratos;
-  }, [data, playSale]);
+
+    // Detecta novas vendas por vendedora para disparar confete nominal
+    const prevMap = lastContractsPorVendedoraRef.current;
+    const deltas: { id: string; nome: string; delta: number }[] = [];
+    data.vendedoras.forEach((v) => {
+      const anterior = prevMap.get(v.id) ?? v.contratos.length;
+      const delta = v.contratos.length - anterior;
+      if (delta > 0) {
+        deltas.push({ id: v.id, nome: v.nome, delta });
+      }
+    });
+
+    const nextMap = new Map<string, number>();
+    data.vendedoras.forEach((v) => nextMap.set(v.id, v.contratos.length));
+    lastContractsPorVendedoraRef.current = nextMap;
+
+    if (deltas.length > 0) {
+      const destaque = deltas[0];
+      if (saleCelebrationTimeout.current) {
+        clearTimeout(saleCelebrationTimeout.current);
+      }
+      setSaleCelebration({ nome: destaque.nome, id: destaque.id });
+      celebrate("small");
+      saleCelebrationTimeout.current = setTimeout(() => {
+        setSaleCelebration(null);
+      }, 2000);
+    }
+  }, [data, playSale, celebrate]);
+
+  useEffect(() => {
+    return () => {
+      if (saleCelebrationTimeout.current) {
+        clearTimeout(saleCelebrationTimeout.current);
+      }
+    };
+  }, []);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -178,6 +216,28 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
+      {saleCelebration && (
+        <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-50">
+          <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" />
+          <motion.div
+            initial={{ scale: 0.7, opacity: 0 }}
+            animate={{ scale: 1.05, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="relative px-8 py-6 rounded-3xl shadow-2xl bg-gradient-to-br from-primary/90 via-primary to-purple-700/90 text-white flex flex-col items-center gap-2 border border-white/10"
+          >
+            <span className="text-sm uppercase tracking-[0.2em] text-white/80">
+              Venda fechada!
+            </span>
+            <div className="text-3xl font-extrabold drop-shadow-sm">
+              {saleCelebration.nome}
+            </div>
+            <div className="h-1 w-24 bg-white/50 rounded-full" />
+            <span className="text-sm text-white/80">+ energia no time 🔥</span>
+          </motion.div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-card border-b border-border">
         <div className="container py-6">
