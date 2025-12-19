@@ -16,6 +16,8 @@ import {
   Volume2,
   VolumeX,
   Shield,
+  SunMedium,
+  CalendarRange,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -82,6 +84,20 @@ export default function Dashboard() {
     return "text-muted-foreground";
   };
 
+  const agora = new Date();
+  const inicioDoDia = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  const inicioDaSemana = new Date(inicioDoDia);
+  const diasParaSegunda = (agora.getDay() + 6) % 7; // 0 = domingo -> 6, 1 = segunda -> 0
+  inicioDaSemana.setDate(inicioDaSemana.getDate() - diasParaSegunda);
+
+  const somarRealizadoDesde = (contratos: any[] | undefined, dataInicio: Date) => {
+    if (!contratos?.length) return 0;
+    return contratos.reduce((acc, contrato) => {
+      const dataPag = new Date(contrato.dataPagamento);
+      return dataPag >= dataInicio && dataPag <= agora ? acc + (contrato.valorLiquido || 0) : acc;
+    }, 0);
+  };
+
   const getFaltaParaProximoAcelerador = () => {
     if (!data) return null;
     const { metaGlobal } = data;
@@ -121,6 +137,44 @@ export default function Dashboard() {
   }
 
   const faltaAcelerador = getFaltaParaProximoAcelerador();
+  const ranking = data.ranking.map((vendedora) => {
+    const realizadoDia = somarRealizadoDesde(vendedora.contratos, inicioDoDia);
+    const realizadoSemana = somarRealizadoDesde(vendedora.contratos, inicioDaSemana);
+    return { ...vendedora, realizadoDia, realizadoSemana };
+  });
+
+  const realizadoDiaGlobal = data.vendedoras.reduce(
+    (acc, v) => acc + somarRealizadoDesde(v.contratos, inicioDoDia),
+    0
+  );
+  const realizadoSemanaGlobal = data.vendedoras.reduce(
+    (acc, v) => acc + somarRealizadoDesde(v.contratos, inicioDaSemana),
+    0
+  );
+  const metaDiariaGlobal =
+    data.operacional?.diasUteis && data.operacional.diasUteis > 0
+      ? data.metaGlobal.metaValor / data.operacional.diasUteis
+      : 0;
+  const metaSemanalGlobal =
+    data.operacional?.semanasPlanejadas && data.operacional.semanasPlanejadas > 0
+      ? data.metaGlobal.metaValor / data.operacional.semanasPlanejadas
+      : 0;
+
+  const pctDiaGlobal = metaDiariaGlobal > 0 ? (realizadoDiaGlobal / metaDiariaGlobal) * 100 : 0;
+  const pctSemanaGlobal =
+    metaSemanalGlobal > 0 ? (realizadoSemanaGlobal / metaSemanalGlobal) * 100 : 0;
+
+  const getProgressTone = (pct: number) => {
+    if (pct >= 100) return "bg-green-500";
+    if (pct >= 75) return "bg-amber-400";
+    return "bg-primary";
+  };
+
+  const getProgressTextColor = (pct: number) => {
+    if (pct >= 100) return "text-green-500";
+    if (pct >= 75) return "text-amber-500";
+    return "text-muted-foreground";
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -336,26 +390,70 @@ export default function Dashboard() {
           </Card>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Card>
-              <CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Meta Diária Base</p>
-                <p className="text-xl font-bold">
-                  {formatCurrency(
-                    data.operacional?.diasUteis
-                      ? data.metaGlobal.metaValor / data.operacional.diasUteis
-                      : 0
-                  )}
+              <CardContent className="pt-4 space-y-3">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <SunMedium size={14} />
+                    Ritmo Diário
+                  </div>
+                  <span className={`font-semibold ${getProgressTextColor(pctDiaGlobal)}`}>
+                    {pctDiaGlobal.toFixed(0)}%
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm font-semibold">
+                  <span>{formatCurrency(realizadoDiaGlobal)}</span>
+                  <span className="text-muted-foreground">
+                    Meta {formatCurrency(metaDiariaGlobal)}
+                  </span>
+                </div>
+                <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                  <motion.div
+                    className={`h-full ${getProgressTone(pctDiaGlobal)}`}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(pctDiaGlobal, 140)}%` }}
+                    transition={{ duration: 0.8, ease: "easeOut" }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {metaDiariaGlobal > 0
+                    ? pctDiaGlobal >= 100
+                      ? "Dia batido! Hora de acelerar a semana."
+                      : `Faltam ${formatCurrency(Math.max(0, metaDiariaGlobal - realizadoDiaGlobal))} para fechar o dia.`
+                    : "Defina dias úteis para calcular o ritmo diário."}
                 </p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Meta Semanal Base</p>
-                <p className="text-xl font-bold">
-                  {formatCurrency(
-                    data.operacional?.semanasPlanejadas
-                      ? data.metaGlobal.metaValor / data.operacional.semanasPlanejadas
-                      : 0
-                  )}
+              <CardContent className="pt-4 space-y-3">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <CalendarRange size={14} />
+                    Ritmo Semanal
+                  </div>
+                  <span className={`font-semibold ${getProgressTextColor(pctSemanaGlobal)}`}>
+                    {pctSemanaGlobal.toFixed(0)}%
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm font-semibold">
+                  <span>{formatCurrency(realizadoSemanaGlobal)}</span>
+                  <span className="text-muted-foreground">
+                    Meta {formatCurrency(metaSemanalGlobal)}
+                  </span>
+                </div>
+                <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                  <motion.div
+                    className={`h-full ${getProgressTone(pctSemanaGlobal)}`}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(pctSemanaGlobal, 140)}%` }}
+                    transition={{ duration: 0.8, ease: "easeOut" }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {metaSemanalGlobal > 0
+                    ? pctSemanaGlobal >= 100
+                      ? "Semana batida! Avance para a supermeta."
+                      : `Faltam ${formatCurrency(Math.max(0, metaSemanalGlobal - realizadoSemanaGlobal))} para fechar a semana.`
+                    : "Defina semanas planejadas para calcular o ritmo semanal."}
                 </p>
               </CardContent>
             </Card>
@@ -403,7 +501,7 @@ export default function Dashboard() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {data.ranking.map((vendedora, index) => (
+            {ranking.map((vendedora, index) => (
               <VendedoraCard
                 key={vendedora.id}
                 vendedora={vendedora}
@@ -428,7 +526,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {data.ranking.slice(0, 10).map((vendedora, index) => (
+                {ranking.slice(0, 10).map((vendedora, index) => (
                   <div
                     key={vendedora.id}
                     className="flex items-center gap-4 p-3 rounded-lg bg-secondary/50"

@@ -1,8 +1,9 @@
+import { type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { ProgressRing } from "./ProgressRing";
 import TierBadge from "./TierBadge";
-import { Trophy, TrendingUp, DollarSign, Zap } from "lucide-react";
+import { Trophy, TrendingUp, DollarSign, Zap, SunMedium, CalendarRange } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -20,6 +21,8 @@ interface VendedoraCardProps {
     badges: string[];
     metaDiariaPlanejada?: number;
     metaSemanalPlanejada?: number;
+    realizadoDia?: number;
+    realizadoSemana?: number;
     escada?: {
       label: string;
       falta: number;
@@ -56,6 +59,54 @@ export function VendedoraCard({ vendedora, rank, onClick }: VendedoraCardProps) 
     if (rank === 2) return "text-gray-300";
     if (rank === 3) return "text-orange-400";
     return "text-muted-foreground";
+  };
+
+  const getBarColor = (pct: number) => {
+    if (pct >= 100) return "bg-green-500";
+    if (pct >= 75) return "bg-amber-400";
+    return "bg-primary";
+  };
+
+  const renderRitmoLinha = (
+    label: string,
+    icon: ReactNode,
+    realizado: number,
+    metaPlanejada: number
+  ) => {
+    const pct = metaPlanejada > 0 ? (realizado / metaPlanejada) * 100 : 0;
+    const falta = Math.max(0, metaPlanejada - realizado);
+
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            {icon}
+            <span>{label}</span>
+          </div>
+          <span className="font-semibold text-foreground">{pct.toFixed(0)}%</span>
+        </div>
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <span>{formatCurrency(realizado)}</span>
+          <span>Meta {formatCurrency(metaPlanejada)}</span>
+        </div>
+        <div className="h-2 bg-secondary rounded-full overflow-hidden">
+          <motion.div
+            className={`h-full ${getBarColor(pct)}`}
+            initial={{ width: 0 }}
+            animate={{ width: `${Math.min(pct, 140)}%` }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+          />
+        </div>
+        {metaPlanejada > 0 && falta > 0 && (
+          <p className="text-[11px] text-muted-foreground">
+            Faltam {formatCurrency(falta)} para fechar {label.toLowerCase()}.
+          </p>
+        )}
+        {metaPlanejada > 0 && falta === 0 && (
+          <p className="text-[11px] text-green-500">Ritmo batido!</p>
+        )}
+      </div>
+    );
   };
 
   const proximoNivel = vendedora.escada?.find((step) => !step.atingido);
@@ -173,20 +224,20 @@ export function VendedoraCard({ vendedora, rank, onClick }: VendedoraCardProps) 
                 </div>
               </div>
 
-              {/* Metas operacionais */}
-              <div className="grid grid-cols-2 gap-3 mt-4 text-xs text-muted-foreground">
-                <div>
-                  Meta diária
-                  <div className="text-sm font-semibold text-foreground">
-                    {formatCurrency(vendedora.metaDiariaPlanejada || 0)}
-                  </div>
-                </div>
-                <div>
-                  Meta semanal
-                  <div className="text-sm font-semibold text-foreground">
-                    {formatCurrency(vendedora.metaSemanalPlanejada || 0)}
-                  </div>
-                </div>
+              <div className="mt-4 space-y-3">
+                <div className="text-xs font-semibold text-muted-foreground">Ritmo operacional</div>
+                {renderRitmoLinha(
+                  "Hoje",
+                  <SunMedium size={12} className="text-foreground" />,
+                  vendedora.realizadoDia || 0,
+                  vendedora.metaDiariaPlanejada || 0
+                )}
+                {renderRitmoLinha(
+                  "Semana",
+                  <CalendarRange size={12} className="text-foreground" />,
+                  vendedora.realizadoSemana || 0,
+                  vendedora.metaSemanalPlanejada || 0
+                )}
               </div>
 
               {proximoNivel && (

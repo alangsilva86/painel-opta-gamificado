@@ -372,13 +372,13 @@ export function detectarBadges(vendedora: VendedoraStats): string[] {
  */
 export function calcularRanking(vendedoras: VendedoraStats[]): VendedoraStats[] {
   return [...vendedoras].sort((a, b) => {
-    // 1º critério: % da meta (maior primeiro)
-    if (b.percentualMeta !== a.percentualMeta) {
-      return b.percentualMeta - a.percentualMeta;
-    }
-    // 2º critério: Valor realizado (maior primeiro)
+    // 1º critério: Valor realizado (maior primeiro)
     if (b.realizado !== a.realizado) {
       return b.realizado - a.realizado;
+    }
+    // 2º critério: % da meta (maior primeiro)
+    if (b.percentualMeta !== a.percentualMeta) {
+      return b.percentualMeta - a.percentualMeta;
     }
     // 3º critério: Número de contratos (maior primeiro)
     return b.contratos.length - a.contratos.length;
