@@ -113,4 +113,42 @@ describe("calculationService", () => {
     expect(vendedora.contratos.length).toBe(0);
     expect(vendedora.comissaoBase).toBe(0);
   });
+
+  it("não soma EGV no realizado global", () => {
+    const contratos = processarContratos([
+      {
+        ID: "ct_1",
+        Numero_do_Contrato: "123",
+        Data_de_Pagamento: "2024-05-10",
+        Valor_liquido_liberado: 10000,
+        Valor_comissao_opta: 500,
+        Base_comissionavel_vendedores: 200,
+        Vendedor: { display_value: "Ana", ID: "vend_1" },
+        Produto: { display_value: "Empréstimo Garantia Veículo - Ref.", ID: "prod_egv" },
+        Corban: { display_value: "Agente X", ID: "corban_1" },
+        Estagio: { display_value: "Financeiro", ID: "est_1" },
+      },
+      {
+        ID: "ct_2",
+        Numero_do_Contrato: "456",
+        Data_de_Pagamento: "2024-05-11",
+        Valor_liquido_liberado: 5000,
+        Valor_comissao_opta: 300,
+        Base_comissionavel_vendedores: 150,
+        Vendedor: { display_value: "Bia", ID: "vend_2" },
+        Produto: { display_value: "Consignado", ID: "prod_cons" },
+        Corban: { display_value: "Agente Y", ID: "corban_2" },
+        Estagio: { display_value: "Financeiro", ID: "est_1" },
+      },
+    ]);
+
+    const metas = new Map<string, number>([
+      ["vend_1", 10000],
+      ["vend_2", 10000],
+    ]);
+    const vendedoras = agregarPorVendedora(contratos, metas);
+    const metaGlobal = calcularMetaGlobal(vendedoras, 20000, 0, "2024-05");
+
+    expect(metaGlobal.realizado).toBe(5000);
+  });
 });

@@ -10,6 +10,7 @@ import {
   detectarBadges,
   calcularRanking,
   calcularPipelinePorEstagio,
+  filtrarContratosPainelVendedoras,
   VendedoraStats,
 } from "./calculationService";
 import {
@@ -75,9 +76,7 @@ export const dashboardRouter = router({
       // Processa contratos e aplica filtro de estágios válidos
       const contratosProcessados = processarContratos(contratosZoho);
       const contratosParaExibicao = filtrarContratosProcessadosValidos(contratosProcessados);
-      const contratosParaPainelVendedoras = contratosParaExibicao.filter(
-        (c) => !c.ignoradoPainelVendedoras
-      );
+      const contratosParaPainelVendedoras = filtrarContratosPainelVendedoras(contratosParaExibicao);
       const contratosSemComissao = contratosParaPainelVendedoras.filter((c) => c.baseComissionavel === 0).length;
       const contratosComComissao = contratosParaPainelVendedoras.length - contratosSemComissao;
       const percentualContratosSemComissao =
@@ -260,14 +259,13 @@ export const dashboardRouter = router({
       }
 
       let contratosProcessados = filtrarContratosProcessadosValidos(processarContratos(contratosZoho));
+      let contratosParaPainelVendedoras = filtrarContratosPainelVendedoras(contratosProcessados);
 
       if (input?.vendedoraId) {
-        contratosProcessados = contratosProcessados.filter(
+        contratosParaPainelVendedoras = contratosParaPainelVendedoras.filter(
           (c) => c.vendedoraId === input.vendedoraId
         );
       }
-
-      const contratosParaPainelVendedoras = contratosProcessados.filter((c) => !c.ignoradoPainelVendedoras);
 
       const produtosMap = new Map<string, { contratos: number; comissao: number }>();
       let totalComissao = 0;

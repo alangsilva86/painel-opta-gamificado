@@ -92,6 +92,7 @@ export const TIERS = [
 export const ESCADA_NIVEIS = [75, 100, 125, 150, 175, 200, 250];
 // Produtos que não contam para comissão nem para produção no painel das vendedoras
 const PRODUTOS_SEM_COMISSAO_VENDEDORAS = new Set(["emprestimo garantia veiculo"]);
+const PRODUTOS_SEM_COMISSAO_KEYWORDS = ["emprestimo garantia veiculo", "egv"];
 
 function normalizarTextoBasico(valor: string) {
   return valor
@@ -102,11 +103,23 @@ function normalizarTextoBasico(valor: string) {
 }
 
 function isProdutoSemComissaoParaVendedoras(produto: string) {
-  return PRODUTOS_SEM_COMISSAO_VENDEDORAS.has(normalizarTextoBasico(produto));
+  const normalizado = normalizarTextoBasico(produto);
+  if (PRODUTOS_SEM_COMISSAO_VENDEDORAS.has(normalizado)) return true;
+  return PRODUTOS_SEM_COMISSAO_KEYWORDS.some((kw) => normalizado.includes(kw));
 }
 
 export function isProdutoIgnoradoNoPainelVendedoras(produto: string) {
   return isProdutoSemComissaoParaVendedoras(produto);
+}
+
+export function isContratoIgnoradoPainelVendedoras(contrato: { produto: string; ignoradoPainelVendedoras?: boolean }) {
+  return contrato.ignoradoPainelVendedoras ?? isProdutoIgnoradoNoPainelVendedoras(contrato.produto);
+}
+
+export function filtrarContratosPainelVendedoras<T extends { produto: string; ignoradoPainelVendedoras?: boolean }>(
+  contratos: T[]
+): T[] {
+  return contratos.filter((c) => !isContratoIgnoradoPainelVendedoras(c));
 }
 
 /**
@@ -210,8 +223,7 @@ export function agregarPorVendedora(
     }
 
     const stats = vendedorasMap.get(vendedoraId)!;
-    const ignoradoPainelVendedoras =
-      contrato.ignoradoPainelVendedoras ?? isProdutoIgnoradoNoPainelVendedoras(contrato.produto);
+    const ignoradoPainelVendedoras = isContratoIgnoradoPainelVendedoras(contrato);
 
     if (ignoradoPainelVendedoras) {
       return;
@@ -382,7 +394,7 @@ export function calcularProdutosMaisVendidos(
   const produtosMap = new Map<string, number>();
 
   contratos.forEach((c) => {
-    if (c.ignoradoPainelVendedoras) {
+    if (isContratoIgnoradoPainelVendedoras(c)) {
       return;
     }
     produtosMap.set(c.produto, (produtosMap.get(c.produto) || 0) + 1);
@@ -402,7 +414,7 @@ export function calcularProdutosRentaveis(
   const produtosMap = new Map<string, number>();
 
   contratos.forEach((c) => {
-    if (c.ignoradoPainelVendedoras) {
+    if (isContratoIgnoradoPainelVendedoras(c)) {
       return;
     }
     produtosMap.set(c.produto, (produtosMap.get(c.produto) || 0) + c.baseComissionavel);
@@ -422,7 +434,7 @@ export function calcularPipelinePorEstagio(
   const estagiosMap = new Map<string, { valorLiquido: number; quantidade: number }>();
 
   contratos.forEach((c) => {
-    if (c.ignoradoPainelVendedoras) {
+    if (isContratoIgnoradoPainelVendedoras(c)) {
       return;
     }
     // Passa a considerar todos os contratos para visibilidade de pipeline
