@@ -279,6 +279,18 @@ export const gestaoRouter = router({
       }
     );
 
+    const byProductOperation = Array.from(groupBy(rows, (r) => r.produto).entries()).map(
+      ([produto, list]) => {
+        const operations = Array.from(groupBy(list, (r) => r.tipoOperacao).entries())
+          .map(([tipoOperacao, opList]) => {
+            const ag = aggregateGroup(opList);
+            return { tipoOperacao, ...ag };
+          })
+          .sort((a, b) => b.comissao - a.comissao);
+        return { produto, operations };
+      }
+    );
+
     const byOperationType = Array.from(groupBy(rows, (r) => r.tipoOperacao).entries()).map(
       ([tipoOperacao, list]) => {
         const ag = aggregateGroup(list);
@@ -410,6 +422,7 @@ export const gestaoRouter = router({
       bySeller,
       byTyper,
       byProduct,
+      byProductOperation,
       byOperationType,
       alerts,
     };

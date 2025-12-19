@@ -14,6 +14,7 @@ import { FilterBar } from "@/features/gestao/components/FilterBar";
 import { LeversSection } from "@/features/gestao/components/LeversSection";
 import { MetricCard } from "@/features/gestao/components/MetricCard";
 import { MixSection } from "@/features/gestao/components/MixSection";
+import { ProductRankingList } from "@/features/gestao/components/ProductRankingList";
 import { formatCurrency, formatPercent } from "@/features/gestao/utils";
 import { useGestaoFilters } from "@/features/gestao/useGestaoFilters";
 import { Button } from "@/components/ui/button";
@@ -183,6 +184,15 @@ export default function Gestao() {
         : [tipoOperacao],
     });
   };
+  const handleProductOperationClick = (produto: string, tipoOperacao: string) => {
+    console.info("[GestaoLog] Clique em produto + operação", { produto, tipoOperacao });
+    applyFilter({
+      produto: filterState.produto.includes(produto) ? filterState.produto : [produto],
+      tipoOperacao: filterState.tipoOperacao.includes(tipoOperacao)
+        ? filterState.tipoOperacao
+        : [tipoOperacao],
+    });
+  };
   const handleSellerClick = (vendedor: string) => {
     console.info("[GestaoLog] Clique em vendedor", { vendedor });
     applyFilter({
@@ -263,16 +273,37 @@ export default function Gestao() {
     [resumoQuery.data?.byProduct]
   );
 
-  const [seriesVisibility, setSeriesVisibility] = useState<{ comissao: boolean; liquido: boolean }>({
+  const productOperationMap = useMemo(() => {
+    const arr = resumoQuery.data?.byProductOperation ?? [];
+    const map = new Map<string, Array<any>>();
+    arr.forEach((item: any) => {
+      map.set(item.produto, item.operations ?? []);
+    });
+    return map;
+  }, [resumoQuery.data?.byProductOperation]);
+
+  const [seriesVisibility, setSeriesVisibility] = useState<{
+    comissao: boolean;
+    liquido: boolean;
+    liquidoSem: boolean;
+  }>({
     comissao: true,
     liquido: true,
+    liquidoSem: true,
   });
 
   const handleLegendToggle = (dataKey?: string) => {
     if (!dataKey) return;
-    if (dataKey === "comissao" || dataKey === "liquido") {
-      setSeriesVisibility((prev) => ({ ...prev, [dataKey]: !prev[dataKey as "comissao" | "liquido"] }));
-    }
+    const keyMap: Record<string, "comissao" | "liquido" | "liquidoSem"> = {
+      comissaoPlot: "comissao",
+      comissao: "comissao",
+      liquidoPlot: "liquido",
+      liquido: "liquido",
+      liquidoSem: "liquidoSem",
+    };
+    const target = keyMap[dataKey];
+    if (!target) return;
+    setSeriesVisibility((prev) => ({ ...prev, [target]: !prev[target] }));
   };
 
   const [metaInput, setMetaInput] = useState("");
@@ -622,10 +653,10 @@ export default function Gestao() {
           <LeversSection
             bySeller={resumoQuery.data.bySeller}
             byProduct={resumoQuery.data.byProduct}
+            byProductOperation={resumoQuery.data.byProductOperation}
             filterState={filterState}
-            seriesVisibility={seriesVisibility}
-            onLegendToggle={handleLegendToggle}
             onSellerClick={handleSellerClick}
+            onProductOperationClick={handleProductOperationClick}
             onProductClick={handleProductClick}
           />
 
@@ -670,20 +701,14 @@ export default function Gestao() {
                   }),
               }))}
             />
-            <ClickableList
+            <ProductRankingList
               title="Por Produto"
-              rows={productsSorted.map((b) => ({
-                label: b.produto,
-                value: formatCurrency(b.comissao),
-                extra: `${b.count} | ${formatPercent(b.takeRate)}`,
-                active: filterState.produto.includes(b.produto),
-                onClick: () =>
-                  applyFilter({
-                    produto: filterState.produto.includes(b.produto)
-                      ? filterState.produto
-                      : [b.produto],
-                  }),
-              }))}
+              rows={productsSorted}
+              operationsByProduct={productOperationMap}
+              activeProducts={filterState.produto}
+              activeOperations={filterState.tipoOperacao}
+              onProductClick={handleProductClick}
+              onOperationClick={handleProductOperationClick}
             />
           </div>
 

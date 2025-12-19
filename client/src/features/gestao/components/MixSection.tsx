@@ -3,7 +3,7 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 import { EmptyChart } from "./EmptyChart";
 import { formatCurrency, formatPercent, shortLabel, tooltipBox } from "../utils";
 
-type SeriesVisibility = { comissao: boolean; liquido: boolean };
+type SeriesVisibility = { comissao: boolean; liquido: boolean; liquidoSem: boolean };
 
 type MixSectionProps = {
   productData: Array<any>;
@@ -66,11 +66,22 @@ export function MixSection({
                 <Tooltip content={mixProductTooltip} />
                 <Legend
                   onClick={(o) => onLegendToggle((o as any).dataKey)}
-                  formatter={(value) => (
-                    <span className="text-slate-200 text-xs">
-                      {value} · clique para esconder/mostrar
-                    </span>
-                  )}
+                  formatter={(value, entry) => {
+                    const key = (entry as any)?.dataKey;
+                    const isHidden =
+                      key === "comissaoPlot"
+                        ? !seriesVisibility.comissao
+                        : key === "liquidoPlot"
+                          ? !seriesVisibility.liquido
+                          : key === "liquidoSem"
+                            ? !seriesVisibility.liquidoSem
+                            : false;
+                    return (
+                      <span className={`text-xs ${isHidden ? "text-slate-500 line-through" : "text-slate-200"}`}>
+                        {value} · clique para esconder/mostrar
+                      </span>
+                    );
+                  }}
                 />
                 <Bar
                   dataKey="comissaoPlot"
@@ -94,6 +105,7 @@ export function MixSection({
                   fill="#9ca3af"
                   cursor="pointer"
                   stackId="semProd"
+                  hide={!seriesVisibility.liquidoSem}
                   onClick={(data) => onProductClick((data as any).produto)}
                 />
               </BarChart>
@@ -116,7 +128,25 @@ export function MixSection({
                 <XAxis dataKey="tipoOperacao" stroke="#9ca3af" tickFormatter={(v) => shortLabel(v, 16)} />
                 <YAxis stroke="#9ca3af" tickFormatter={(v) => formatCurrency(v)} />
                 <Tooltip content={mixOperationTooltip} />
-                <Legend onClick={(o) => onLegendToggle((o as any).dataKey)} />
+                <Legend
+                  onClick={(o) => onLegendToggle((o as any).dataKey)}
+                  formatter={(value, entry) => {
+                    const key = (entry as any)?.dataKey;
+                    const isHidden =
+                      key === "comissaoPlot"
+                        ? !seriesVisibility.comissao
+                        : key === "liquidoPlot"
+                          ? !seriesVisibility.liquido
+                          : key === "liquidoSem"
+                            ? !seriesVisibility.liquidoSem
+                            : false;
+                    return (
+                      <span className={`text-xs ${isHidden ? "text-slate-500 line-through" : "text-slate-200"}`}>
+                        {value} · clique para esconder/mostrar
+                      </span>
+                    );
+                  }}
+                />
                 <Bar
                   dataKey="comissaoPlot"
                   name="Comissão"
@@ -139,6 +169,7 @@ export function MixSection({
                   fill="#9ca3af"
                   cursor="pointer"
                   stackId="semOp"
+                  hide={!seriesVisibility.liquidoSem}
                   onClick={(data) => onOperationClick((data as any).tipoOperacao)}
                 />
               </BarChart>

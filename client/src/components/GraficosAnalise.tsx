@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { TrendingUp, Package, Zap } from "lucide-react";
@@ -42,6 +43,9 @@ const CORES_PIPELINE = [
 ];
 
 export function GraficosAnalise({ produtos, pipeline, totalComissao, totalValorPipeline }: GraficosAnaliseProps) {
+  const [productSeriesVisible, setProductSeriesVisible] = useState(true);
+  const [hiddenPipelineStages, setHiddenPipelineStages] = useState<Set<string>>(new Set());
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
@@ -65,6 +69,28 @@ export function GraficosAnalise({ produtos, pipeline, totalComissao, totalValorP
     contratos: p.totalContratos,
     percentual: totalValor > 0 ? (p.totalValor / totalValor) * 100 : 0,
   }));
+
+  const pipelineColors = new Map<string, string>();
+  pipelineGrafico.forEach((item, idx) => {
+    pipelineColors.set(item.name, CORES_PIPELINE[idx % CORES_PIPELINE.length]);
+  });
+
+  const pipelineDisplay = pipelineGrafico.map((item) =>
+    hiddenPipelineStages.has(item.name) ? { ...item, value: 0 } : item
+  );
+
+  const togglePipelineStage = (stage?: string) => {
+    if (!stage) return;
+    setHiddenPipelineStages((prev) => {
+      const next = new Set(prev);
+      if (next.has(stage)) {
+        next.delete(stage);
+      } else {
+        next.add(stage);
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -128,7 +154,15 @@ export function GraficosAnalise({ produtos, pipeline, totalComissao, totalValorP
                     formatter={(value: any) => formatCurrency(value)}
                     contentStyle={{ backgroundColor: "#1a1a1a", border: "1px solid #333" }}
                   />
-                  <Bar dataKey="comissao" fill="#3b82f6" name="Incentivo" />
+                  <Legend
+                    onClick={() => setProductSeriesVisible((prev) => !prev)}
+                    formatter={(value) => (
+                      <span className={`text-xs ${productSeriesVisible ? "text-foreground" : "text-muted-foreground line-through"}`}>
+                        {value} · clique para esconder/mostrar
+                      </span>
+                    )}
+                  />
+                  <Bar dataKey="comissao" fill="#3b82f6" name="Incentivo" hide={!productSeriesVisible} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -150,22 +184,45 @@ export function GraficosAnalise({ produtos, pipeline, totalComissao, totalValorP
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
-                    data={pipelineGrafico}
+                    data={pipelineDisplay}
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                    label={({ name, percent }) =>
+                      percent > 0 ? `${name} (${(percent * 100).toFixed(0)}%)` : ""
+                    }
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {pipelineGrafico.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={CORES_PIPELINE[index % CORES_PIPELINE.length]} />
+                    {pipelineDisplay.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={pipelineColors.get(entry.name) ?? CORES_PIPELINE[index % CORES_PIPELINE.length]}
+                      />
                     ))}
                   </Pie>
                   <Tooltip
                     formatter={(value: any) => formatCurrency(value)}
                     contentStyle={{ backgroundColor: "#1a1a1a", border: "1px solid #333" }}
+                  />
+                  <Legend
+                    onClick={(item) =>
+                      togglePipelineStage(
+                        (item as any)?.value ??
+                          (item as any)?.payload?.name ??
+                          (item as any)?.payload?.payload?.name
+                      )
+                    }
+                    formatter={(value) => {
+                      const label = String(value);
+                      const isHidden = hiddenPipelineStages.has(label);
+                      return (
+                        <span className={`text-xs ${isHidden ? "text-muted-foreground line-through" : "text-foreground"}`}>
+                          {label} · clique para esconder/mostrar
+                        </span>
+                      );
+                    }}
                   />
                 </PieChart>
               </ResponsiveContainer>

@@ -3,7 +3,7 @@ import { CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContai
 import { formatCurrency, formatDateTick, formatPercent, shortLabel, tooltipBox } from "../utils";
 import { EmptyChart } from "./EmptyChart";
 
-type SeriesVisibility = { comissao: boolean; liquido: boolean };
+type SeriesVisibility = { comissao: boolean; liquido: boolean; liquidoSem: boolean };
 
 type HealthPipelineSectionProps = {
   timeseriesData: Array<any>;
@@ -78,7 +78,23 @@ export function HealthPipelineSection({
               <XAxis dataKey="date" stroke="#9ca3af" tickFormatter={formatDateTick} />
               <YAxis stroke="#9ca3af" tickFormatter={currencyTick} />
               <Tooltip content={dualLineTooltip} />
-              <Legend onClick={(o) => onLegendToggle((o as any).dataKey)} />
+              <Legend
+                onClick={(o) => onLegendToggle((o as any).dataKey)}
+                formatter={(value, entry) => {
+                  const key = (entry as any)?.dataKey;
+                  const isHidden =
+                    key === "comissaoPlot"
+                      ? !seriesVisibility.comissao
+                      : key === "liquidoPlot"
+                        ? !seriesVisibility.liquido
+                        : false;
+                  return (
+                    <span className={`text-xs ${isHidden ? "text-slate-500 line-through" : "text-slate-200"}`}>
+                      {value} · clique para esconder/mostrar
+                    </span>
+                  );
+                }}
+              />
               <Line
                 type="monotone"
                 dataKey="comissaoPlot"
@@ -128,11 +144,22 @@ export function HealthPipelineSection({
                 <Tooltip content={dualBarTooltip} />
                 <Legend
                   onClick={(o) => onLegendToggle((o as any).dataKey)}
-                  formatter={(value) => (
-                    <span className="text-slate-200 text-xs">
-                      {value} · clique para esconder/mostrar
-                    </span>
-                  )}
+                  formatter={(value, entry) => {
+                    const key = (entry as any)?.dataKey;
+                    const isHidden =
+                      key === "comissaoPlot"
+                        ? !seriesVisibility.comissao
+                        : key === "liquidoPlot"
+                          ? !seriesVisibility.liquido
+                          : key === "liquidoSem"
+                            ? !seriesVisibility.liquidoSem
+                            : false;
+                    return (
+                      <span className={`text-xs ${isHidden ? "text-slate-500 line-through" : "text-slate-200"}`}>
+                        {value} · clique para esconder/mostrar
+                      </span>
+                    );
+                  }}
                 />
                 <Bar
                   dataKey="comissaoPlot"
@@ -156,6 +183,7 @@ export function HealthPipelineSection({
                   fill="#9ca3af"
                   cursor="pointer"
                   stackId="sem"
+                  hide={!seriesVisibility.liquidoSem}
                   onClick={(data) => onStageClick((data as any).etapa)}
                 />
               </BarChart>
