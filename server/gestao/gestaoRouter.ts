@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from "crypto";
 import { TRPCError } from "@trpc/server";
 import { and, asc, count, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { z } from "zod";
-import { contratos, gestaoMetas, gestaoSyncLogs, metasGlobal } from "../../drizzle/schema";
+import { contratos, gestaoMetas, gestaoSyncLogs, metasVendedor, vendedoras } from "../../drizzle/schema";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { publicProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
@@ -125,6 +125,10 @@ function diffDaysInclusive(start: Date, end: Date) {
   return Math.floor(ms / (1000 * 60 * 60 * 24)) + 1;
 }
 
+function normalizeSellerName(value: string) {
+  return value.trim().toLowerCase();
+}
+
 export const gestaoRouter = router({
   auth: publicProcedure
     .input(z.object({ password: z.string() }))
@@ -177,13 +181,27 @@ export const gestaoRouter = router({
     // Meta e ritmo (pace) - meta de comissão da gestão (separada da meta de vendas)
     let metaComissaoCent = 0;
     const monthKey = input.dateFrom?.slice(0, 7);
+    const metasVendedorMap = new Map<string, number>();
+    const vendedorIdByName = new Map<string, string>();
     if (monthKey) {
       const metaRow = await db.select().from(gestaoMetas).where(eq(gestaoMetas.mes, monthKey)).limit(1);
       if (metaRow.length > 0) {
         const parsedMeta = Number.parseFloat(metaRow[0].metaValor || "0");
         metaComissaoCent = Number.isNaN(parsedMeta) ? 0 : Math.round(parsedMeta * 100);
       }
+      const metasVendedorRows = await db
+        .select()
+        .from(metasVendedor)
+        .where(eq(metasVendedor.mes, monthKey));
+      metasVendedorRows.forEach((m) => {
+        const parsed = Number.parseFloat(m.metaValor || "0");
+        metasVendedorMap.set(m.vendedoraId, Number.isNaN(parsed) ? 0 : parsed);
+      });
     }
+    const vendedorasRows = await db.select({ id: vendedoras.id, nome: vendedoras.nome }).from(vendedoras);
+    vendedorasRows.forEach((v) => {
+      vendedorIdByName.set(normalizeSellerName(v.nome), v.id);
+    });
 
     const startDate = input.dateFrom ? new Date(input.dateFrom) : rows[0]?.dataPagamento;
     const endDate = input.dateTo ? new Date(input.dateTo) : rows[rows.length - 1]?.dataPagamento;
@@ -226,24 +244,41 @@ export const gestaoRouter = router({
       })
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    const aggregateGroup = <T extends { liquidoLiberadoCent: number; comissaoTotalCent: number }>(
-      list: T[]
-    ) => {
+    type ContratoRow = (typeof rows)[number];
+    const aggregateGroup = (list: ContratoRow[]) => {
       const liquido = list.reduce((acc, r) => acc + r.liquidoLiberadoCent, 0);
+      const comissaoBase = list.reduce((acc, r) => acc + r.comissaoBaseCent, 0);
+      const comissaoBonus = list.reduce((acc, r) => acc + r.comissaoBonusCent, 0);
       const comissao = list.reduce((acc, r) => acc + r.comissaoTotalCent, 0);
       const comiss = list.filter((r) => r.comissaoTotalCent > 0);
       const liquidoComiss = comiss.reduce((acc, r) => acc + r.liquidoLiberadoCent, 0);
       const comissaoComiss = comiss.reduce((acc, r) => acc + r.comissaoTotalCent, 0);
-      const semComissaoCount = list.filter((r) => r.comissaoTotalCent === 0).length;
+      const semComissaoCount = list.length - comiss.length;
+      const comissaoCalculadaCount = list.filter((r) => r.comissaoCalculada).length;
+      const liquidoFallbackCount = list.filter((r) => r.liquidoFallback).length;
+      const inconsistenciaDataCount = list.filter((r) => r.inconsistenciaDataPagamento).length;
+      const ticketMedio = list.length > 0 ? liquido / list.length : 0;
+      const ticketMedioComissionado = comiss.length > 0 ? liquidoComiss / comiss.length : 0;
       return {
         count: list.length,
+        comissionadosCount: comiss.length,
         semComissaoCount,
+        comissaoCalculadaCount,
+        liquidoFallbackCount,
+        inconsistenciaDataCount,
         liquido: centsToNumber(liquido),
         comissao: centsToNumber(comissao),
+        comissaoBase: centsToNumber(comissaoBase),
+        comissaoBonus: centsToNumber(comissaoBonus),
         liquidoComissionado: centsToNumber(liquidoComiss),
         comissaoComissionado: centsToNumber(comissaoComiss),
+        ticketMedio: centsToNumber(ticketMedio),
+        ticketMedioComissionado: centsToNumber(ticketMedioComissionado),
         takeRate: liquido > 0 ? comissao / liquido : 0,
         takeRateLimpo: liquidoComiss > 0 ? comissaoComiss / liquidoComiss : 0,
+        pctComissaoCalculada: list.length > 0 ? comissaoCalculadaCount / list.length : 0,
+        pctLiquidoFallback: list.length > 0 ? liquidoFallbackCount / list.length : 0,
+        pctInconsistenciaData: list.length > 0 ? inconsistenciaDataCount / list.length : 0,
       };
     };
 
@@ -257,9 +292,14 @@ export const gestaoRouter = router({
     const bySeller = Array.from(groupBy(rows, (r) => r.vendedorNome).entries()).map(
       ([vendedor, list]) => {
         const ag = aggregateGroup(list);
+        const vendedorId = vendedorIdByName.get(normalizeSellerName(vendedor));
+        const meta = vendedorId ? metasVendedorMap.get(vendedorId) ?? 0 : 0;
+        const pctMeta = meta > 0 ? ag.liquido / meta : 0;
         return {
           vendedor,
           ...ag,
+          meta,
+          pctMeta,
           pctTotal: sumComissao > 0 ? ag.comissao / centsToNumber(sumComissao) : 0,
         };
       }

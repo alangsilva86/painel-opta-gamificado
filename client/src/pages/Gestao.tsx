@@ -15,6 +15,7 @@ import { LeversSection } from "@/features/gestao/components/LeversSection";
 import { MetricCard } from "@/features/gestao/components/MetricCard";
 import { MixSection } from "@/features/gestao/components/MixSection";
 import { ProductRankingList } from "@/features/gestao/components/ProductRankingList";
+import { SellerPerformanceTable } from "@/features/gestao/components/SellerPerformanceTable";
 import { formatCurrency, formatPercent } from "@/features/gestao/utils";
 import { useGestaoFilters } from "@/features/gestao/useGestaoFilters";
 import { Button } from "@/components/ui/button";
@@ -658,6 +659,13 @@ export default function Gestao() {
             onSellerClick={handleSellerClick}
             onProductOperationClick={handleProductOperationClick}
             onProductClick={handleProductClick}
+          />
+
+          <SellerPerformanceTable
+            rows={resumoQuery.data.bySeller}
+            incluirSemComissao={incluirSemComissao}
+            filterState={filterState}
+            onSellerClick={handleSellerClick}
           />
 
           <MixSection
