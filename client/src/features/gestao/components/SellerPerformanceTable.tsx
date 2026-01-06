@@ -16,6 +16,7 @@ type SellerRow = {
   comissaoBonus?: number;
   meta?: number;
   pctMeta?: number;
+  comissaoVendedora?: number;
   liquidoComissionado?: number;
   comissaoComissionado?: number;
   ticketMedio?: number;
@@ -102,8 +103,9 @@ export function SellerPerformanceTable({
                 Produção{sortLabel("producao") ? ` (${sortLabel("producao")})` : ""}
               </TableHead>
               <TableHead className="cursor-pointer select-none" onClick={() => handleSort("comissao")}>
-                Comissão{sortLabel("comissao") ? ` (${sortLabel("comissao")})` : ""}
+                Comissão Opta{sortLabel("comissao") ? ` (${sortLabel("comissao")})` : ""}
               </TableHead>
+              <TableHead>Comissão Vendedora</TableHead>
               <TableHead>Comissão média</TableHead>
               <TableHead className="cursor-pointer select-none" onClick={() => handleSort("semComissao")}>
                 Sem comissão{sortLabel("semComissao") ? ` (${sortLabel("semComissao")})` : ""}
@@ -114,7 +116,7 @@ export function SellerPerformanceTable({
           <TableBody>
             {sorted.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-slate-300">
+                <TableCell colSpan={8} className="text-center text-slate-300">
                   Sem dados de vendedoras no período.
                 </TableCell>
               </TableRow>
@@ -187,6 +189,10 @@ export function SellerPerformanceTable({
                       Base {formatCurrency(row.comissaoBase ?? 0)} • Bônus{" "}
                       {formatCurrency(row.comissaoBonus ?? 0)}
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="font-semibold">{formatCurrency(row.comissaoVendedora ?? 0)}</div>
+                    <div className="text-xs text-slate-400">Base vendedora</div>
                   </TableCell>
                   <TableCell>
                     <div className="font-semibold">{formatPercent(takeRateDisplay)}</div>

@@ -7,6 +7,7 @@ import { getSessionCookieOptions } from "../_core/cookies";
 import { publicProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { nanoid } from "nanoid";
+import { isProdutoIgnoradoNoPainelVendedoras } from "../calculationService";
 import { splitRangeByMonth, syncContratosGestao, syncContratosGestaoIntervalo } from "./syncService";
 
 const FILTERS_SCHEMA = z.object({
@@ -127,6 +128,14 @@ function diffDaysInclusive(start: Date, end: Date) {
 
 function normalizeSellerName(value: string) {
   return value.trim().toLowerCase();
+}
+
+const COMISSAO_VENDEDORA_FACTOR = 0.55 * 0.06;
+
+function calcularComissaoVendedoraCent(contrato: { comissaoTotalCent: number; produto: string }) {
+  if (contrato.comissaoTotalCent <= 0) return 0;
+  if (isProdutoIgnoradoNoPainelVendedoras(contrato.produto)) return 0;
+  return Math.round(contrato.comissaoTotalCent * COMISSAO_VENDEDORA_FACTOR);
 }
 
 export const gestaoRouter = router({
@@ -250,6 +259,10 @@ export const gestaoRouter = router({
       const comissaoBase = list.reduce((acc, r) => acc + r.comissaoBaseCent, 0);
       const comissaoBonus = list.reduce((acc, r) => acc + r.comissaoBonusCent, 0);
       const comissao = list.reduce((acc, r) => acc + r.comissaoTotalCent, 0);
+      const comissaoVendedoraCent = list.reduce(
+        (acc, r) => acc + calcularComissaoVendedoraCent(r),
+        0
+      );
       const comiss = list.filter((r) => r.comissaoTotalCent > 0);
       const liquidoComiss = comiss.reduce((acc, r) => acc + r.liquidoLiberadoCent, 0);
       const comissaoComiss = comiss.reduce((acc, r) => acc + r.comissaoTotalCent, 0);
@@ -270,6 +283,7 @@ export const gestaoRouter = router({
         comissao: centsToNumber(comissao),
         comissaoBase: centsToNumber(comissaoBase),
         comissaoBonus: centsToNumber(comissaoBonus),
+        comissaoVendedora: centsToNumber(comissaoVendedoraCent),
         liquidoComissionado: centsToNumber(liquidoComiss),
         comissaoComissionado: centsToNumber(comissaoComiss),
         ticketMedio: centsToNumber(ticketMedio),
@@ -543,6 +557,7 @@ export const gestaoRouter = router({
       data: paginated.map((row) => {
         const liquido = centsToNumber(row.liquidoLiberadoCent);
         const comissaoTotal = centsToNumber(row.comissaoTotalCent);
+        const comissaoVendedora = centsToNumber(calcularComissaoVendedoraCent(row));
         const takeRate = liquido > 0 ? comissaoTotal / liquido : 0;
         return {
           idContrato: row.idContrato,
@@ -558,6 +573,7 @@ export const gestaoRouter = router({
           comissaoBase: centsToNumber(row.comissaoBaseCent),
           comissaoBonus: centsToNumber(row.comissaoBonusCent),
           comissaoTotal,
+          comissaoVendedora,
           takeRate,
           diasDesdePagamento: Math.floor(
             (Date.now() - row.dataPagamento.getTime()) / (1000 * 60 * 60 * 24)
@@ -592,6 +608,7 @@ export const gestaoRouter = router({
       "comissao_base",
       "comissao_bonus",
       "comissao_total",
+      "comissao_vendedora",
       "inconsistencia_data_pagamento",
       "liquido_fallback",
       "comissao_calculada",
@@ -611,6 +628,7 @@ export const gestaoRouter = router({
         centsToNumber(row.comissaoBaseCent).toFixed(2),
         centsToNumber(row.comissaoBonusCent).toFixed(2),
         centsToNumber(row.comissaoTotalCent).toFixed(2),
+        centsToNumber(calcularComissaoVendedoraCent(row)).toFixed(2),
         row.inconsistenciaDataPagamento,
         row.liquidoFallback,
         row.comissaoCalculada,

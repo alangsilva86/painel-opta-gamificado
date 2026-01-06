@@ -19,6 +19,7 @@ type DrilldownRow = {
   comissaoBase: number;
   comissaoBonus: number;
   comissaoTotal: number;
+  comissaoVendedora?: number;
   takeRate: number;
   diasDesdePagamento?: number | null;
   flags: {
@@ -110,57 +111,59 @@ export function DrilldownTable({
         <div className="overflow-y-auto max-h-[480px]">
           <Table>
             <TableHeader className="sticky top-0 bg-slate-950 z-10">
+            <TableRow>
+              <TableHead>#</TableHead>
+              <TableHead className="cursor-pointer select-none" onClick={() => onSort("data")}>
+                Data {sortLabel("data")}
+              </TableHead>
+              <TableHead>Vendedor</TableHead>
+              <TableHead>Produto</TableHead>
+              <TableHead>Etapa</TableHead>
+              <TableHead>Dias desde pag.</TableHead>
+              <TableHead className="cursor-pointer select-none" onClick={() => onSort("liquido")}>
+                Líquido {sortLabel("liquido")}
+              </TableHead>
+              <TableHead className="cursor-pointer select-none" onClick={() => onSort("comissao")}>
+                Comissão Opta {sortLabel("comissao")}
+              </TableHead>
+              <TableHead>Comissão Vendedora</TableHead>
+              <TableHead className="cursor-pointer select-none" onClick={() => onSort("takeRate")}>
+                Comissão Média {sortLabel("takeRate")}
+              </TableHead>
+              <TableHead>Flags</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isEmpty && (
               <TableRow>
-                <TableHead>#</TableHead>
-                <TableHead className="cursor-pointer select-none" onClick={() => onSort("data")}>
-                  Data {sortLabel("data")}
-                </TableHead>
-                <TableHead>Vendedor</TableHead>
-                <TableHead>Produto</TableHead>
-                <TableHead>Etapa</TableHead>
-                <TableHead>Dias desde pag.</TableHead>
-                <TableHead className="cursor-pointer select-none" onClick={() => onSort("liquido")}>
-                  Líquido {sortLabel("liquido")}
-                </TableHead>
-                <TableHead className="cursor-pointer select-none" onClick={() => onSort("comissao")}>
-                  Comissão {sortLabel("comissao")}
-                </TableHead>
-                <TableHead className="cursor-pointer select-none" onClick={() => onSort("takeRate")}>
-                  Comissão Média {sortLabel("takeRate")}
-                </TableHead>
-                <TableHead>Flags</TableHead>
+                <TableCell colSpan={11} className="text-center text-slate-300">
+                  Sem dados neste período. Ajuste as datas ou filtros.
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isEmpty && (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center text-slate-300">
-                    Sem dados neste período. Ajuste as datas ou filtros.
-                  </TableCell>
-                </TableRow>
-              )}
-              {rows.map((row, idx) => (
-                <TableRow
-                  key={row.idContrato}
-                  className={idx % 2 === 0 ? "bg-[#0f172a]" : "bg-[#111827]"}
-                >
-                  <TableCell className="font-mono text-xs">{row.numeroContrato || row.idContrato}</TableCell>
-                  <TableCell>
-                    {row.dataPagamento
-                      ? new Date(row.dataPagamento).toLocaleDateString("pt-BR")
-                      : "-"}
-                  </TableCell>
-                  <TableCell>{row.vendedorNome}</TableCell>
-                  <TableCell>{row.produto}</TableCell>
-                  <TableCell>{row.etapaPipeline}</TableCell>
-                  <TableCell>{row.diasDesdePagamento ?? "-"}</TableCell>
-                  <TableCell>{formatCurrency(row.liquido)}</TableCell>
-                  <TableCell>{formatCurrency(row.comissaoTotal)}</TableCell>
-                  <TableCell className="flex items-center gap-1">
-                    <span>{formatPercent(row.takeRate)}</span>
-                    {takeRateBaseline !== undefined && (
-                      <span className="text-[11px] text-slate-400">
-                        {row.takeRate >= takeRateBaseline ? "↑" : "↓"}
+            )}
+            {rows.map((row, idx) => (
+              <TableRow
+                key={row.idContrato}
+                className={idx % 2 === 0 ? "bg-[#0f172a]" : "bg-[#111827]"}
+              >
+                <TableCell className="font-mono text-xs">{row.numeroContrato || row.idContrato}</TableCell>
+                <TableCell>
+                  {row.dataPagamento
+                    ? new Date(row.dataPagamento).toLocaleDateString("pt-BR")
+                    : "-"}
+                </TableCell>
+                <TableCell>{row.vendedorNome}</TableCell>
+                <TableCell>{row.produto}</TableCell>
+                <TableCell>{row.etapaPipeline}</TableCell>
+                <TableCell>{row.diasDesdePagamento ?? "-"}</TableCell>
+                <TableCell>{formatCurrency(row.liquido)}</TableCell>
+                <TableCell>{formatCurrency(row.comissaoTotal)}</TableCell>
+                <TableCell>{formatCurrency(row.comissaoVendedora ?? 0)}</TableCell>
+                <TableCell className="flex items-center gap-1">
+                  <span>{formatPercent(row.takeRate)}</span>
+                  {takeRateBaseline !== undefined && (
+                    <span className="text-[11px] text-slate-400">
+                      {row.takeRate >= takeRateBaseline ? "↑" : "↓"}
                       </span>
                     )}
                   </TableCell>
