@@ -6,20 +6,19 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { ActiveFilters } from "@/features/gestao/components/ActiveFilters";
 import { AlertsCard } from "@/features/gestao/components/AlertsCard";
+import { executeGestaoAnalystAction } from "@/features/gestao/analystActions";
 import { ClickableList } from "@/features/gestao/components/ClickableList";
 import { DrilldownTable } from "@/features/gestao/components/DrilldownTable";
 import { ExecutiveCockpit } from "@/features/gestao/components/ExecutiveCockpit";
-import { ExecutiveSummary } from "@/features/gestao/components/ExecutiveSummary";
 import { HealthPipelineSection } from "@/features/gestao/components/HealthPipelineSection";
 import { FilterBar } from "@/features/gestao/components/FilterBar";
+import { GestaoAnalystChat } from "@/features/gestao/components/GestaoAnalystChat";
 import { LeversSection } from "@/features/gestao/components/LeversSection";
 import { MixSection } from "@/features/gestao/components/MixSection";
 import { PeriodKpisSection } from "@/features/gestao/components/PeriodKpisSection";
 import { ProductRankingList } from "@/features/gestao/components/ProductRankingList";
 import { SalesHeatmap } from "@/features/gestao/components/SalesHeatmap";
 import { SellerPerformanceTable } from "@/features/gestao/components/SellerPerformanceTable";
-import { VariationDrivers } from "@/features/gestao/components/VariationDrivers";
-import { WatchlistPanel } from "@/features/gestao/components/WatchlistPanel";
 import {
   formatCurrency,
   formatPercent,
@@ -220,7 +219,6 @@ export default function Gestao() {
     availableProducts,
     availableSellers,
     comparisonMetricDeltas,
-    comparisonResumo,
     deltas,
     executiveMetrics,
     flagCounts,
@@ -366,7 +364,9 @@ export default function Gestao() {
 
   const {
     activeViewId,
+    allSavedViews,
     applySavedView,
+    applySavedViewLocally,
     clearActiveView,
     customViews,
     handleDeleteView,
@@ -387,6 +387,14 @@ export default function Gestao() {
     setHasFetched,
     syncForViewState,
   });
+
+  const chatViewState = useMemo<GestaoViewState>(
+    () => ({
+      ...baseViewState,
+      activeViewId,
+    }),
+    [activeViewId, baseViewState]
+  );
 
   const [metaInput, setMetaInput] = useState("");
 
@@ -474,6 +482,21 @@ export default function Gestao() {
     link.click();
     URL.revokeObjectURL(url);
     console.info("[GestaoLog] Exportação CSV concluída");
+  };
+
+  const handleAnalystAction = async (
+    action: Parameters<typeof executeGestaoAnalystAction>[0]["action"]
+  ) => {
+    executeGestaoAnalystAction({
+      action,
+      currentViewState: chatViewState,
+      applyFilter,
+      applyViewState,
+      setGranularity,
+      setIncluirSemComissao,
+      availableViews: allSavedViews,
+      applySavedViewLocally,
+    });
   };
 
   const syncStatusQuery = trpc.gestao.getSyncStatus.useQuery(
@@ -660,33 +683,12 @@ export default function Gestao() {
               comparisonEnabled={comparisonModeApplied}
             />
 
-            <section className="space-y-4">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground section-heading">
-                  Análise de Drivers
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  O que mudou, por que mudou e onde agir agora.
-                </p>
-              </div>
-              <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-                <ExecutiveSummary
-                  items={resumoQuery.data.executiveNarrative}
-                  onApplyFilter={applyFilter}
-                />
-                <WatchlistPanel
-                  items={resumoQuery.data.watchlist}
-                  onApplyFilter={applyFilter}
-                />
-              </div>
-              <VariationDrivers
-                current={resumoQuery.data}
-                comparison={comparisonResumo}
-                onSellerClick={handleSellerClick}
-                onProductClick={handleProductClick}
-                onOperationClick={handleOperationClick}
-              />
-            </section>
+            <GestaoAnalystChat
+              viewState={chatViewState}
+              summary={resumoQuery.data}
+              availableViews={allSavedViews}
+              onAction={handleAnalystAction}
+            />
 
             <PeriodKpisSection
               cards={resumoQuery.data.cards}

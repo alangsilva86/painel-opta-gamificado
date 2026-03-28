@@ -25,6 +25,7 @@ export type GestaoComparisonPreset =
   | "prev_year"
   | "custom";
 export type GestaoTimeseriesGranularity = "day" | "week" | "month";
+export type GestaoAnalystRole = "user" | "assistant" | "system";
 
 export type GestaoFilterState = {
   etapaPipeline: string[];
@@ -32,6 +33,8 @@ export type GestaoFilterState = {
   produto: string[];
   tipoOperacao: string[];
 };
+
+export type GestaoFilterKey = keyof GestaoFilterState;
 
 export type GestaoFlagFilters = {
   comissaoCalculada: boolean;
@@ -68,4 +71,54 @@ export type GestaoSavedView = {
   kind: "preset" | "custom";
   state: GestaoViewState;
   updatedAt: string;
+};
+
+export type GestaoAnalystAction =
+  | {
+      type: "apply_filter";
+      label: string;
+      key: GestaoFilterKey;
+      values: string[];
+    }
+  | {
+      type: "clear_filter";
+      label: string;
+      key: GestaoFilterKey;
+    }
+  | {
+      type: "set_comparison_preset";
+      label: string;
+      preset: Exclude<GestaoComparisonPreset, "custom">;
+    }
+  | {
+      type: "set_granularity";
+      label: string;
+      granularity: GestaoTimeseriesGranularity;
+    }
+  | {
+      type: "toggle_sem_comissao";
+      label: string;
+      value: boolean;
+    }
+  | {
+      type: "apply_saved_view";
+      label: string;
+      viewId: string;
+    };
+
+export type GestaoAnalystResponse = {
+  answer: string;
+  evidence: string[];
+  riskLevel: "low" | "medium" | "high";
+  recommendedActions: GestaoAnalystAction[];
+  followUpPrompts: string[];
+  contextLabel: string;
+};
+
+export type GestaoAnalystMessage = {
+  id: string;
+  role: GestaoAnalystRole;
+  content: string;
+  createdAt: string;
+  response?: GestaoAnalystResponse;
 };

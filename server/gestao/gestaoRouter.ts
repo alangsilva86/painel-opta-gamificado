@@ -1,35 +1,31 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { TRPCError } from "@trpc/server";
-import { and, asc, count, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   contratos,
   gestaoMetas,
   gestaoSyncLogs,
-  metasVendedor,
-  vendedoras,
 } from "../../drizzle/schema";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { publicProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { nanoid } from "nanoid";
-import { isProdutoIgnoradoNoPainelVendedoras } from "../calculationService";
 import {
   buildMergedRangesForIntervals,
   syncContratosGestaoRanges,
 } from "./syncService";
-import { buildExecutiveLayer } from "./executive";
-
-const FILTERS_SCHEMA = z.object({
-  dateFrom: z.string().optional(),
-  dateTo: z.string().optional(),
-  etapaPipeline: z.array(z.string()).optional(),
-  vendedorNome: z.array(z.string()).optional(),
-  produto: z.array(z.string()).optional(),
-  tipoOperacao: z.array(z.string()).optional(),
-  agenteId: z.array(z.string()).optional(),
-  digitadorNome: z.array(z.string()).optional(),
-});
+import {
+  buildGestaoResumoSnapshot,
+  buildWhere,
+  calcularComissaoVendedoraCent,
+  centsToNumber,
+  FILTERS_SCHEMA,
+} from "./resumoSnapshot";
+import {
+  CHAT_ANALYST_INPUT_SCHEMA,
+  generateGestaoAnalystResponse,
+} from "./chatAnalyst";
 
 const DRILLDOWN_SCHEMA = FILTERS_SCHEMA.extend({
   page: z.number().int().min(1).default(1),
@@ -89,80 +85,6 @@ type SyncJobStatus = {
 
 const syncJobs = new Map<string, SyncJobStatus>();
 
-function buildWhere(filters: z.infer<typeof FILTERS_SCHEMA>) {
-  const clauses: any[] = [];
-  if (filters.dateFrom) {
-    const start = new Date(filters.dateFrom);
-    start.setHours(0, 0, 0, 0);
-    clauses.push(gte(contratos.dataPagamento, start));
-  }
-  if (filters.dateTo) {
-    const end = new Date(filters.dateTo);
-    end.setHours(23, 59, 59, 999); // incluir todo o dia final
-    clauses.push(lte(contratos.dataPagamento, end));
-  }
-  if (filters.etapaPipeline?.length)
-    clauses.push(inArray(contratos.etapaPipeline, filters.etapaPipeline));
-  if (filters.vendedorNome?.length)
-    clauses.push(inArray(contratos.vendedorNome, filters.vendedorNome));
-  if (filters.produto?.length)
-    clauses.push(inArray(contratos.produto, filters.produto));
-  if (filters.tipoOperacao?.length)
-    clauses.push(inArray(contratos.tipoOperacao, filters.tipoOperacao));
-  if (filters.agenteId?.length)
-    clauses.push(inArray(contratos.agenteId, filters.agenteId));
-  if (filters.digitadorNome?.length)
-    clauses.push(inArray(contratos.digitadorNome, filters.digitadorNome));
-
-  return clauses.length > 0 ? and(...clauses) : undefined;
-}
-
-function centsToNumber(v: number) {
-  return v / 100;
-}
-
-function formatPercent(value: number) {
-  return `${(value * 100).toFixed(1)}%`;
-}
-
-function groupBy<T, K extends string | number>(
-  items: T[],
-  keyFn: (item: T) => K
-) {
-  const map = new Map<K, T[]>();
-  items.forEach(item => {
-    const key = keyFn(item);
-    const arr = map.get(key) || [];
-    arr.push(item);
-    map.set(key, arr);
-  });
-  return map;
-}
-
-function formatDateKey(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function diffDaysInclusive(start: Date, end: Date) {
-  const ms = end.getTime() - start.getTime();
-  return Math.floor(ms / (1000 * 60 * 60 * 24)) + 1;
-}
-
-function normalizeSellerName(value: string) {
-  return value.trim().toLowerCase();
-}
-
-const COMISSAO_VENDEDORA_FACTOR = 0.55 * 0.06;
-
-function calcularComissaoVendedoraCent(contrato: {
-  comissaoTotalCent: number;
-  produto: string;
-}) {
-  if (contrato.comissaoTotalCent <= 0) return 0;
-  if (isProdutoIgnoradoNoPainelVendedoras(contrato.produto)) return 0;
-  return Math.round(contrato.comissaoTotalCent * COMISSAO_VENDEDORA_FACTOR);
-}
-
 export const gestaoRouter = router({
   auth: publicProcedure
     .input(z.object({ password: z.string() }))
@@ -200,434 +122,47 @@ export const gestaoRouter = router({
     }),
 
   getResumo: gestaoProcedure.input(FILTERS_SCHEMA).query(async ({ input }) => {
-    const db = await getDb();
-    if (!db)
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Database indisponível",
-      });
-    const where = buildWhere(input);
-    const rows = await db.select().from(contratos).where(where);
-    const latestSyncRow = await db
-      .select({ createdAt: gestaoSyncLogs.createdAt })
-      .from(gestaoSyncLogs)
-      .orderBy(desc(gestaoSyncLogs.createdAt))
-      .limit(1);
-
-    const total = rows.length;
-    const sumLiquido = rows.reduce((acc, r) => acc + r.liquidoLiberadoCent, 0);
-    const sumComissao = rows.reduce((acc, r) => acc + r.comissaoTotalCent, 0);
-    const semComissao = rows.filter(r => r.comissaoTotalCent === 0);
-    const sumLiquidoSemComissao = semComissao.reduce(
-      (acc, r) => acc + r.liquidoLiberadoCent,
-      0
-    );
-    const rowsComissionados = rows.filter(r => r.comissaoTotalCent > 0);
-    const sumLiquidoComissionados = rowsComissionados.reduce(
-      (acc, r) => acc + r.liquidoLiberadoCent,
-      0
-    );
-    const sumComissaoComissionados = rowsComissionados.reduce(
-      (acc, r) => acc + r.comissaoTotalCent,
-      0
-    );
-    const takeRate = sumLiquido > 0 ? sumComissao / sumLiquido : 0;
-    const takeRateLimpo =
-      sumLiquidoComissionados > 0
-        ? sumComissaoComissionados / sumLiquidoComissionados
-        : 0;
-    const ticketMedio = total > 0 ? sumLiquido / total : 0;
-    const pctComissaoCalculada =
-      total > 0 ? rows.filter(r => r.comissaoCalculada).length / total : 0;
-    const pctLiquidoFallback =
-      total > 0 ? rows.filter(r => r.liquidoFallback).length / total : 0;
-    const contratosSemComissao = rows.filter(
-      r => r.comissaoTotalCent === 0
-    ).length;
-
-    // Meta e ritmo (pace) - meta de comissão da gestão (separada da meta de vendas)
-    let metaComissaoCent = 0;
-    const monthKey = input.dateFrom?.slice(0, 7);
-    const metasVendedorMap = new Map<string, number>();
-    const vendedorIdByName = new Map<string, string>();
-    if (monthKey) {
-      const metaRow = await db
-        .select()
-        .from(gestaoMetas)
-        .where(eq(gestaoMetas.mes, monthKey))
-        .limit(1);
-      if (metaRow.length > 0) {
-        const parsedMeta = Number.parseFloat(metaRow[0].metaValor || "0");
-        metaComissaoCent = Number.isNaN(parsedMeta)
-          ? 0
-          : Math.round(parsedMeta * 100);
-      }
-      const metasVendedorRows = await db
-        .select()
-        .from(metasVendedor)
-        .where(eq(metasVendedor.mes, monthKey));
-      metasVendedorRows.forEach(m => {
-        const parsed = Number.parseFloat(m.metaValor || "0");
-        metasVendedorMap.set(m.vendedoraId, Number.isNaN(parsed) ? 0 : parsed);
-      });
-    }
-    const vendedorasRows = await db
-      .select({ id: vendedoras.id, nome: vendedoras.nome })
-      .from(vendedoras);
-    vendedorasRows.forEach(v => {
-      vendedorIdByName.set(normalizeSellerName(v.nome), v.id);
-    });
-
-    const startDate = input.dateFrom
-      ? new Date(input.dateFrom)
-      : rows[0]?.dataPagamento;
-    const endDate = input.dateTo
-      ? new Date(input.dateTo)
-      : rows[rows.length - 1]?.dataPagamento;
-    const now = new Date();
-    const effectiveStart = startDate ? startDate : now;
-    const effectiveEnd = endDate ? endDate : now;
-    const totalDias =
-      effectiveStart && effectiveEnd
-        ? Math.max(1, diffDaysInclusive(effectiveStart, effectiveEnd))
-        : 1;
-    const diasDecorridos =
-      effectiveStart && effectiveEnd
-        ? Math.max(
-            0,
-            diffDaysInclusive(
-              effectiveStart,
-              now < effectiveEnd ? now : effectiveEnd
-            )
-          )
-        : 0;
-
-    const paceComissao = diasDecorridos > 0 ? sumComissao / diasDecorridos : 0;
-    const diasRestantes = Math.max(0, totalDias - diasDecorridos);
-    const faltaMetaComissao = Math.max(0, metaComissaoCent - sumComissao);
-    const necessarioPorDia =
-      metaComissaoCent > 0 && diasRestantes > 0
-        ? faltaMetaComissao / diasRestantes
-        : 0;
-
-    const timeseriesMap = groupBy(rows, r => formatDateKey(r.dataPagamento));
-    const timeseries = Array.from(timeseriesMap.entries())
-      .map(([date, list]) => {
-        const liquido = list.reduce((acc, r) => acc + r.liquidoLiberadoCent, 0);
-        const comissao = list.reduce((acc, r) => acc + r.comissaoTotalCent, 0);
-        const comiss = list.filter(r => r.comissaoTotalCent > 0);
-        const liquidoComiss = comiss.reduce(
-          (acc, r) => acc + r.liquidoLiberadoCent,
-          0
-        );
-        const comissaoComiss = comiss.reduce(
-          (acc, r) => acc + r.comissaoTotalCent,
-          0
-        );
-        const contratosSemComissaoDia = list.filter(
-          r => r.comissaoTotalCent === 0
-        ).length;
-        return {
-          date,
-          contratos: list.length,
-          contratosSemComissao: contratosSemComissaoDia,
-          liquido: centsToNumber(liquido),
-          comissao: centsToNumber(comissao),
-          liquidoComissionado: centsToNumber(liquidoComiss),
-          comissaoComissionado: centsToNumber(comissaoComiss),
-          takeRate: liquido > 0 ? comissao / liquido : 0,
-          takeRateLimpo: liquidoComiss > 0 ? comissaoComiss / liquidoComiss : 0,
-        };
-      })
-      .sort((a, b) => a.date.localeCompare(b.date));
-
-    type ContratoRow = (typeof rows)[number];
-    const aggregateGroup = (list: ContratoRow[]) => {
-      const liquido = list.reduce((acc, r) => acc + r.liquidoLiberadoCent, 0);
-      const comissaoBase = list.reduce((acc, r) => acc + r.comissaoBaseCent, 0);
-      const comissaoBonus = list.reduce(
-        (acc, r) => acc + r.comissaoBonusCent,
-        0
-      );
-      const comissao = list.reduce((acc, r) => acc + r.comissaoTotalCent, 0);
-      const comissaoVendedoraCent = list.reduce(
-        (acc, r) => acc + calcularComissaoVendedoraCent(r),
-        0
-      );
-      const comiss = list.filter(r => r.comissaoTotalCent > 0);
-      const liquidoComiss = comiss.reduce(
-        (acc, r) => acc + r.liquidoLiberadoCent,
-        0
-      );
-      const comissaoComiss = comiss.reduce(
-        (acc, r) => acc + r.comissaoTotalCent,
-        0
-      );
-      const semComissaoCount = list.length - comiss.length;
-      const comissaoCalculadaCount = list.filter(
-        r => r.comissaoCalculada
-      ).length;
-      const liquidoFallbackCount = list.filter(r => r.liquidoFallback).length;
-      const inconsistenciaDataCount = list.filter(
-        r => r.inconsistenciaDataPagamento
-      ).length;
-      const ticketMedio = list.length > 0 ? liquido / list.length : 0;
-      const ticketMedioComissionado =
-        comiss.length > 0 ? liquidoComiss / comiss.length : 0;
-      return {
-        count: list.length,
-        comissionadosCount: comiss.length,
-        semComissaoCount,
-        comissaoCalculadaCount,
-        liquidoFallbackCount,
-        inconsistenciaDataCount,
-        liquido: centsToNumber(liquido),
-        comissao: centsToNumber(comissao),
-        comissaoBase: centsToNumber(comissaoBase),
-        comissaoBonus: centsToNumber(comissaoBonus),
-        comissaoVendedora: centsToNumber(comissaoVendedoraCent),
-        liquidoComissionado: centsToNumber(liquidoComiss),
-        comissaoComissionado: centsToNumber(comissaoComiss),
-        ticketMedio: centsToNumber(ticketMedio),
-        ticketMedioComissionado: centsToNumber(ticketMedioComissionado),
-        takeRate: liquido > 0 ? comissao / liquido : 0,
-        takeRateLimpo: liquidoComiss > 0 ? comissaoComiss / liquidoComiss : 0,
-        pctComissaoCalculada:
-          list.length > 0 ? comissaoCalculadaCount / list.length : 0,
-        pctLiquidoFallback:
-          list.length > 0 ? liquidoFallbackCount / list.length : 0,
-        pctInconsistenciaData:
-          list.length > 0 ? inconsistenciaDataCount / list.length : 0,
-      };
-    };
-
-    const byStage = Array.from(
-      groupBy(rows, r => r.etapaPipeline).entries()
-    ).map(([etapa, list]) => {
-      const ag = aggregateGroup(list);
-      return { etapa, ...ag };
-    });
-
-    const bySeller = Array.from(
-      groupBy(rows, r => r.vendedorNome).entries()
-    ).map(([vendedor, list]) => {
-      const ag = aggregateGroup(list);
-      const vendedorId = vendedorIdByName.get(normalizeSellerName(vendedor));
-      const meta = vendedorId ? (metasVendedorMap.get(vendedorId) ?? 0) : 0;
-      const pctMeta = meta > 0 ? ag.liquido / meta : 0;
-      return {
-        vendedor,
-        ...ag,
-        meta,
-        pctMeta,
-        pctTotal:
-          sumComissao > 0 ? ag.comissao / centsToNumber(sumComissao) : 0,
-      };
-    });
-
-    const byTyper = Array.from(
-      groupBy(rows, r => r.digitadorNome).entries()
-    ).map(([digitador, list]) => {
-      const ag = aggregateGroup(list);
-      return { digitador, ...ag };
-    });
-
-    const byProduct = Array.from(groupBy(rows, r => r.produto).entries()).map(
-      ([produto, list]) => {
-        const ag = aggregateGroup(list);
-        return { produto, ...ag };
-      }
-    );
-
-    const byProductOperation = Array.from(
-      groupBy(rows, r => r.produto).entries()
-    ).map(([produto, list]) => {
-      const operations = Array.from(
-        groupBy(list, r => r.tipoOperacao).entries()
-      )
-        .map(([tipoOperacao, opList]) => {
-          const ag = aggregateGroup(opList);
-          return { tipoOperacao, ...ag };
-        })
-        .sort((a, b) => b.comissao - a.comissao);
-      return { produto, operations };
-    });
-
-    const byOperationType = Array.from(
-      groupBy(rows, r => r.tipoOperacao).entries()
-    ).map(([tipoOperacao, list]) => {
-      const ag = aggregateGroup(list);
-      return { tipoOperacao, ...ag };
-    });
-
-    // Alertas
-    const alerts: Array<{
-      type: string;
-      title: string;
-      severity: "info" | "warning" | "critical";
-      detail: string;
-      filters?: Partial<z.infer<typeof FILTERS_SCHEMA>>;
-      generatedAt?: Date;
-    }> = [];
-
-    // Comissão média caindo (últimos 7 dias vs 7 anteriores)
-    if (rows.length > 0) {
-      const sortedByDate = [...rows].sort(
-        (a, b) => a.dataPagamento.getTime() - b.dataPagamento.getTime()
-      );
-      const lastDate = sortedByDate[sortedByDate.length - 1].dataPagamento;
-      const toTs = lastDate.getTime();
-      const fromLast7 = toTs - 7 * 24 * 3600 * 1000;
-      const fromPrev7 = toTs - 14 * 24 * 3600 * 1000;
-
-      const slice = (from: number, to: number) =>
-        sortedByDate.filter(
-          r =>
-            r.dataPagamento.getTime() > from && r.dataPagamento.getTime() <= to
-        );
-
-      const last7 = slice(fromLast7, toTs);
-      const prev7 = slice(fromPrev7, fromLast7);
-
-      const sum = (
-        arr: typeof rows,
-        sel: (r: (typeof rows)[number]) => number
-      ) => arr.reduce((acc, r) => acc + sel(r), 0);
-
-      const tr = (arr: typeof rows) => {
-        const l = sum(arr, r => r.liquidoLiberadoCent);
-        const c = sum(arr, r => r.comissaoTotalCent);
-        return l > 0 ? c / l : 0;
-      };
-
-      const takeRateLast = tr(last7);
-      const takeRatePrev = tr(prev7);
-
-      if (takeRatePrev > 0 && takeRateLast < takeRatePrev * 0.9) {
-        alerts.push({
-          type: "takeRateDown",
-          title: "Comissão média caindo",
-          severity: "warning",
-          detail: `Comissão média dos últimos 7 dias ${formatPercent(takeRateLast)} vs ${formatPercent(
-            takeRatePrev
-          )} na semana anterior.`,
-          generatedAt: new Date(),
-        });
-      }
-
-      // Comissão calculada subindo (% de calculada nos últimos 7 vs anteriores)
-      const calcShare = (arr: typeof rows) =>
-        arr.length > 0
-          ? arr.filter(r => r.comissaoCalculada).length / arr.length
-          : 0;
-      const calcLast = calcShare(last7);
-      const calcPrev = calcShare(prev7);
-      if (calcPrev > 0 && calcLast - calcPrev >= 0.05 && calcLast > 0.1) {
-        alerts.push({
-          type: "calculatedCommissionRising",
-          title: "% comissão calculada subindo",
-          severity: "warning",
-          detail: `${formatPercent(calcLast)} nos últimos 7 dias vs ${formatPercent(
-            calcPrev
-          )} na semana anterior.`,
-          generatedAt: new Date(),
-        });
-      }
-
-      const pctSemComissao = total > 0 ? contratosSemComissao / total : 0;
-      if (pctSemComissao > 0.05 || sumLiquidoSemComissao > 5_000_000) {
-        alerts.push({
-          type: "semComissao",
-          title: "Contratos pagos sem comissão",
-          severity: "warning",
-          detail: `Sem comissão: ${contratosSemComissao} (${formatPercent(pctSemComissao)}) | Líquido pendente ${formatPercent(
-            sumLiquido > 0 ? sumLiquidoSemComissao / sumLiquido : 0
-          )}`,
-          generatedAt: new Date(),
-        });
-      }
-    }
-
-    // Concentração Top 5
-    if (sumComissao > 0) {
-      const sellersSorted = bySeller
-        .map(b => ({ vendedor: b.vendedor, comissao: b.comissao }))
-        .sort((a, b) => b.comissao - a.comissao);
-      const top5 = sellersSorted.slice(0, 5);
-      const top5Sum = top5.reduce((acc, s) => acc + s.comissao, 0);
-      // Adjust share using cents directly to avoid mismatch
-      const sumComissaoReais = sumComissao / 100;
-      const shareReal = sumComissaoReais > 0 ? top5Sum / sumComissaoReais : 0;
-      if (shareReal >= 0.7) {
-        alerts.push({
-          type: "top5ConcentrationHigh",
-          title: "Concentração alta no Top 5",
-          severity: "info",
-          detail: `${formatPercent(shareReal)} da comissão concentrada nos Top 5 vendedores.`,
-          filters: { vendedorNome: top5.map(s => s.vendedor) },
-          generatedAt: new Date(),
-        });
-      }
-    }
-
-    const executiveLayer = buildExecutiveLayer({
-      cards: {
-        contratos: total,
-        liquido: centsToNumber(sumLiquido),
-        comissao: centsToNumber(sumComissao),
-        takeRate,
-        takeRateLimpo,
-        ticketMedio: centsToNumber(ticketMedio),
-        pctComissaoCalculada,
-        contratosSemComissao,
-        metaComissao: centsToNumber(metaComissaoCent),
-        paceComissao: centsToNumber(paceComissao),
-        necessarioPorDia: centsToNumber(necessarioPorDia),
-        diasDecorridos,
-        totalDias,
-      },
-      timeseries,
-      byStage,
-      bySeller,
-      byProduct,
-      byOperationType,
-      alerts,
-      latestSyncAt: latestSyncRow[0]?.createdAt ?? null,
-      quality: {
-        pctLiquidoFallback,
-        pctComissaoCalculada,
-        pctSemComissao: total > 0 ? contratosSemComissao / total : 0,
-        totalRegistros: total,
-      },
-    });
-
-    return {
-      cards: {
-        contratos: total,
-        liquido: centsToNumber(sumLiquido),
-        comissao: centsToNumber(sumComissao),
-        takeRate,
-        takeRateLimpo,
-        ticketMedio: centsToNumber(ticketMedio),
-        pctComissaoCalculada,
-        contratosSemComissao,
-        metaComissao: centsToNumber(metaComissaoCent),
-        paceComissao: centsToNumber(paceComissao),
-        necessarioPorDia: centsToNumber(necessarioPorDia),
-        diasDecorridos,
-        totalDias,
-      },
-      timeseries,
-      byStage,
-      bySeller,
-      byTyper,
-      byProduct,
-      byProductOperation,
-      byOperationType,
-      alerts,
-      ...executiveLayer,
-    };
+    return buildGestaoResumoSnapshot(input);
   }),
+
+  chatAnalyst: gestaoProcedure
+    .input(CHAT_ANALYST_INPUT_SCHEMA)
+    .mutation(async ({ input }) => {
+      const snapshot = await buildGestaoResumoSnapshot({
+        dateFrom: input.viewState.dateFrom,
+        dateTo: input.viewState.dateTo,
+        ...input.viewState.filterState,
+      });
+
+      const comparisonSnapshot =
+        input.viewState.comparisonMode &&
+        input.viewState.comparisonDateFrom &&
+        input.viewState.comparisonDateTo
+          ? await buildGestaoResumoSnapshot({
+              dateFrom: input.viewState.comparisonDateFrom,
+              dateTo: input.viewState.comparisonDateTo,
+              ...input.viewState.filterState,
+            })
+          : null;
+
+      try {
+        return await generateGestaoAnalystResponse({
+          input,
+          snapshot,
+          comparisonSnapshot,
+        });
+      } catch (error) {
+        console.error("[GestaoLog] Falha no agente analítico", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            error instanceof Error &&
+            error.message.includes("OPENAI_API_KEY is not configured")
+              ? "O analista de IA está indisponível porque a chave do modelo não foi configurada."
+              : "O analista de IA não conseguiu responder agora. Tente novamente em instantes.",
+        });
+      }
+    }),
 
   getDrilldown: gestaoProcedure
     .input(DRILLDOWN_SCHEMA)

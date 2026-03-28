@@ -124,7 +124,7 @@ export function useGestaoViewManager({
     persistLastViewId(null);
   };
 
-  const applySavedView = async (view: GestaoSavedView) => {
+  const applySavedViewState = (view: GestaoSavedView) => {
     applyViewState({
       dateFrom: view.state.dateFrom,
       dateTo: view.state.dateTo,
@@ -142,6 +142,15 @@ export function useGestaoViewManager({
     setActiveViewId(view.id);
     setLastViewId(view.id);
     persistLastViewId(view.id);
+  };
+
+  const applySavedViewLocally = (view: GestaoSavedView) => {
+    applySavedViewState(view);
+    setHasFetched(true);
+  };
+
+  const applySavedView = async (view: GestaoSavedView) => {
+    applySavedViewState(view);
     setHasFetched(true);
 
     try {
@@ -214,7 +223,9 @@ export function useGestaoViewManager({
 
   return {
     activeViewId,
+    allSavedViews,
     applySavedView,
+    applySavedViewLocally,
     clearActiveView,
     customViews,
     handleDeleteView,
