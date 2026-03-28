@@ -9,6 +9,7 @@ import type {
   GestaoTimeseriesGranularity,
   GestaoViewState,
 } from "./types";
+import { buildComparisonRange } from "./dateRange";
 
 const SAVED_VIEWS_STORAGE_KEY = "gestao:saved-views";
 const LAST_VIEW_STORAGE_KEY = "gestao:last-view-id";
@@ -44,66 +45,6 @@ function splitParam(value: string | null) {
 function readBoolean(value: string | null, fallback: boolean) {
   if (value === null) return fallback;
   return value === "1" || value === "true";
-}
-
-function formatISO(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function shiftDays(dateISO: string, days: number) {
-  const [year, month, day] = dateISO.split("-").map(Number);
-  const date = new Date(year, (month || 1) - 1, day || 1);
-  date.setDate(date.getDate() + days);
-  return formatISO(date);
-}
-
-function shiftMonths(dateISO: string, months: number) {
-  const [year, month, day] = dateISO.split("-").map(Number);
-  const current = new Date(year, (month || 1) - 1, day || 1);
-  const targetMonth = current.getMonth() + months;
-  const lastDay = new Date(current.getFullYear(), targetMonth + 1, 0).getDate();
-  return formatISO(
-    new Date(
-      current.getFullYear(),
-      targetMonth,
-      Math.min(current.getDate(), lastDay)
-    )
-  );
-}
-
-function shiftYears(dateISO: string, years: number) {
-  const [year, month, day] = dateISO.split("-").map(Number);
-  return formatISO(
-    new Date((year || 1970) + years, (month || 1) - 1, day || 1)
-  );
-}
-
-function buildComparisonRange(
-  mode: Exclude<GestaoComparisonPreset, "custom">,
-  dateFrom: string,
-  dateTo: string
-) {
-  if (mode === "prev_week") {
-    return {
-      comparisonDateFrom: shiftDays(dateFrom, -7),
-      comparisonDateTo: shiftDays(dateTo, -7),
-    };
-  }
-
-  if (mode === "prev_year") {
-    return {
-      comparisonDateFrom: shiftYears(dateFrom, -1),
-      comparisonDateTo: shiftYears(dateTo, -1),
-    };
-  }
-
-  return {
-    comparisonDateFrom: shiftMonths(dateFrom, -1),
-    comparisonDateTo: shiftMonths(dateTo, -1),
-  };
 }
 
 function createViewId() {

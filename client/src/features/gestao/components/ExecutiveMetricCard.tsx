@@ -10,22 +10,12 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { GestaoExecutiveMetric } from "../types";
 import { cn } from "@/lib/utils";
+import { formatCurrency, formatPercent } from "../utils";
+import { getDeltaToneClass, getExecutiveMetricTone } from "../visualSemantics";
 
 type ExecutiveMetricCardProps = {
   metric: GestaoExecutiveMetric;
 };
-
-function formatCurrency(value: number) {
-  return value.toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    minimumFractionDigits: 2,
-  });
-}
-
-function formatPercent(value: number) {
-  return `${(value * 100).toFixed(1)}%`;
-}
 
 function formatTargetValue(metric: GestaoExecutiveMetric, value: number) {
   if (metric.id === "contratos") {
@@ -41,43 +31,6 @@ function formatTargetValue(metric: GestaoExecutiveMetric, value: number) {
   return formatCurrency(value);
 }
 
-function getStatusTone(status: GestaoExecutiveMetric["status"]) {
-  if (status === "good") {
-    return {
-      cardClass: "border-emerald-500/25 bg-emerald-500/[0.06]",
-      badgeClass: "border-emerald-400/35 bg-emerald-500/10 text-emerald-200",
-      lineClass: "stroke-emerald-300",
-      areaClass: "fill-emerald-400/10",
-      label: "Saudável",
-    };
-  }
-  if (status === "warning") {
-    return {
-      cardClass: "border-amber-500/25 bg-amber-500/[0.06]",
-      badgeClass: "border-amber-400/35 bg-amber-500/10 text-amber-200",
-      lineClass: "stroke-amber-300",
-      areaClass: "fill-amber-400/10",
-      label: "Atenção",
-    };
-  }
-  if (status === "critical") {
-    return {
-      cardClass: "border-rose-500/25 bg-rose-500/[0.06]",
-      badgeClass: "border-rose-400/35 bg-rose-500/10 text-rose-200",
-      lineClass: "stroke-rose-300",
-      areaClass: "fill-rose-400/10",
-      label: "Risco",
-    };
-  }
-  return {
-    cardClass: "border-slate-800 bg-slate-950",
-    badgeClass: "border-slate-700 bg-slate-800/80 text-slate-200",
-    lineClass: "stroke-sky-300",
-    areaClass: "fill-sky-400/10",
-    label: "Contexto",
-  };
-}
-
 function getTrendIcon(trend: GestaoExecutiveMetric["trend"]) {
   if (trend === "up") return <TrendingUp size={12} />;
   if (trend === "down") return <TrendingDown size={12} />;
@@ -88,23 +41,26 @@ function getDeltaTone(
   delta: number,
   isLowerBetter: boolean
 ): { className: string; icon: ReactNode } {
-  const favorable = isLowerBetter ? delta <= 0 : delta >= 0;
+  const favorableWhenPositive = !isLowerBetter;
   if (Math.abs(delta) <= 0.01) {
     return {
-      className: "text-slate-400",
+      className: getDeltaToneClass(delta, favorableWhenPositive),
       icon: <ArrowRight size={12} />,
     };
   }
 
-  if (favorable) {
+  if (
+    (favorableWhenPositive && delta > 0) ||
+    (!favorableWhenPositive && delta < 0)
+  ) {
     return {
-      className: "text-emerald-300",
+      className: getDeltaToneClass(delta, favorableWhenPositive),
       icon: <ArrowUpRight size={12} />,
     };
   }
 
   return {
-    className: "text-rose-300",
+    className: getDeltaToneClass(delta, favorableWhenPositive),
     icon: <ArrowDownRight size={12} />,
   };
 }
@@ -133,7 +89,7 @@ function buildSparklinePath(values: number[]) {
 }
 
 export function ExecutiveMetricCard({ metric }: ExecutiveMetricCardProps) {
-  const tone = getStatusTone(metric.status);
+  const tone = getExecutiveMetricTone(metric.status);
   const { line, area } = buildSparklinePath(metric.sparkline);
   const comparisonTone =
     metric.deltaVsComparison !== undefined
@@ -147,17 +103,19 @@ export function ExecutiveMetricCard({ metric }: ExecutiveMetricCardProps) {
   return (
     <Card
       className={cn(
-        "h-full border text-white shadow-[0_10px_30px_rgba(2,8,23,0.25)]",
+        "h-full border text-foreground shadow-[0_10px_30px_rgba(2,8,23,0.25)]",
         tone.cardClass
       )}
     >
       <CardHeader className="space-y-3 pb-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle className="text-sm font-medium text-slate-200">
+            <CardTitle className="text-sm font-medium text-foreground">
               {metric.label}
             </CardTitle>
-            <p className="mt-1 text-xs text-slate-400">{metric.helpText}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {metric.helpText}
+            </p>
           </div>
           <span
             className={cn(
@@ -176,7 +134,7 @@ export function ExecutiveMetricCard({ metric }: ExecutiveMetricCardProps) {
             <div className="text-3xl font-black tracking-tight">
               {metric.formattedValue}
             </div>
-            <div className="mt-1 text-xs text-slate-400">
+            <div className="mt-1 text-xs text-muted-foreground">
               {metric.microText}
             </div>
           </div>
@@ -199,11 +157,13 @@ export function ExecutiveMetricCard({ metric }: ExecutiveMetricCardProps) {
           {comparisonTone && metric.deltaVsComparison !== undefined && (
             <div
               className={cn(
-                "flex items-center justify-between rounded-lg border border-white/6 bg-slate-950/60 px-2.5 py-2",
+                "flex items-center justify-between rounded-lg border border-border/70 bg-background/50 px-2.5 py-2",
                 comparisonTone.className
               )}
             >
-              <span className="text-slate-400">vs período comparado</span>
+              <span className="text-muted-foreground">
+                vs período comparado
+              </span>
               <span className="inline-flex items-center gap-1 font-semibold">
                 {comparisonTone.icon}
                 {metric.deltaVsComparison > 0 ? "+" : ""}
@@ -216,11 +176,11 @@ export function ExecutiveMetricCard({ metric }: ExecutiveMetricCardProps) {
             metric.targetValue !== undefined && (
               <div
                 className={cn(
-                  "flex items-center justify-between rounded-lg border border-white/6 bg-slate-950/60 px-2.5 py-2",
+                  "flex items-center justify-between rounded-lg border border-border/70 bg-background/50 px-2.5 py-2",
                   targetTone.className
                 )}
               >
-                <span className="text-slate-400">
+                <span className="text-muted-foreground">
                   alvo {formatTargetValue(metric, metric.targetValue)}
                 </span>
                 <span className="inline-flex items-center gap-1 font-semibold">

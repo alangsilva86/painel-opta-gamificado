@@ -1,5 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
-import { endOfMonthISO, startOfMonthISO } from "./utils";
+import {
+  buildComparisonRange,
+  endOfMonthISO,
+  normalizeDateRange,
+  startOfMonthISO,
+} from "./dateRange";
 import type {
   GestaoComparisonPreset as ComparisonPreset,
   GestaoFilterState as FilterState,
@@ -23,65 +28,6 @@ const initialFlags: FlagFilters = {
   inconsistenciaData: false,
   semComissao: false,
 };
-
-function normalizeDateRange(dateFrom: string, dateTo: string) {
-  const from = parseDateOnly(dateFrom);
-  const to = parseDateOnly(dateTo);
-  const hasBothDates = dateFrom.length >= 10 && dateTo.length >= 10;
-  if (
-    !hasBothDates ||
-    Number.isNaN(from.getTime()) ||
-    Number.isNaN(to.getTime())
-  ) {
-    return null;
-  }
-
-  return from.getTime() <= to.getTime()
-    ? { dateFrom, dateTo }
-    : { dateFrom: dateTo, dateTo: dateFrom };
-}
-
-function parseDateOnly(value: string) {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, (month || 1) - 1, day || 1);
-}
-
-function formatISO(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function shiftMonths(dateISO: string, months: number) {
-  const date = parseDateOnly(dateISO);
-  const targetMonthIndex = date.getMonth() + months;
-  const lastDayOfTargetMonth = new Date(
-    date.getFullYear(),
-    targetMonthIndex + 1,
-    0
-  ).getDate();
-  const target = new Date(
-    date.getFullYear(),
-    targetMonthIndex,
-    Math.min(date.getDate(), lastDayOfTargetMonth)
-  );
-  return formatISO(target);
-}
-
-function shiftDays(dateISO: string, days: number) {
-  const date = parseDateOnly(dateISO);
-  const target = new Date(date);
-  target.setDate(target.getDate() + days);
-  return formatISO(target);
-}
-
-function shiftYears(dateISO: string, years: number) {
-  const date = parseDateOnly(dateISO);
-  const target = new Date(date);
-  target.setFullYear(target.getFullYear() + years);
-  return formatISO(target);
-}
 
 type UseGestaoFiltersOptions = {
   initialState?: Partial<{
@@ -344,22 +290,13 @@ export function useGestaoFilters(
       const normalizedMain = normalizeDateRange(draftDateFrom, draftDateTo);
       if (!normalizedMain) return;
 
-      if (mode === "prev_week") {
-        setDraftComparisonDateFrom(shiftDays(normalizedMain.dateFrom, -7));
-        setDraftComparisonDateTo(shiftDays(normalizedMain.dateTo, -7));
-        return;
-      }
-
-      if (mode === "prev_month") {
-        setDraftComparisonDateFrom(shiftMonths(normalizedMain.dateFrom, -1));
-        setDraftComparisonDateTo(shiftMonths(normalizedMain.dateTo, -1));
-        return;
-      }
-
-      if (mode === "prev_year") {
-        setDraftComparisonDateFrom(shiftYears(normalizedMain.dateFrom, -1));
-        setDraftComparisonDateTo(shiftYears(normalizedMain.dateTo, -1));
-      }
+      const nextRange = buildComparisonRange(
+        mode,
+        normalizedMain.dateFrom,
+        normalizedMain.dateTo
+      );
+      setDraftComparisonDateFrom(nextRange.comparisonDateFrom);
+      setDraftComparisonDateTo(nextRange.comparisonDateTo);
     },
     [draftDateFrom, draftDateTo]
   );

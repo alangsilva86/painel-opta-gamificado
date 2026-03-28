@@ -10,6 +10,11 @@ import type {
   GestaoFreshnessInfo,
   GestaoSavedView,
 } from "../types";
+import {
+  getExecutiveStatusTone,
+  getFreshnessTone,
+  getToneClasses,
+} from "../visualSemantics";
 
 type FilterBarProps = {
   dateFrom: string;
@@ -57,33 +62,15 @@ type FilterBarProps = {
 };
 
 function getFreshnessClass(status?: GestaoFreshnessInfo["status"]) {
-  if (status === "fresh")
-    return "border-emerald-500/20 bg-emerald-500/[0.08] text-emerald-200";
-  if (status === "attention")
-    return "border-amber-500/20 bg-amber-500/[0.08] text-amber-200";
-  if (status === "stale")
-    return "border-rose-500/20 bg-rose-500/[0.08] text-rose-200";
-  return "border-slate-700 bg-slate-900 text-slate-200";
+  return getToneClasses(getFreshnessTone(status)).panelClass;
 }
 
 function getQualityClass(status?: GestaoDataQualityInfo["status"]) {
-  if (status === "good")
-    return "border-emerald-500/20 bg-emerald-500/[0.08] text-emerald-200";
-  if (status === "warning")
-    return "border-amber-500/20 bg-amber-500/[0.08] text-amber-200";
-  if (status === "critical")
-    return "border-rose-500/20 bg-rose-500/[0.08] text-rose-200";
-  return "border-slate-700 bg-slate-900 text-slate-200";
+  return getExecutiveStatusTone(status).panelClass;
 }
 
 function getBusinessClass(status?: GestaoBusinessStatus["status"]) {
-  if (status === "good")
-    return "border-emerald-500/20 bg-emerald-500/[0.08] text-emerald-100";
-  if (status === "warning")
-    return "border-amber-500/20 bg-amber-500/[0.08] text-amber-100";
-  if (status === "critical")
-    return "border-rose-500/20 bg-rose-500/[0.08] text-rose-100";
-  return "border-slate-700 bg-slate-900 text-slate-100";
+  return getExecutiveStatusTone(status).panelClass;
 }
 
 export function FilterBar({
@@ -129,19 +116,19 @@ export function FilterBar({
   lastViewName,
 }: FilterBarProps) {
   return (
-    <div className="sticky top-0 z-30 -mx-4 border-b border-slate-800 bg-slate-900/92 px-4 pb-4 pt-4 backdrop-blur-xl">
+    <div className="sticky top-0 z-30 -mx-4 border-b border-border bg-background/92 px-4 pb-4 pt-4 backdrop-blur-xl">
       <div className="space-y-4">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="space-y-3">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/90 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-400">
+              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/90 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                 <Sparkles size={12} />
                 Gestão Executiva
               </div>
-              <h1 className="mt-3 text-3xl font-black tracking-tight text-white">
+              <h1 className="mt-3 text-3xl font-black tracking-tight text-foreground">
                 Cockpit de inteligência comercial
               </h1>
-              <p className="mt-2 max-w-3xl text-sm text-slate-300">
+              <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
                 Leitura rápida do negócio, comparação sem ambiguidade e
                 autonomia para navegar sem depender de interpretação manual.
               </p>
@@ -158,7 +145,7 @@ export function FilterBar({
                     <Activity size={14} />
                     {businessStatus.headline}
                   </div>
-                  <div className="mt-1 text-xs text-slate-300">
+                  <div className="mt-1 text-xs text-muted-foreground">
                     {businessStatus.summary}
                   </div>
                 </div>
@@ -173,7 +160,7 @@ export function FilterBar({
                     <RefreshCw size={14} />
                     {freshness.label}
                   </div>
-                  <div className="mt-1 text-xs text-slate-300">
+                  <div className="mt-1 text-xs text-muted-foreground">
                     {freshness.detail}
                   </div>
                 </div>
@@ -188,7 +175,7 @@ export function FilterBar({
                     <ShieldCheck size={14} />
                     {dataQuality.label}
                   </div>
-                  <div className="mt-1 text-xs text-slate-300">
+                  <div className="mt-1 text-xs text-muted-foreground">
                     Score {dataQuality.score}/100 · {dataQuality.detail}
                   </div>
                 </div>
@@ -221,7 +208,7 @@ export function FilterBar({
             <Button
               type="button"
               variant={comparisonMode ? "secondary" : "outline"}
-              className="border-slate-800 bg-slate-950 text-slate-100"
+              className="border-border bg-card text-foreground"
               onClick={() => onComparisonModeChange(!comparisonMode)}
             >
               {comparisonMode ? "Comparação ativa" : "Comparar período"}
@@ -249,31 +236,31 @@ export function FilterBar({
 
         <div className="grid gap-3 xl:grid-cols-[1.1fr_1fr_1fr_auto_auto_auto]">
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-slate-400">Data início</label>
+            <label className="text-xs text-muted-foreground">Data início</label>
             <Input
               type="date"
               value={dateFrom}
               onChange={e => onDateFromChange(e.target.value)}
-              className="border-slate-800 bg-slate-950"
+              className="border-input bg-card"
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-slate-400">Data fim</label>
+            <label className="text-xs text-muted-foreground">Data fim</label>
             <Input
               type="date"
               value={dateTo}
               onChange={e => onDateToChange(e.target.value)}
-              className="border-slate-800 bg-slate-950"
+              className="border-input bg-card"
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-slate-400">
+            <label className="text-xs text-muted-foreground">
               Contratos sem comissão
             </label>
             <Button
               variant={incluirSemComissao ? "secondary" : "outline"}
               onClick={onToggleSemComissao}
-              className="justify-start border-slate-800 bg-slate-950 text-slate-100"
+              className="justify-start border-border bg-card text-foreground"
             >
               {incluirSemComissao
                 ? "Incluindo no recorte"
@@ -282,7 +269,9 @@ export function FilterBar({
           </div>
           {onToggleSeller && sellerOptions.length > 0 && (
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-slate-400">Vendedoras</label>
+              <label className="text-xs text-muted-foreground">
+                Vendedoras
+              </label>
               <MultiSelectDropdown
                 label="Vendedoras"
                 options={sellerOptions}
@@ -293,7 +282,7 @@ export function FilterBar({
           )}
           {onToggleProduct && productOptions.length > 0 && (
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-slate-400">Produtos</label>
+              <label className="text-xs text-muted-foreground">Produtos</label>
               <MultiSelectDropdown
                 label="Produtos"
                 options={productOptions}
@@ -306,7 +295,7 @@ export function FilterBar({
             <Button
               variant="ghost"
               onClick={onClear}
-              className="text-slate-300"
+              className="text-muted-foreground"
             >
               Limpar filtros
             </Button>
@@ -314,13 +303,13 @@ export function FilterBar({
         </div>
 
         {comparisonMode && (
-          <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4">
+          <div className="rounded-2xl border border-border bg-card/80 p-4">
             <div className="grid gap-4 xl:grid-cols-[auto_auto_auto_1fr_1fr] xl:items-end">
               <div className="flex flex-wrap gap-2 xl:col-span-3">
                 <Button
                   size="sm"
                   variant="outline"
-                  className="border-slate-800 bg-slate-900 text-slate-100"
+                  className="border-border bg-secondary text-foreground"
                   onClick={() => onComparisonPreset("prev_month")}
                 >
                   Mês anterior
@@ -328,7 +317,7 @@ export function FilterBar({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="border-slate-800 bg-slate-900 text-slate-100"
+                  className="border-border bg-secondary text-foreground"
                   onClick={() => onComparisonPreset("prev_week")}
                 >
                   Semana anterior
@@ -336,7 +325,7 @@ export function FilterBar({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="border-slate-800 bg-slate-900 text-slate-100"
+                  className="border-border bg-secondary text-foreground"
                   onClick={() => onComparisonPreset("prev_year")}
                 >
                   Mesmo período ano passado
@@ -344,7 +333,7 @@ export function FilterBar({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="text-slate-300"
+                  className="text-muted-foreground"
                   onClick={() => onComparisonPreset("custom")}
                 >
                   Personalizado
@@ -352,21 +341,25 @@ export function FilterBar({
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-400">Comparar de</label>
+                <label className="text-xs text-muted-foreground">
+                  Comparar de
+                </label>
                 <Input
                   type="date"
                   value={comparisonDateFrom}
                   onChange={e => onComparisonDateFromChange(e.target.value)}
-                  className="border-slate-800 bg-slate-900"
+                  className="border-input bg-background"
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-400">Comparar até</label>
+                <label className="text-xs text-muted-foreground">
+                  Comparar até
+                </label>
                 <Input
                   type="date"
                   value={comparisonDateTo}
                   onChange={e => onComparisonDateToChange(e.target.value)}
-                  className="border-slate-800 bg-slate-900"
+                  className="border-input bg-background"
                 />
               </div>
             </div>

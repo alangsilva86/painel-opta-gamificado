@@ -13,40 +13,32 @@ import { ExecutiveSummary } from "@/features/gestao/components/ExecutiveSummary"
 import { HealthPipelineSection } from "@/features/gestao/components/HealthPipelineSection";
 import { FilterBar } from "@/features/gestao/components/FilterBar";
 import { LeversSection } from "@/features/gestao/components/LeversSection";
-import { MetricCard } from "@/features/gestao/components/MetricCard";
 import { MixSection } from "@/features/gestao/components/MixSection";
+import { PeriodKpisSection } from "@/features/gestao/components/PeriodKpisSection";
 import { ProductRankingList } from "@/features/gestao/components/ProductRankingList";
 import { SalesHeatmap } from "@/features/gestao/components/SalesHeatmap";
 import { SellerPerformanceTable } from "@/features/gestao/components/SellerPerformanceTable";
 import { VariationDrivers } from "@/features/gestao/components/VariationDrivers";
 import { WatchlistPanel } from "@/features/gestao/components/WatchlistPanel";
 import {
-  aggregateTimeseries,
   formatCurrency,
   formatPercent,
-  mergeExecutiveMetricsWithComparison,
   type TimeseriesGranularity,
 } from "@/features/gestao/utils";
 import { useGestaoFilters } from "@/features/gestao/useGestaoFilters";
 import type {
-  GestaoSavedView,
   GestaoSeriesVisibility,
   GestaoViewState,
 } from "@/features/gestao/types";
 import {
-  buildPresetViews,
-  createCustomSavedView,
   GESTAO_VIEW_DEFAULTS,
-  loadLastViewId,
-  loadSavedViews,
   parseGestaoViewStateFromSearch,
-  persistLastViewId,
-  persistSavedViews,
-  serializeGestaoViewStateToSearch,
 } from "@/features/gestao/viewState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { skipToken } from "@tanstack/react-query";
+import { useGestaoDerivedData } from "@/features/gestao/useGestaoDerivedData";
+import { useGestaoViewManager } from "@/features/gestao/useGestaoViewManager";
 
 type SyncStatus = {
   id: string;
@@ -146,15 +138,6 @@ export default function Gestao() {
     useState<GestaoSeriesVisibility>(
       initialViewState.seriesVisibility || GESTAO_VIEW_DEFAULTS.seriesVisibility
     );
-  const [customViews, setCustomViews] = useState<GestaoSavedView[]>(() =>
-    typeof window !== "undefined" ? loadSavedViews() : []
-  );
-  const [activeViewId, setActiveViewId] = useState<string | null>(
-    initialViewState.activeViewId || null
-  );
-  const [lastViewId, setLastViewId] = useState<string | null>(() =>
-    typeof window !== "undefined" ? loadLastViewId() : null
-  );
 
   const resumoQuery = trpc.gestao.getResumo.useQuery(filters, {
     enabled: authed && hasFetched,
@@ -233,63 +216,31 @@ export default function Gestao() {
     if (resumoQuery.data) setAuthed(true);
   }, [resumoQuery.data]);
 
-  const calculateDelta = (
-    current?: number | null,
-    previous?: number | null
-  ) => {
-    if (
-      typeof current !== "number" ||
-      typeof previous !== "number" ||
-      Math.abs(previous) < 0.0001
-    ) {
-      return undefined;
-    }
-    return (current - previous) / previous;
-  };
-
-  const getSellerMetricValue = (row: {
-    comissao: number;
-    comissaoComissionado?: number;
-  }) =>
-    incluirSemComissao
-      ? row.comissao
-      : (row.comissaoComissionado ?? row.comissao);
-
-  const deltas = useMemo(() => {
-    const ts = resumoQuery.data?.timeseries ?? [];
-    if (ts.length === 0) return { comissao: 0, liquido: 0 };
-    const sorted = [...ts].sort((a, b) => a.date.localeCompare(b.date));
-    const sliceSum = (
-      arr: typeof sorted,
-      startIdx: number,
-      endIdx: number,
-      key: "comissao" | "liquido"
-    ) =>
-      arr
-        .slice(startIdx, endIdx)
-        .reduce((acc, item) => acc + (item[key] ?? 0), 0);
-    const last7Start = Math.max(0, sorted.length - 7);
-    const prev7Start = Math.max(0, sorted.length - 14);
-    const last7 = sliceSum(sorted, last7Start, sorted.length, "comissao");
-    const prev7 = sliceSum(sorted, prev7Start, last7Start, "comissao");
-    const last7Liq = sliceSum(sorted, last7Start, sorted.length, "liquido");
-    const prev7Liq = sliceSum(sorted, prev7Start, last7Start, "liquido");
-    const delta = prev7 > 0 ? (last7 - prev7) / prev7 : 0;
-    const deltaLiq = prev7Liq > 0 ? (last7Liq - prev7Liq) / prev7Liq : 0;
-    return { comissao: delta, liquido: deltaLiq };
-  }, [resumoQuery.data?.timeseries]);
-
-  const flagCounts = useMemo(() => {
-    const total = healthQuery.data?.totalRegistros ?? 0;
-    const calc = Math.round(
-      (healthQuery.data?.pctComissaoCalculada ?? 0) * total
-    );
-    const liq = Math.round((healthQuery.data?.pctLiquidoFallback ?? 0) * total);
-    const dataInc = Math.round(
-      (healthQuery.data?.pctInconsistenciaData ?? 0) * total
-    );
-    return { calc, liq, dataInc };
-  }, [healthQuery.data]);
+  const {
+    availableProducts,
+    availableSellers,
+    comparisonMetricDeltas,
+    comparisonResumo,
+    deltas,
+    executiveMetrics,
+    flagCounts,
+    operationData,
+    productData,
+    productOperationMap,
+    productsSorted,
+    rankEvolution,
+    sellerDeltas,
+    sellersSorted,
+    stageData,
+    timeseriesData,
+  } = useGestaoDerivedData({
+    resumoData: resumoQuery.data,
+    comparisonData: comparisonQuery.data,
+    healthData: healthQuery.data,
+    incluirSemComissao,
+    granularity,
+    comparisonModeApplied,
+  });
 
   const handleStageClick = (etapa: string) => {
     console.info("[GestaoLog] Clique em etapa de pipeline", { etapa });
@@ -341,194 +292,6 @@ export default function Gestao() {
     });
   };
 
-  const timeseriesData = useMemo(() => {
-    const ts = resumoQuery.data?.timeseries ?? [];
-    const withDisplayValues = ts.map(t => {
-      const comissaoPlot =
-        incluirSemComissao || t.comissaoComissionado === undefined
-          ? t.comissao
-          : t.comissaoComissionado;
-      const liquidoPlot =
-        incluirSemComissao || t.liquidoComissionado === undefined
-          ? t.liquido
-          : t.liquidoComissionado;
-      return { ...t, comissaoPlot, liquidoPlot };
-    });
-    return aggregateTimeseries(withDisplayValues, granularity).map(point => ({
-      ...point,
-      comissaoPlot:
-        point.comissaoComissionado !== undefined && !incluirSemComissao
-          ? point.comissaoComissionado
-          : point.comissao,
-      liquidoPlot:
-        point.liquidoComissionado !== undefined && !incluirSemComissao
-          ? point.liquidoComissionado
-          : point.liquido,
-    }));
-  }, [resumoQuery.data?.timeseries, incluirSemComissao, granularity]);
-
-  const stageData = useMemo(() => {
-    const arr = resumoQuery.data?.byStage ?? [];
-    return arr.map(item => {
-      const liquidoPlot = incluirSemComissao
-        ? item.liquido
-        : (item.liquidoComissionado ?? item.liquido);
-      const comissaoPlot = incluirSemComissao
-        ? item.comissao
-        : (item.comissaoComissionado ?? item.comissao);
-      const liquidoSem = incluirSemComissao
-        ? Math.max(0, item.liquido - (item.liquidoComissionado ?? item.liquido))
-        : 0;
-      return { ...item, liquidoPlot, comissaoPlot, liquidoSem };
-    });
-  }, [resumoQuery.data?.byStage, incluirSemComissao]);
-
-  const productData = useMemo(() => {
-    const arr = resumoQuery.data?.byProduct ?? [];
-    return arr.map(item => {
-      const liquidoPlot = incluirSemComissao
-        ? item.liquido
-        : (item.liquidoComissionado ?? item.liquido);
-      const comissaoPlot = incluirSemComissao
-        ? item.comissao
-        : (item.comissaoComissionado ?? item.comissao);
-      const liquidoSem = incluirSemComissao
-        ? Math.max(0, item.liquido - (item.liquidoComissionado ?? item.liquido))
-        : 0;
-      return { ...item, liquidoPlot, comissaoPlot, liquidoSem };
-    });
-  }, [resumoQuery.data?.byProduct, incluirSemComissao]);
-
-  const operationData = useMemo(() => {
-    const arr = resumoQuery.data?.byOperationType ?? [];
-    return arr.map(item => {
-      const liquidoPlot = incluirSemComissao
-        ? item.liquido
-        : (item.liquidoComissionado ?? item.liquido);
-      const comissaoPlot = incluirSemComissao
-        ? item.comissao
-        : (item.comissaoComissionado ?? item.comissao);
-      const liquidoSem = incluirSemComissao
-        ? Math.max(0, item.liquido - (item.liquidoComissionado ?? item.liquido))
-        : 0;
-      return { ...item, liquidoPlot, comissaoPlot, liquidoSem };
-    });
-  }, [resumoQuery.data?.byOperationType, incluirSemComissao]);
-
-  const sellersSorted = useMemo(
-    () =>
-      (resumoQuery.data?.bySeller ?? [])
-        .slice()
-        .sort((a, b) => b.comissao - a.comissao),
-    [resumoQuery.data?.bySeller]
-  );
-
-  const productsSorted = useMemo(
-    () =>
-      (resumoQuery.data?.byProduct ?? [])
-        .slice()
-        .sort((a, b) => b.comissao - a.comissao),
-    [resumoQuery.data?.byProduct]
-  );
-
-  const productOperationMap = useMemo(() => {
-    const arr = resumoQuery.data?.byProductOperation ?? [];
-    const map = new Map<string, Array<any>>();
-    arr.forEach((item: any) => {
-      map.set(item.produto, item.operations ?? []);
-    });
-    return map;
-  }, [resumoQuery.data?.byProductOperation]);
-
-  const comparisonMetricDeltas = useMemo(() => {
-    const prev = comparisonQuery.data?.cards;
-    const current = resumoQuery.data?.cards;
-    if (!prev || !current) return {};
-
-    return {
-      comissao: calculateDelta(current.comissao, prev.comissao),
-      liquido: calculateDelta(current.liquido, prev.liquido),
-      takeRate: calculateDelta(current.takeRate, prev.takeRate),
-      ticketMedio: calculateDelta(current.ticketMedio, prev.ticketMedio),
-      contratos: calculateDelta(current.contratos, prev.contratos),
-      pctComissaoCalculada: calculateDelta(
-        current.pctComissaoCalculada,
-        prev.pctComissaoCalculada
-      ),
-      paceComissao: calculateDelta(current.paceComissao, prev.paceComissao),
-      necessarioPorDia: calculateDelta(
-        current.necessarioPorDia,
-        prev.necessarioPorDia
-      ),
-    };
-  }, [comparisonQuery.data?.cards, resumoQuery.data?.cards]);
-
-  const sellerDeltas = useMemo(() => {
-    if (!comparisonQuery.data) return undefined;
-
-    const previousSellerMap = new Map(
-      comparisonQuery.data.bySeller.map(seller => [
-        seller.vendedor,
-        getSellerMetricValue(seller),
-      ])
-    );
-    const deltasMap = new Map<string, number>();
-
-    resumoQuery.data?.bySeller.forEach(seller => {
-      const currentValue = getSellerMetricValue(seller);
-      const previousValue = previousSellerMap.get(seller.vendedor);
-      const delta = calculateDelta(currentValue, previousValue);
-      if (delta !== undefined) {
-        deltasMap.set(seller.vendedor, delta);
-      }
-    });
-
-    return deltasMap;
-  }, [comparisonQuery.data, resumoQuery.data?.bySeller, incluirSemComissao]);
-
-  const rankEvolution = useMemo(() => {
-    if (!comparisonQuery.data || !resumoQuery.data) return undefined;
-
-    const currentRankMap = new Map(
-      resumoQuery.data.bySeller
-        .slice()
-        .sort((a, b) => getSellerMetricValue(b) - getSellerMetricValue(a))
-        .map((seller, index) => [seller.vendedor, index + 1])
-    );
-    const previousRankMap = new Map(
-      comparisonQuery.data.bySeller
-        .slice()
-        .sort((a, b) => getSellerMetricValue(b) - getSellerMetricValue(a))
-        .map((seller, index) => [seller.vendedor, index + 1])
-    );
-
-    const evolutionMap = new Map<string, number>();
-    currentRankMap.forEach((currentRank, seller) => {
-      const previousRank = previousRankMap.get(seller);
-      if (previousRank) {
-        evolutionMap.set(seller, previousRank - currentRank);
-      }
-    });
-
-    return evolutionMap;
-  }, [comparisonQuery.data, resumoQuery.data, incluirSemComissao]);
-
-  const availableSellers = useMemo(
-    () =>
-      (resumoQuery.data?.bySeller ?? [])
-        .map(seller => seller.vendedor)
-        .sort((a, b) => a.localeCompare(b, "pt-BR")),
-    [resumoQuery.data?.bySeller]
-  );
-
-  const availableProducts = useMemo(
-    () =>
-      (resumoQuery.data?.byProduct ?? [])
-        .map(product => product.produto)
-        .sort((a, b) => a.localeCompare(b, "pt-BR")),
-    [resumoQuery.data?.byProduct]
-  );
-
   const handleLegendToggle = (dataKey?: string) => {
     if (!dataKey) return;
     const keyMap: Record<string, "comissao" | "liquido" | "liquidoSem"> = {
@@ -543,7 +306,7 @@ export default function Gestao() {
     setSeriesVisibility(prev => ({ ...prev, [target]: !prev[target] }));
   };
 
-  const currentViewState = useMemo<GestaoViewState>(
+  const baseViewState = useMemo<Omit<GestaoViewState, "activeViewId">>(
     () => ({
       dateFrom: filters.dateFrom,
       dateTo: filters.dateTo,
@@ -561,10 +324,8 @@ export default function Gestao() {
       incluirSemComissao,
       granularity,
       seriesVisibility,
-      activeViewId,
     }),
     [
-      activeViewId,
       comparisonFilters,
       comparisonModeApplied,
       filterState,
@@ -578,42 +339,6 @@ export default function Gestao() {
       sortDir,
     ]
   );
-
-  const presetViews = useMemo(
-    () => buildPresetViews({ ...currentViewState, activeViewId: null }),
-    [currentViewState]
-  );
-
-  const allSavedViews = useMemo(
-    () => [...presetViews, ...customViews],
-    [customViews, presetViews]
-  );
-
-  const lastViewName = useMemo(
-    () => allSavedViews.find(view => view.id === lastViewId)?.name ?? null,
-    [allSavedViews, lastViewId]
-  );
-
-  useEffect(() => {
-    persistSavedViews(customViews);
-  }, [customViews]);
-
-  useEffect(() => {
-    if (
-      typeof window === "undefined" ||
-      !currentViewState.dateFrom ||
-      !currentViewState.dateTo
-    ) {
-      return;
-    }
-    const nextSearch = serializeGestaoViewStateToSearch(currentViewState);
-    const currentSearch = window.location.search.replace(/^\?/, "");
-    if (currentSearch === nextSearch) return;
-    const nextUrl = nextSearch
-      ? `${window.location.pathname}?${nextSearch}`
-      : window.location.pathname;
-    window.history.replaceState(window.history.state, "", nextUrl);
-  }, [currentViewState]);
 
   const syncForViewState = async (viewState: {
     dateFrom: string;
@@ -639,96 +364,29 @@ export default function Gestao() {
     });
   };
 
-  const applySavedView = async (view: GestaoSavedView) => {
-    applyViewState({
-      dateFrom: view.state.dateFrom,
-      dateTo: view.state.dateTo,
-      comparisonMode: view.state.comparisonMode,
-      comparisonDateFrom: view.state.comparisonDateFrom,
-      comparisonDateTo: view.state.comparisonDateTo,
-      filterState: view.state.filterState,
-      flagFilters: view.state.flagFilters,
-      sortBy: view.state.sortBy,
-      sortDir: view.state.sortDir,
-      incluirSemComissao: view.state.incluirSemComissao,
-    });
-    setGranularity(view.state.granularity);
-    setSeriesVisibility(view.state.seriesVisibility);
-    setActiveViewId(view.id);
-    setLastViewId(view.id);
-    persistLastViewId(view.id);
-    setHasFetched(true);
-
-    try {
-      await syncForViewState(view.state);
-      toast.success(`Vista "${view.name}" aplicada.`);
-    } catch (error) {
-      console.error("[GestaoLog] Erro ao aplicar vista salva", error);
-      toast.error("Falha ao sincronizar a vista selecionada");
-    }
-  };
-
-  const handleSaveView = (name: string) => {
-    const nextView = createCustomSavedView(name, {
-      ...currentViewState,
-      activeViewId: null,
-    });
-    setCustomViews(prev => [nextView, ...prev]);
-    setActiveViewId(nextView.id);
-    setLastViewId(nextView.id);
-    persistLastViewId(nextView.id);
-    toast.success(`Vista "${name}" salva.`);
-  };
-
-  const handleRenameView = (id: string, name: string) => {
-    setCustomViews(prev =>
-      prev.map(view =>
-        view.id === id
-          ? { ...view, name, updatedAt: new Date().toISOString() }
-          : view
-      )
-    );
-    toast.success("Vista atualizada.");
-  };
-
-  const handleDuplicateView = (id: string) => {
-    const source = customViews.find(view => view.id === id);
-    if (!source) return;
-    const duplicated = createCustomSavedView(
-      `${source.name} copy`,
-      source.state
-    );
-    setCustomViews(prev => [duplicated, ...prev]);
-    toast.success("Vista duplicada.");
-  };
-
-  const handleDeleteView = (id: string) => {
-    setCustomViews(prev => prev.filter(view => view.id !== id));
-    if (activeViewId === id) {
-      setActiveViewId(null);
-      setLastViewId(null);
-      persistLastViewId(null);
-    }
-    toast.success("Vista removida.");
-  };
-
-  const handleResetView = () => {
-    clearFilters();
-    setGranularity("day");
-    setSeriesVisibility(GESTAO_VIEW_DEFAULTS.seriesVisibility);
-    setActiveViewId(null);
-    setLastViewId(null);
-    persistLastViewId(null);
-  };
-
-  const handleRestoreLastView = async () => {
-    const lastView = allSavedViews.find(view => view.id === lastViewId);
-    if (!lastView) {
-      toast.error("Nenhum último recorte salvo disponível.");
-      return;
-    }
-    await applySavedView(lastView);
-  };
+  const {
+    activeViewId,
+    applySavedView,
+    clearActiveView,
+    customViews,
+    handleDeleteView,
+    handleDuplicateView,
+    handleRenameView,
+    handleResetView,
+    handleRestoreLastView,
+    handleSaveView,
+    lastViewName,
+    presetViews,
+  } = useGestaoViewManager({
+    baseViewState,
+    initialActiveViewId: initialViewState.activeViewId || null,
+    applyViewState,
+    clearFilters,
+    setGranularity,
+    setSeriesVisibility,
+    setHasFetched,
+    syncForViewState,
+  });
 
   const [metaInput, setMetaInput] = useState("");
 
@@ -737,6 +395,19 @@ export default function Gestao() {
       setMetaInput(resumoQuery.data.cards.metaComissao.toString());
     }
   }, [resumoQuery.data?.cards.metaComissao]);
+
+  const handleMetaSave = () => {
+    const value = Number.parseFloat(metaInput);
+    if (Number.isNaN(value)) {
+      toast.error("Valor inválido");
+      return;
+    }
+
+    setMetaMutation.mutate({
+      mes: dateFrom.slice(0, 7),
+      valor: value,
+    });
+  };
 
   const handleApplyFilters = async () => {
     console.info("[GestaoLog] Botão aplicar filtros acionado", {
@@ -863,21 +534,6 @@ export default function Gestao() {
     resumoQuery,
   ]);
 
-  const executiveMetrics = useMemo(
-    () =>
-      mergeExecutiveMetricsWithComparison(
-        resumoQuery.data?.executiveMetrics ?? [],
-        comparisonModeApplied ? comparisonQuery.data?.executiveMetrics : null
-      ),
-    [
-      comparisonModeApplied,
-      comparisonQuery.data?.executiveMetrics,
-      resumoQuery.data?.executiveMetrics,
-    ]
-  );
-
-  const comparisonResumo = comparisonModeApplied ? comparisonQuery.data : null;
-
   if (!authed) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-foreground px-4">
@@ -932,7 +588,7 @@ export default function Gestao() {
         onExport={handleExport}
         onClear={() => {
           clearFilters();
-          setActiveViewId(null);
+          clearActiveView();
         }}
         isExporting={exportQuery.isFetching}
         comparisonMode={comparisonMode}
@@ -1032,160 +688,18 @@ export default function Gestao() {
               />
             </section>
 
-            <section className="space-y-3">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground section-heading">
-                  KPIs do Período
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Indicadores de meta, ritmo, volume e qualidade do recorte selecionado.
-                </p>
-              </div>
+            <PeriodKpisSection
+              cards={resumoQuery.data.cards}
+              comparisonMetricDeltas={comparisonMetricDeltas}
+              comparisonModeApplied={comparisonModeApplied}
+              deltas={deltas}
+              metaInput={metaInput}
+              onMetaInputChange={setMetaInput}
+              onMetaSave={handleMetaSave}
+              isSavingMeta={setMetaMutation.isPending}
+            />
 
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-                <MetricCard
-                  title="Comissão"
-                  value={formatCurrency(resumoQuery.data.cards.comissao)}
-                  hint={`Δ7d: ${formatPercent(deltas.comissao)}`}
-                  tooltip="Soma da comissão total no período filtrado."
-                  delta={comparisonMetricDeltas.comissao}
-                  deltaLabel={
-                    comparisonModeApplied ? "vs período comparado" : undefined
-                  }
-                  compact
-                />
-                <MetricCard
-                  title="Líquido"
-                  value={formatCurrency(resumoQuery.data.cards.liquido)}
-                  hint={`Δ7d: ${formatPercent(deltas.liquido)}`}
-                  tooltip="Soma do líquido liberado no período."
-                  delta={comparisonMetricDeltas.liquido}
-                  deltaLabel={
-                    comparisonModeApplied ? "vs período comparado" : undefined
-                  }
-                  compact
-                />
-                <MetricCard
-                  title="Comissão Média %"
-                  value={formatPercent(resumoQuery.data.cards.takeRate)}
-                  hint={`Limpa: ${formatPercent(resumoQuery.data.cards.takeRateLimpo ?? 0)}`}
-                  tooltip="Percentual médio de comissão sobre o líquido."
-                  delta={comparisonMetricDeltas.takeRate}
-                  deltaLabel={
-                    comparisonModeApplied ? "vs período comparado" : undefined
-                  }
-                  compact
-                />
-                <MetricCard
-                  title="Ticket Médio"
-                  value={formatCurrency(resumoQuery.data.cards.ticketMedio)}
-                  tooltip="Líquido médio por contrato."
-                  delta={comparisonMetricDeltas.ticketMedio}
-                  deltaLabel={
-                    comparisonModeApplied ? "vs período comparado" : undefined
-                  }
-                  compact
-                />
-                <MetricCard
-                  title="Contratos"
-                  value={resumoQuery.data.cards.contratos.toLocaleString(
-                    "pt-BR"
-                  )}
-                  tooltip="Quantidade de contratos no período."
-                  hint={`Sem comissão: ${resumoQuery.data.cards.contratosSemComissao ?? 0}`}
-                  delta={comparisonMetricDeltas.contratos}
-                  deltaLabel={
-                    comparisonModeApplied ? "vs período comparado" : undefined
-                  }
-                  compact
-                />
-                <MetricCard
-                  title="% Comissão Calculada"
-                  value={formatPercent(
-                    resumoQuery.data.cards.pctComissaoCalculada
-                  )}
-                  tooltip="Percentual de contratos com comissão calculada via percentual."
-                  delta={comparisonMetricDeltas.pctComissaoCalculada}
-                  deltaLabel={
-                    comparisonModeApplied ? "vs período comparado" : undefined
-                  }
-                  compact
-                />
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <MetricCard
-                  title="Meta Comissão"
-                  tooltip="Meta de comissão para o mês (pode editar)."
-                  value={
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        value={metaInput}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                          setMetaInput(e.target.value)
-                        }
-                        className="h-10 w-32 border-slate-700 bg-slate-900"
-                      />
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          const val = Number.parseFloat(metaInput);
-                          if (Number.isNaN(val)) {
-                            toast.error("Valor inválido");
-                            return;
-                          }
-                          setMetaMutation.mutate({
-                            mes: dateFrom.slice(0, 7),
-                            valor: val,
-                          });
-                        }}
-                        disabled={setMetaMutation.isPending}
-                      >
-                        {setMetaMutation.isPending ? "Salvando..." : "Salvar"}
-                      </Button>
-                    </div>
-                  }
-                />
-                <MetricCard
-                  title="Pace Comissão (R$/dia)"
-                  value={formatCurrency(
-                    resumoQuery.data.cards.paceComissao ?? 0
-                  )}
-                  tooltip="Comissão média por dia corrido no período."
-                  delta={comparisonMetricDeltas.paceComissao}
-                  deltaLabel={
-                    comparisonModeApplied ? "vs período comparado" : undefined
-                  }
-                />
-                <MetricCard
-                  title="Necessário/dia p/ meta"
-                  value={formatCurrency(
-                    resumoQuery.data.cards.necessarioPorDia ?? 0
-                  )}
-                  badge={
-                    (resumoQuery.data.cards.paceComissao ?? 0) >=
-                    (resumoQuery.data.cards.necessarioPorDia ?? 0)
-                      ? "À frente"
-                      : "Atrás"
-                  }
-                  tooltip="Quanto falta por dia para alcançar a meta de comissão."
-                  delta={comparisonMetricDeltas.necessarioPorDia}
-                  deltaLabel={
-                    comparisonModeApplied ? "vs período comparado" : undefined
-                  }
-                />
-                <MetricCard
-                  title="Dias (decorridos/total)"
-                  value={`${resumoQuery.data.cards.diasDecorridos ?? 0}/${resumoQuery.data.cards.totalDias ?? 0}`}
-                  tooltip="Dias corridos dentro do período selecionado."
-                  compact
-                />
-              </div>
-            </section>
-
-            <Separator className="bg-slate-800" />
+            <Separator className="bg-border" />
 
             <section className="space-y-4">
               <div>
@@ -1193,7 +707,8 @@ export default function Gestao() {
                   Diagnóstico
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Desempenho por tempo, pipeline, mix, vendedoras e alavancas de melhoria.
+                  Desempenho por tempo, pipeline, mix, vendedoras e alavancas de
+                  melhoria.
                 </p>
               </div>
 
@@ -1291,7 +806,7 @@ export default function Gestao() {
               </div>
             </section>
 
-            <Separator className="bg-slate-800" />
+            <Separator className="bg-border" />
 
             <section className="space-y-4">
               <div>
@@ -1299,7 +814,8 @@ export default function Gestao() {
                   Auditoria e Rastreamento
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Alertas automáticos, progresso de sincronização e rastreabilidade detalhada do recorte.
+                  Alertas automáticos, progresso de sincronização e
+                  rastreabilidade detalhada do recorte.
                 </p>
               </div>
 
@@ -1313,14 +829,37 @@ export default function Gestao() {
               {!isApplying && !syncMutation.isPending && lastSyncSummary && (
                 <Card className="bg-card border-border">
                   <CardContent className="flex flex-wrap items-center gap-x-5 gap-y-2 py-3 text-sm">
-                    <div className="font-semibold text-foreground">Última sincronização</div>
-                    <div className="text-muted-foreground">Buscados: <span className="text-foreground font-medium">{lastSyncSummary.fetched}</span></div>
-                    <div className="text-muted-foreground">Inseridos: <span className="text-foreground font-medium">{lastSyncSummary.upserted}</span></div>
-                    <div className="text-muted-foreground">Iguais: <span className="text-foreground font-medium">{lastSyncSummary.unchanged}</span></div>
-                    <div className="text-muted-foreground">Pulados: <span className="text-foreground font-medium">{lastSyncSummary.skipped}</span></div>
+                    <div className="font-semibold text-foreground">
+                      Última sincronização
+                    </div>
+                    <div className="text-muted-foreground">
+                      Buscados:{" "}
+                      <span className="text-foreground font-medium">
+                        {lastSyncSummary.fetched}
+                      </span>
+                    </div>
+                    <div className="text-muted-foreground">
+                      Inseridos:{" "}
+                      <span className="text-foreground font-medium">
+                        {lastSyncSummary.upserted}
+                      </span>
+                    </div>
+                    <div className="text-muted-foreground">
+                      Iguais:{" "}
+                      <span className="text-foreground font-medium">
+                        {lastSyncSummary.unchanged}
+                      </span>
+                    </div>
+                    <div className="text-muted-foreground">
+                      Pulados:{" "}
+                      <span className="text-foreground font-medium">
+                        {lastSyncSummary.skipped}
+                      </span>
+                    </div>
                     {lastSyncSummary.warnings > 0 && (
                       <div className="text-amber-400 font-medium">
-                        {lastSyncSummary.warnings} aviso{lastSyncSummary.warnings > 1 ? "s" : ""}
+                        {lastSyncSummary.warnings} aviso
+                        {lastSyncSummary.warnings > 1 ? "s" : ""}
                       </div>
                     )}
                     {syncStatusQuery.data?.status !== "done" && (
@@ -1336,7 +875,9 @@ export default function Gestao() {
                 syncStatusQuery.data?.perMonth.length > 0 && (
                   <Card className="bg-card border-border">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-semibold">Progresso de sincronização por mês</CardTitle>
+                      <CardTitle className="text-sm font-semibold">
+                        Progresso de sincronização por mês
+                      </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-1.5 text-sm">
                       {syncStatusQuery.data.perMonth
@@ -1352,7 +893,8 @@ export default function Gestao() {
                                 {m.mesInicio} → {m.mesFim}
                               </span>
                               <span className="text-xs text-muted-foreground">
-                                {m.status === "done" ? "Concluído" : "Erro"} · {m.fetched} buscados · {m.upserted} inseridos
+                                {m.status === "done" ? "Concluído" : "Erro"} ·{" "}
+                                {m.fetched} buscados · {m.upserted} inseridos
                               </span>
                             </div>
                             <div

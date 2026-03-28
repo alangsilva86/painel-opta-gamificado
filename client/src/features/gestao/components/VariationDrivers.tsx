@@ -1,11 +1,12 @@
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import type {
   GestaoProductRow,
   GestaoResumoData,
   GestaoSellerRow,
 } from "../types";
+import { formatCurrency, formatPercent } from "../utils";
+import { getDeltaToneClass } from "../visualSemantics";
 
 type DriverItem = {
   label: string;
@@ -20,18 +21,6 @@ type VariationDriversProps = {
   onProductClick: (product: string) => void;
   onOperationClick: (operation: string) => void;
 };
-
-function formatCurrency(value: number) {
-  return value.toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    minimumFractionDigits: 2,
-  });
-}
-
-function formatPercent(value: number) {
-  return `${(value * 100).toFixed(1)}%`;
-}
 
 function buildDrivers<T extends Record<string, any>>(
   currentRows: T[],
@@ -73,21 +62,17 @@ function DriverRow({
 }) {
   const positive = item.deltaAbs > 0.0001;
   const negative = item.deltaAbs < -0.0001;
-  const toneClass = positive
-    ? "text-emerald-300"
-    : negative
-      ? "text-rose-300"
-      : "text-slate-300";
+  const toneClass = getDeltaToneClass(item.deltaAbs, true);
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center justify-between rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2 text-left transition-colors hover:border-slate-700"
+      className="flex w-full items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2 text-left transition-colors hover:border-border/80"
     >
       <div>
-        <div className="text-sm font-medium text-white">{item.label}</div>
-        <div className="text-xs text-slate-500">
+        <div className="text-sm font-medium text-foreground">{item.label}</div>
+        <div className="text-xs text-muted-foreground">
           {item.deltaPct !== undefined
             ? formatPercent(item.deltaPct)
             : "Sem base comparativa"}
@@ -129,16 +114,16 @@ function CurrentLeaders({
     <div className="grid gap-3 lg:grid-cols-2">
       <button
         type="button"
-        className="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-4 text-left transition-colors hover:border-slate-700"
+        className="rounded-xl border border-border bg-muted/30 px-4 py-4 text-left transition-colors hover:border-border/80"
         onClick={() => topSeller && onSellerClick(topSeller.vendedor)}
       >
-        <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+        <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
           Driver atual por vendedora
         </div>
-        <div className="mt-2 text-lg font-semibold text-white">
+        <div className="mt-2 text-lg font-semibold text-foreground">
           {topSeller?.vendedor ?? "Sem dado"}
         </div>
-        <div className="mt-1 text-sm text-slate-300">
+        <div className="mt-1 text-sm text-muted-foreground">
           {topSeller
             ? formatCurrency(topSeller.comissao)
             : "Sem leitura disponível"}
@@ -146,16 +131,16 @@ function CurrentLeaders({
       </button>
       <button
         type="button"
-        className="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-4 text-left transition-colors hover:border-slate-700"
+        className="rounded-xl border border-border bg-muted/30 px-4 py-4 text-left transition-colors hover:border-border/80"
         onClick={() => topProduct && onProductClick(topProduct.produto)}
       >
-        <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+        <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
           Driver atual por produto
         </div>
-        <div className="mt-2 text-lg font-semibold text-white">
+        <div className="mt-2 text-lg font-semibold text-foreground">
           {topProduct?.produto ?? "Sem dado"}
         </div>
-        <div className="mt-1 text-sm text-slate-300">
+        <div className="mt-1 text-sm text-muted-foreground">
           {topProduct
             ? formatCurrency(topProduct.comissao)
             : "Sem leitura disponível"}
@@ -192,14 +177,14 @@ export function VariationDrivers({
   ).slice(0, 3);
 
   return (
-    <Card className="border-slate-800 bg-slate-950">
+    <Card className="border-border bg-card">
       <CardHeader>
-        <CardTitle className="text-white">Drivers & Risks</CardTitle>
+        <CardTitle className="text-foreground">Análise de Drivers</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {!comparison && (
           <>
-            <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-4 text-sm text-slate-300">
+            <div className="rounded-xl border border-border bg-muted/40 px-4 py-4 text-sm text-muted-foreground">
               Ative a comparação de período para decompor a variação em impacto
               absoluto por vendedora, produto e operação.
             </div>
@@ -216,8 +201,10 @@ export function VariationDrivers({
           <div className="grid gap-4 xl:grid-cols-3">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-white">Vendedoras</h3>
-                <div className="text-xs text-slate-500">
+                <h3 className="text-sm font-semibold text-foreground">
+                  Vendedoras
+                </h3>
+                <div className="text-xs text-muted-foreground">
                   impacto em comissão
                 </div>
               </div>
@@ -231,8 +218,10 @@ export function VariationDrivers({
             </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-white">Produtos</h3>
-                <div className="text-xs text-slate-500">
+                <h3 className="text-sm font-semibold text-foreground">
+                  Produtos
+                </h3>
+                <div className="text-xs text-muted-foreground">
                   impacto em comissão
                 </div>
               </div>
@@ -246,8 +235,10 @@ export function VariationDrivers({
             </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-white">Operações</h3>
-                <div className="text-xs text-slate-500">
+                <h3 className="text-sm font-semibold text-foreground">
+                  Operações
+                </h3>
+                <div className="text-xs text-muted-foreground">
                   impacto em comissão
                 </div>
               </div>

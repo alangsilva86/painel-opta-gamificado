@@ -1,4 +1,4 @@
-import React from "react";
+import type { ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Tooltip as UiTooltip,
@@ -6,10 +6,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { TrendingDown, TrendingUp } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { getDeltaToneClass } from "../visualSemantics";
 
 type MetricCardProps = {
   title: string;
-  value: string | React.ReactNode;
+  value: string | ReactNode;
   hint?: string;
   badge?: string;
   compact?: boolean;
@@ -30,6 +32,10 @@ export function MetricCard({
 }: MetricCardProps) {
   const deltaPositive = delta !== undefined && delta > 0.01;
   const deltaNegative = delta !== undefined && delta < -0.01;
+  const deltaToneClass =
+    delta !== undefined
+      ? getDeltaToneClass(delta, true)
+      : "text-muted-foreground";
 
   const content = (
     <Card className="bg-card border-border h-full transition-colors hover:border-border/80">
@@ -38,18 +44,21 @@ export function MetricCard({
           {title}
         </CardTitle>
       </CardHeader>
-      <CardContent className={`${compact ? "px-4 pb-3" : "px-4 pb-4"} space-y-1.5`}>
+      <CardContent
+        className={`${compact ? "px-4 pb-3" : "px-4 pb-4"} space-y-1.5`}
+      >
         <div
           className={`${compact ? "text-xl" : "text-2xl"} font-bold text-foreground flex items-center gap-2 leading-none`}
         >
           {value}
           {badge && (
             <span
-              className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+              className={cn(
+                "rounded-full px-2 py-0.5 text-xs font-semibold ring-1",
                 badge.includes("À frente")
-                  ? "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/25"
-                  : "bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/25"
-              }`}
+                  ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/25"
+                  : "bg-amber-500/15 text-amber-300 ring-amber-500/25"
+              )}
             >
               {badge}
             </span>
@@ -57,13 +66,10 @@ export function MetricCard({
         </div>
         {delta !== undefined && (
           <div
-            className={`flex items-center gap-1 text-xs font-medium ${
-              deltaPositive
-                ? "text-emerald-400"
-                : deltaNegative
-                  ? "text-rose-400"
-                  : "text-muted-foreground"
-            }`}
+            className={cn(
+              "flex items-center gap-1 text-xs font-medium",
+              deltaToneClass
+            )}
           >
             {deltaPositive ? (
               <TrendingUp size={12} strokeWidth={2.5} />
@@ -75,7 +81,9 @@ export function MetricCard({
               {(delta * 100).toFixed(1)}%
             </span>
             {deltaLabel && (
-              <span className="font-normal text-muted-foreground/70">{deltaLabel}</span>
+              <span className="font-normal text-muted-foreground/70">
+                {deltaLabel}
+              </span>
             )}
           </div>
         )}

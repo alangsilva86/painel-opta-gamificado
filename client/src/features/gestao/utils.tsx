@@ -8,16 +8,7 @@ import {
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { GestaoExecutiveMetric, GestaoTimeseriesPoint } from "./types";
-
-export function startOfMonthISO(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
-}
-
-export function endOfMonthISO(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0)
-    .toISOString()
-    .slice(0, 10);
-}
+export { endOfMonthISO, startOfMonthISO } from "./dateRange";
 
 export function formatCurrency(value?: number) {
   if (typeof value !== "number") return "R$ 0,00";
@@ -156,7 +147,7 @@ export function formatGranularityTooltipLabel(
 export type TooltipRow = { label: string; value: string; emphasis?: boolean };
 
 export const tooltipBox = (title: string | undefined, rows: TooltipRow[]) => (
-  <div className="rounded-xl border border-slate-700 bg-slate-800/95 px-3 py-2 text-xs text-white shadow-md space-y-1">
+  <div className="space-y-1 rounded-xl border border-border bg-popover/95 px-3 py-2 text-xs text-popover-foreground shadow-md">
     {title && <div className="font-semibold">{title}</div>}
     {rows.map(r => (
       <div key={r.label} className={r.emphasis ? "font-semibold" : ""}>

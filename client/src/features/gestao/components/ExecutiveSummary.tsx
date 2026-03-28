@@ -2,6 +2,7 @@ import { AlertTriangle, CheckCircle2, Siren } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { GestaoExecutiveNarrativeItem, GestaoFilterState } from "../types";
+import { getSeverityTone } from "../visualSemantics";
 
 type ExecutiveSummaryProps = {
   items: GestaoExecutiveNarrativeItem[];
@@ -19,13 +20,7 @@ function getSeverityIcon(severity: GestaoExecutiveNarrativeItem["severity"]) {
 }
 
 function getSeverityClass(severity: GestaoExecutiveNarrativeItem["severity"]) {
-  if (severity === "critical") {
-    return "border-rose-500/20 bg-rose-500/[0.05]";
-  }
-  if (severity === "warning") {
-    return "border-amber-500/20 bg-amber-500/[0.05]";
-  }
-  return "border-emerald-500/20 bg-emerald-500/[0.05]";
+  return getSeverityTone(severity).panelClass;
 }
 
 export function ExecutiveSummary({
@@ -33,13 +28,13 @@ export function ExecutiveSummary({
   onApplyFilter,
 }: ExecutiveSummaryProps) {
   return (
-    <Card className="border-slate-800 bg-slate-950">
+    <Card className="border-border bg-card">
       <CardHeader>
-        <CardTitle className="text-white">Narrativa Executiva</CardTitle>
+        <CardTitle className="text-foreground">Narrativa Executiva</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {items.length === 0 && (
-          <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-4 text-sm text-slate-300">
+          <div className="rounded-xl border border-border bg-muted/40 px-4 py-4 text-sm text-muted-foreground">
             Sem narrativa estruturada disponível para este recorte.
           </div>
         )}
@@ -51,40 +46,42 @@ export function ExecutiveSummary({
           >
             <div className="grid gap-4 xl:grid-cols-[0.9fr_1fr_1fr_0.9fr]">
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                   {getSeverityIcon(item.severity)}
                   {item.headline}
                 </div>
-                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                   O que mudou
                 </div>
-                <p className="text-sm leading-6 text-slate-200">
+                <p className="text-sm leading-6 text-foreground">
                   {item.whatChanged}
                 </p>
               </div>
 
               <div className="space-y-2">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                   Por que mudou
                 </div>
-                <p className="text-sm leading-6 text-slate-300">{item.why}</p>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {item.why}
+                </p>
               </div>
 
               <div className="space-y-2">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                   O que fazer agora
                 </div>
-                <p className="text-sm leading-6 text-slate-300">
+                <p className="text-sm leading-6 text-muted-foreground">
                   {item.action}
                 </p>
               </div>
 
-              <div className="flex flex-col justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/70 p-3">
+              <div className="flex flex-col justify-between gap-3 rounded-xl border border-border bg-background/60 p-3">
                 <div>
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                     Ação rápida
                   </div>
-                  <p className="mt-2 text-sm text-slate-300">
+                  <p className="mt-2 text-sm text-muted-foreground">
                     Abra o recorte recomendado para confirmar a hipótese.
                   </p>
                 </div>
@@ -92,13 +89,13 @@ export function ExecutiveSummary({
                   <Button
                     type="button"
                     variant="outline"
-                    className="border-slate-700 bg-slate-900 text-slate-100"
+                    className="border-border bg-secondary text-foreground"
                     onClick={() => onApplyFilter(item.filters ?? {})}
                   >
                     Aplicar recorte
                   </Button>
                 ) : (
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-muted-foreground">
                     Sem recorte específico. Use os drivers abaixo.
                   </div>
                 )}
