@@ -2,13 +2,22 @@ import { createHash, timingSafeEqual } from "crypto";
 import { TRPCError } from "@trpc/server";
 import { and, asc, count, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { z } from "zod";
-import { contratos, gestaoMetas, gestaoSyncLogs, metasVendedor, vendedoras } from "../../drizzle/schema";
+import {
+  contratos,
+  gestaoMetas,
+  gestaoSyncLogs,
+  metasVendedor,
+  vendedoras,
+} from "../../drizzle/schema";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { publicProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { nanoid } from "nanoid";
 import { isProdutoIgnoradoNoPainelVendedoras } from "../calculationService";
-import { splitRangeByMonth, syncContratosGestao, syncContratosGestaoIntervalo } from "./syncService";
+import {
+  buildMergedRangesForIntervals,
+  syncContratosGestaoRanges,
+} from "./syncService";
 
 const FILTERS_SCHEMA = z.object({
   dateFrom: z.string().optional(),
@@ -49,7 +58,10 @@ function hasGestaoAccess(req: any): boolean {
 
 const gestaoProcedure = publicProcedure.use(({ ctx, next }) => {
   if (!hasGestaoAccess(ctx.req)) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "Acesso Gestão não autorizado" });
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "Acesso Gestão não autorizado",
+    });
   }
   return next();
 });
@@ -88,12 +100,18 @@ function buildWhere(filters: z.infer<typeof FILTERS_SCHEMA>) {
     end.setHours(23, 59, 59, 999); // incluir todo o dia final
     clauses.push(lte(contratos.dataPagamento, end));
   }
-  if (filters.etapaPipeline?.length) clauses.push(inArray(contratos.etapaPipeline, filters.etapaPipeline));
-  if (filters.vendedorNome?.length) clauses.push(inArray(contratos.vendedorNome, filters.vendedorNome));
-  if (filters.produto?.length) clauses.push(inArray(contratos.produto, filters.produto));
-  if (filters.tipoOperacao?.length) clauses.push(inArray(contratos.tipoOperacao, filters.tipoOperacao));
-  if (filters.agenteId?.length) clauses.push(inArray(contratos.agenteId, filters.agenteId));
-  if (filters.digitadorNome?.length) clauses.push(inArray(contratos.digitadorNome, filters.digitadorNome));
+  if (filters.etapaPipeline?.length)
+    clauses.push(inArray(contratos.etapaPipeline, filters.etapaPipeline));
+  if (filters.vendedorNome?.length)
+    clauses.push(inArray(contratos.vendedorNome, filters.vendedorNome));
+  if (filters.produto?.length)
+    clauses.push(inArray(contratos.produto, filters.produto));
+  if (filters.tipoOperacao?.length)
+    clauses.push(inArray(contratos.tipoOperacao, filters.tipoOperacao));
+  if (filters.agenteId?.length)
+    clauses.push(inArray(contratos.agenteId, filters.agenteId));
+  if (filters.digitadorNome?.length)
+    clauses.push(inArray(contratos.digitadorNome, filters.digitadorNome));
 
   return clauses.length > 0 ? and(...clauses) : undefined;
 }
@@ -106,9 +124,12 @@ function formatPercent(value: number) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
-function groupBy<T, K extends string | number>(items: T[], keyFn: (item: T) => K) {
+function groupBy<T, K extends string | number>(
+  items: T[],
+  keyFn: (item: T) => K
+) {
   const map = new Map<K, T[]>();
-  items.forEach((item) => {
+  items.forEach(item => {
     const key = keyFn(item);
     const arr = map.get(key) || [];
     arr.push(item);
@@ -132,7 +153,10 @@ function normalizeSellerName(value: string) {
 
 const COMISSAO_VENDEDORA_FACTOR = 0.55 * 0.06;
 
-function calcularComissaoVendedoraCent(contrato: { comissaoTotalCent: number; produto: string }) {
+function calcularComissaoVendedoraCent(contrato: {
+  comissaoTotalCent: number;
+  produto: string;
+}) {
   if (contrato.comissaoTotalCent <= 0) return 0;
   if (isProdutoIgnoradoNoPainelVendedoras(contrato.produto)) return 0;
   return Math.round(contrato.comissaoTotalCent * COMISSAO_VENDEDORA_FACTOR);
@@ -151,10 +175,19 @@ export const gestaoRouter = router({
       }
 
       const providedHash = createHash("sha256").update(input.password).digest();
-      const expected = Buffer.from(expectedHash, expectedHash.length === 64 ? "hex" : "utf8");
+      const expected = Buffer.from(
+        expectedHash,
+        expectedHash.length === 64 ? "hex" : "utf8"
+      );
 
-      if (expected.length !== providedHash.length || !timingSafeEqual(expected, providedHash)) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Senha inválida" });
+      if (
+        expected.length !== providedHash.length ||
+        !timingSafeEqual(expected, providedHash)
+      ) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Senha inválida",
+        });
       }
 
       const cookieOptions = {
@@ -167,25 +200,42 @@ export const gestaoRouter = router({
 
   getResumo: gestaoProcedure.input(FILTERS_SCHEMA).query(async ({ input }) => {
     const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database indisponível" });
+    if (!db)
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Database indisponível",
+      });
     const where = buildWhere(input);
     const rows = await db.select().from(contratos).where(where);
 
     const total = rows.length;
     const sumLiquido = rows.reduce((acc, r) => acc + r.liquidoLiberadoCent, 0);
     const sumComissao = rows.reduce((acc, r) => acc + r.comissaoTotalCent, 0);
-    const semComissao = rows.filter((r) => r.comissaoTotalCent === 0);
-    const sumLiquidoSemComissao = semComissao.reduce((acc, r) => acc + r.liquidoLiberadoCent, 0);
-    const rowsComissionados = rows.filter((r) => r.comissaoTotalCent > 0);
-    const sumLiquidoComissionados = rowsComissionados.reduce((acc, r) => acc + r.liquidoLiberadoCent, 0);
-    const sumComissaoComissionados = rowsComissionados.reduce((acc, r) => acc + r.comissaoTotalCent, 0);
+    const semComissao = rows.filter(r => r.comissaoTotalCent === 0);
+    const sumLiquidoSemComissao = semComissao.reduce(
+      (acc, r) => acc + r.liquidoLiberadoCent,
+      0
+    );
+    const rowsComissionados = rows.filter(r => r.comissaoTotalCent > 0);
+    const sumLiquidoComissionados = rowsComissionados.reduce(
+      (acc, r) => acc + r.liquidoLiberadoCent,
+      0
+    );
+    const sumComissaoComissionados = rowsComissionados.reduce(
+      (acc, r) => acc + r.comissaoTotalCent,
+      0
+    );
     const takeRate = sumLiquido > 0 ? sumComissao / sumLiquido : 0;
     const takeRateLimpo =
-      sumLiquidoComissionados > 0 ? sumComissaoComissionados / sumLiquidoComissionados : 0;
+      sumLiquidoComissionados > 0
+        ? sumComissaoComissionados / sumLiquidoComissionados
+        : 0;
     const ticketMedio = total > 0 ? sumLiquido / total : 0;
     const pctComissaoCalculada =
-      total > 0 ? rows.filter((r) => r.comissaoCalculada).length / total : 0;
-    const contratosSemComissao = rows.filter((r) => r.comissaoTotalCent === 0).length;
+      total > 0 ? rows.filter(r => r.comissaoCalculada).length / total : 0;
+    const contratosSemComissao = rows.filter(
+      r => r.comissaoTotalCent === 0
+    ).length;
 
     // Meta e ritmo (pace) - meta de comissão da gestão (separada da meta de vendas)
     let metaComissaoCent = 0;
@@ -193,52 +243,82 @@ export const gestaoRouter = router({
     const metasVendedorMap = new Map<string, number>();
     const vendedorIdByName = new Map<string, string>();
     if (monthKey) {
-      const metaRow = await db.select().from(gestaoMetas).where(eq(gestaoMetas.mes, monthKey)).limit(1);
+      const metaRow = await db
+        .select()
+        .from(gestaoMetas)
+        .where(eq(gestaoMetas.mes, monthKey))
+        .limit(1);
       if (metaRow.length > 0) {
         const parsedMeta = Number.parseFloat(metaRow[0].metaValor || "0");
-        metaComissaoCent = Number.isNaN(parsedMeta) ? 0 : Math.round(parsedMeta * 100);
+        metaComissaoCent = Number.isNaN(parsedMeta)
+          ? 0
+          : Math.round(parsedMeta * 100);
       }
       const metasVendedorRows = await db
         .select()
         .from(metasVendedor)
         .where(eq(metasVendedor.mes, monthKey));
-      metasVendedorRows.forEach((m) => {
+      metasVendedorRows.forEach(m => {
         const parsed = Number.parseFloat(m.metaValor || "0");
         metasVendedorMap.set(m.vendedoraId, Number.isNaN(parsed) ? 0 : parsed);
       });
     }
-    const vendedorasRows = await db.select({ id: vendedoras.id, nome: vendedoras.nome }).from(vendedoras);
-    vendedorasRows.forEach((v) => {
+    const vendedorasRows = await db
+      .select({ id: vendedoras.id, nome: vendedoras.nome })
+      .from(vendedoras);
+    vendedorasRows.forEach(v => {
       vendedorIdByName.set(normalizeSellerName(v.nome), v.id);
     });
 
-    const startDate = input.dateFrom ? new Date(input.dateFrom) : rows[0]?.dataPagamento;
-    const endDate = input.dateTo ? new Date(input.dateTo) : rows[rows.length - 1]?.dataPagamento;
+    const startDate = input.dateFrom
+      ? new Date(input.dateFrom)
+      : rows[0]?.dataPagamento;
+    const endDate = input.dateTo
+      ? new Date(input.dateTo)
+      : rows[rows.length - 1]?.dataPagamento;
     const now = new Date();
     const effectiveStart = startDate ? startDate : now;
     const effectiveEnd = endDate ? endDate : now;
     const totalDias =
-      effectiveStart && effectiveEnd ? Math.max(1, diffDaysInclusive(effectiveStart, effectiveEnd)) : 1;
+      effectiveStart && effectiveEnd
+        ? Math.max(1, diffDaysInclusive(effectiveStart, effectiveEnd))
+        : 1;
     const diasDecorridos =
       effectiveStart && effectiveEnd
-        ? Math.max(0, diffDaysInclusive(effectiveStart, now < effectiveEnd ? now : effectiveEnd))
+        ? Math.max(
+            0,
+            diffDaysInclusive(
+              effectiveStart,
+              now < effectiveEnd ? now : effectiveEnd
+            )
+          )
         : 0;
 
     const paceComissao = diasDecorridos > 0 ? sumComissao / diasDecorridos : 0;
     const diasRestantes = Math.max(0, totalDias - diasDecorridos);
     const faltaMetaComissao = Math.max(0, metaComissaoCent - sumComissao);
     const necessarioPorDia =
-      metaComissaoCent > 0 && diasRestantes > 0 ? faltaMetaComissao / diasRestantes : 0;
+      metaComissaoCent > 0 && diasRestantes > 0
+        ? faltaMetaComissao / diasRestantes
+        : 0;
 
-    const timeseriesMap = groupBy(rows, (r) => formatDateKey(r.dataPagamento));
+    const timeseriesMap = groupBy(rows, r => formatDateKey(r.dataPagamento));
     const timeseries = Array.from(timeseriesMap.entries())
       .map(([date, list]) => {
         const liquido = list.reduce((acc, r) => acc + r.liquidoLiberadoCent, 0);
         const comissao = list.reduce((acc, r) => acc + r.comissaoTotalCent, 0);
-        const comiss = list.filter((r) => r.comissaoTotalCent > 0);
-        const liquidoComiss = comiss.reduce((acc, r) => acc + r.liquidoLiberadoCent, 0);
-        const comissaoComiss = comiss.reduce((acc, r) => acc + r.comissaoTotalCent, 0);
-        const contratosSemComissaoDia = list.filter((r) => r.comissaoTotalCent === 0).length;
+        const comiss = list.filter(r => r.comissaoTotalCent > 0);
+        const liquidoComiss = comiss.reduce(
+          (acc, r) => acc + r.liquidoLiberadoCent,
+          0
+        );
+        const comissaoComiss = comiss.reduce(
+          (acc, r) => acc + r.comissaoTotalCent,
+          0
+        );
+        const contratosSemComissaoDia = list.filter(
+          r => r.comissaoTotalCent === 0
+        ).length;
         return {
           date,
           contratos: list.length,
@@ -257,21 +337,35 @@ export const gestaoRouter = router({
     const aggregateGroup = (list: ContratoRow[]) => {
       const liquido = list.reduce((acc, r) => acc + r.liquidoLiberadoCent, 0);
       const comissaoBase = list.reduce((acc, r) => acc + r.comissaoBaseCent, 0);
-      const comissaoBonus = list.reduce((acc, r) => acc + r.comissaoBonusCent, 0);
+      const comissaoBonus = list.reduce(
+        (acc, r) => acc + r.comissaoBonusCent,
+        0
+      );
       const comissao = list.reduce((acc, r) => acc + r.comissaoTotalCent, 0);
       const comissaoVendedoraCent = list.reduce(
         (acc, r) => acc + calcularComissaoVendedoraCent(r),
         0
       );
-      const comiss = list.filter((r) => r.comissaoTotalCent > 0);
-      const liquidoComiss = comiss.reduce((acc, r) => acc + r.liquidoLiberadoCent, 0);
-      const comissaoComiss = comiss.reduce((acc, r) => acc + r.comissaoTotalCent, 0);
+      const comiss = list.filter(r => r.comissaoTotalCent > 0);
+      const liquidoComiss = comiss.reduce(
+        (acc, r) => acc + r.liquidoLiberadoCent,
+        0
+      );
+      const comissaoComiss = comiss.reduce(
+        (acc, r) => acc + r.comissaoTotalCent,
+        0
+      );
       const semComissaoCount = list.length - comiss.length;
-      const comissaoCalculadaCount = list.filter((r) => r.comissaoCalculada).length;
-      const liquidoFallbackCount = list.filter((r) => r.liquidoFallback).length;
-      const inconsistenciaDataCount = list.filter((r) => r.inconsistenciaDataPagamento).length;
+      const comissaoCalculadaCount = list.filter(
+        r => r.comissaoCalculada
+      ).length;
+      const liquidoFallbackCount = list.filter(r => r.liquidoFallback).length;
+      const inconsistenciaDataCount = list.filter(
+        r => r.inconsistenciaDataPagamento
+      ).length;
       const ticketMedio = list.length > 0 ? liquido / list.length : 0;
-      const ticketMedioComissionado = comiss.length > 0 ? liquidoComiss / comiss.length : 0;
+      const ticketMedioComissionado =
+        comiss.length > 0 ? liquidoComiss / comiss.length : 0;
       return {
         count: list.length,
         comissionadosCount: comiss.length,
@@ -290,67 +384,73 @@ export const gestaoRouter = router({
         ticketMedioComissionado: centsToNumber(ticketMedioComissionado),
         takeRate: liquido > 0 ? comissao / liquido : 0,
         takeRateLimpo: liquidoComiss > 0 ? comissaoComiss / liquidoComiss : 0,
-        pctComissaoCalculada: list.length > 0 ? comissaoCalculadaCount / list.length : 0,
-        pctLiquidoFallback: list.length > 0 ? liquidoFallbackCount / list.length : 0,
-        pctInconsistenciaData: list.length > 0 ? inconsistenciaDataCount / list.length : 0,
+        pctComissaoCalculada:
+          list.length > 0 ? comissaoCalculadaCount / list.length : 0,
+        pctLiquidoFallback:
+          list.length > 0 ? liquidoFallbackCount / list.length : 0,
+        pctInconsistenciaData:
+          list.length > 0 ? inconsistenciaDataCount / list.length : 0,
       };
     };
 
-    const byStage = Array.from(groupBy(rows, (r) => r.etapaPipeline).entries()).map(
-      ([etapa, list]) => {
-        const ag = aggregateGroup(list);
-        return { etapa, ...ag };
-      }
-    );
+    const byStage = Array.from(
+      groupBy(rows, r => r.etapaPipeline).entries()
+    ).map(([etapa, list]) => {
+      const ag = aggregateGroup(list);
+      return { etapa, ...ag };
+    });
 
-    const bySeller = Array.from(groupBy(rows, (r) => r.vendedorNome).entries()).map(
-      ([vendedor, list]) => {
-        const ag = aggregateGroup(list);
-        const vendedorId = vendedorIdByName.get(normalizeSellerName(vendedor));
-        const meta = vendedorId ? metasVendedorMap.get(vendedorId) ?? 0 : 0;
-        const pctMeta = meta > 0 ? ag.liquido / meta : 0;
-        return {
-          vendedor,
-          ...ag,
-          meta,
-          pctMeta,
-          pctTotal: sumComissao > 0 ? ag.comissao / centsToNumber(sumComissao) : 0,
-        };
-      }
-    );
+    const bySeller = Array.from(
+      groupBy(rows, r => r.vendedorNome).entries()
+    ).map(([vendedor, list]) => {
+      const ag = aggregateGroup(list);
+      const vendedorId = vendedorIdByName.get(normalizeSellerName(vendedor));
+      const meta = vendedorId ? (metasVendedorMap.get(vendedorId) ?? 0) : 0;
+      const pctMeta = meta > 0 ? ag.liquido / meta : 0;
+      return {
+        vendedor,
+        ...ag,
+        meta,
+        pctMeta,
+        pctTotal:
+          sumComissao > 0 ? ag.comissao / centsToNumber(sumComissao) : 0,
+      };
+    });
 
-    const byTyper = Array.from(groupBy(rows, (r) => r.digitadorNome).entries()).map(
-      ([digitador, list]) => {
-        const ag = aggregateGroup(list);
-        return { digitador, ...ag };
-      }
-    );
+    const byTyper = Array.from(
+      groupBy(rows, r => r.digitadorNome).entries()
+    ).map(([digitador, list]) => {
+      const ag = aggregateGroup(list);
+      return { digitador, ...ag };
+    });
 
-    const byProduct = Array.from(groupBy(rows, (r) => r.produto).entries()).map(
+    const byProduct = Array.from(groupBy(rows, r => r.produto).entries()).map(
       ([produto, list]) => {
         const ag = aggregateGroup(list);
         return { produto, ...ag };
       }
     );
 
-    const byProductOperation = Array.from(groupBy(rows, (r) => r.produto).entries()).map(
-      ([produto, list]) => {
-        const operations = Array.from(groupBy(list, (r) => r.tipoOperacao).entries())
-          .map(([tipoOperacao, opList]) => {
-            const ag = aggregateGroup(opList);
-            return { tipoOperacao, ...ag };
-          })
-          .sort((a, b) => b.comissao - a.comissao);
-        return { produto, operations };
-      }
-    );
+    const byProductOperation = Array.from(
+      groupBy(rows, r => r.produto).entries()
+    ).map(([produto, list]) => {
+      const operations = Array.from(
+        groupBy(list, r => r.tipoOperacao).entries()
+      )
+        .map(([tipoOperacao, opList]) => {
+          const ag = aggregateGroup(opList);
+          return { tipoOperacao, ...ag };
+        })
+        .sort((a, b) => b.comissao - a.comissao);
+      return { produto, operations };
+    });
 
-    const byOperationType = Array.from(groupBy(rows, (r) => r.tipoOperacao).entries()).map(
-      ([tipoOperacao, list]) => {
-        const ag = aggregateGroup(list);
-        return { tipoOperacao, ...ag };
-      }
-    );
+    const byOperationType = Array.from(
+      groupBy(rows, r => r.tipoOperacao).entries()
+    ).map(([tipoOperacao, list]) => {
+      const ag = aggregateGroup(list);
+      return { tipoOperacao, ...ag };
+    });
 
     // Alertas
     const alerts: Array<{
@@ -373,17 +473,22 @@ export const gestaoRouter = router({
       const fromPrev7 = toTs - 14 * 24 * 3600 * 1000;
 
       const slice = (from: number, to: number) =>
-        sortedByDate.filter((r) => r.dataPagamento.getTime() > from && r.dataPagamento.getTime() <= to);
+        sortedByDate.filter(
+          r =>
+            r.dataPagamento.getTime() > from && r.dataPagamento.getTime() <= to
+        );
 
       const last7 = slice(fromLast7, toTs);
       const prev7 = slice(fromPrev7, fromLast7);
 
-      const sum = (arr: typeof rows, sel: (r: typeof rows[number]) => number) =>
-        arr.reduce((acc, r) => acc + sel(r), 0);
+      const sum = (
+        arr: typeof rows,
+        sel: (r: (typeof rows)[number]) => number
+      ) => arr.reduce((acc, r) => acc + sel(r), 0);
 
       const tr = (arr: typeof rows) => {
-        const l = sum(arr, (r) => r.liquidoLiberadoCent);
-        const c = sum(arr, (r) => r.comissaoTotalCent);
+        const l = sum(arr, r => r.liquidoLiberadoCent);
+        const c = sum(arr, r => r.comissaoTotalCent);
         return l > 0 ? c / l : 0;
       };
 
@@ -404,7 +509,9 @@ export const gestaoRouter = router({
 
       // Comissão calculada subindo (% de calculada nos últimos 7 vs anteriores)
       const calcShare = (arr: typeof rows) =>
-        arr.length > 0 ? arr.filter((r) => r.comissaoCalculada).length / arr.length : 0;
+        arr.length > 0
+          ? arr.filter(r => r.comissaoCalculada).length / arr.length
+          : 0;
       const calcLast = calcShare(last7);
       const calcPrev = calcShare(prev7);
       if (calcPrev > 0 && calcLast - calcPrev >= 0.05 && calcLast > 0.1) {
@@ -436,7 +543,7 @@ export const gestaoRouter = router({
     // Concentração Top 5
     if (sumComissao > 0) {
       const sellersSorted = bySeller
-        .map((b) => ({ vendedor: b.vendedor, comissao: b.comissao }))
+        .map(b => ({ vendedor: b.vendedor, comissao: b.comissao }))
         .sort((a, b) => b.comissao - a.comissao);
       const top5 = sellersSorted.slice(0, 5);
       const top5Sum = top5.reduce((acc, s) => acc + s.comissao, 0);
@@ -449,7 +556,7 @@ export const gestaoRouter = router({
           title: "Concentração alta no Top 5",
           severity: "info",
           detail: `${formatPercent(shareReal)} da comissão concentrada nos Top 5 vendedores.`,
-          filters: { vendedorNome: top5.map((s) => s.vendedor) },
+          filters: { vendedorNome: top5.map(s => s.vendedor) },
           generatedAt: new Date(),
         });
       }
@@ -482,116 +589,136 @@ export const gestaoRouter = router({
     };
   }),
 
-  getDrilldown: gestaoProcedure.input(DRILLDOWN_SCHEMA).query(async ({ input }) => {
-    const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database indisponível" });
-    const baseWhere = buildWhere(input);
-    const flagClauses: any[] = [];
-    if (input.somenteComissaoCalculada) flagClauses.push(eq(contratos.comissaoCalculada, true));
-    if (input.somenteLiquidoFallback) flagClauses.push(eq(contratos.liquidoFallback, true));
-    if (input.somenteInconsistenciaData) flagClauses.push(eq(contratos.inconsistenciaDataPagamento, true));
-    if (input.somenteSemComissao) flagClauses.push(eq(contratos.comissaoTotalCent, 0));
+  getDrilldown: gestaoProcedure
+    .input(DRILLDOWN_SCHEMA)
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database indisponível",
+        });
+      const baseWhere = buildWhere(input);
+      const flagClauses: any[] = [];
+      if (input.somenteComissaoCalculada)
+        flagClauses.push(eq(contratos.comissaoCalculada, true));
+      if (input.somenteLiquidoFallback)
+        flagClauses.push(eq(contratos.liquidoFallback, true));
+      if (input.somenteInconsistenciaData)
+        flagClauses.push(eq(contratos.inconsistenciaDataPagamento, true));
+      if (input.somenteSemComissao)
+        flagClauses.push(eq(contratos.comissaoTotalCent, 0));
 
-    const whereClause =
-      flagClauses.length > 0
-        ? baseWhere
-          ? and(baseWhere, ...flagClauses)
-          : and(...flagClauses)
-        : baseWhere;
+      const whereClause =
+        flagClauses.length > 0
+          ? baseWhere
+            ? and(baseWhere, ...flagClauses)
+            : and(...flagClauses)
+          : baseWhere;
 
-    const sortDir = input.sortDir === "asc" ? "asc" : "desc";
-    const takeRateExpr = sql<number>`CASE WHEN ${contratos.liquidoLiberadoCent} = 0 THEN 0 ELSE ${contratos.comissaoTotalCent} / ${contratos.liquidoLiberadoCent} END`;
+      const sortDir = input.sortDir === "asc" ? "asc" : "desc";
+      const takeRateExpr = sql<number>`CASE WHEN ${contratos.liquidoLiberadoCent} = 0 THEN 0 ELSE ${contratos.comissaoTotalCent} / ${contratos.liquidoLiberadoCent} END`;
 
-    const sortExpr =
-      input.sortBy === "comissao"
-        ? sortDir === "asc"
-          ? asc(contratos.comissaoTotalCent)
-          : desc(contratos.comissaoTotalCent)
-        : input.sortBy === "liquido"
+      const sortExpr =
+        input.sortBy === "comissao"
           ? sortDir === "asc"
-            ? asc(contratos.liquidoLiberadoCent)
-            : desc(contratos.liquidoLiberadoCent)
-          : input.sortBy === "takeRate"
+            ? asc(contratos.comissaoTotalCent)
+            : desc(contratos.comissaoTotalCent)
+          : input.sortBy === "liquido"
             ? sortDir === "asc"
-              ? asc(takeRateExpr)
-              : desc(takeRateExpr)
-            : sortDir === "asc"
-              ? asc(contratos.dataPagamento)
-              : desc(contratos.dataPagamento);
+              ? asc(contratos.liquidoLiberadoCent)
+              : desc(contratos.liquidoLiberadoCent)
+            : input.sortBy === "takeRate"
+              ? sortDir === "asc"
+                ? asc(takeRateExpr)
+                : desc(takeRateExpr)
+              : sortDir === "asc"
+                ? asc(contratos.dataPagamento)
+                : desc(contratos.dataPagamento);
 
-    const totalResult = await db.select({ total: count() }).from(contratos).where(whereClause);
-    const total = totalResult[0]?.total ?? 0;
+      const totalResult = await db
+        .select({ total: count() })
+        .from(contratos)
+        .where(whereClause);
+      const total = totalResult[0]?.total ?? 0;
 
-    const offset = (input.page - 1) * input.pageSize;
+      const offset = (input.page - 1) * input.pageSize;
 
-    const query = db.select({
-      idContrato: contratos.idContrato,
-      numeroContrato: contratos.numeroContrato,
-      dataPagamento: contratos.dataPagamento,
-      vendedorNome: contratos.vendedorNome,
-      digitadorNome: contratos.digitadorNome,
-      produto: contratos.produto,
-      tipoOperacao: contratos.tipoOperacao,
-      agenteId: contratos.agenteId,
-      etapaPipeline: contratos.etapaPipeline,
-      liquidoLiberadoCent: contratos.liquidoLiberadoCent,
-      comissaoBaseCent: contratos.comissaoBaseCent,
-      comissaoBonusCent: contratos.comissaoBonusCent,
-      comissaoTotalCent: contratos.comissaoTotalCent,
-      inconsistenciaDataPagamento: contratos.inconsistenciaDataPagamento,
-      liquidoFallback: contratos.liquidoFallback,
-      comissaoCalculada: contratos.comissaoCalculada,
-    })
-      .from(contratos)
-      .where(whereClause)
-      .orderBy(sortExpr, desc(contratos.idContrato))
-      .limit(input.pageSize)
-      .offset(offset);
+      const query = db
+        .select({
+          idContrato: contratos.idContrato,
+          numeroContrato: contratos.numeroContrato,
+          dataPagamento: contratos.dataPagamento,
+          vendedorNome: contratos.vendedorNome,
+          digitadorNome: contratos.digitadorNome,
+          produto: contratos.produto,
+          tipoOperacao: contratos.tipoOperacao,
+          agenteId: contratos.agenteId,
+          etapaPipeline: contratos.etapaPipeline,
+          liquidoLiberadoCent: contratos.liquidoLiberadoCent,
+          comissaoBaseCent: contratos.comissaoBaseCent,
+          comissaoBonusCent: contratos.comissaoBonusCent,
+          comissaoTotalCent: contratos.comissaoTotalCent,
+          inconsistenciaDataPagamento: contratos.inconsistenciaDataPagamento,
+          liquidoFallback: contratos.liquidoFallback,
+          comissaoCalculada: contratos.comissaoCalculada,
+        })
+        .from(contratos)
+        .where(whereClause)
+        .orderBy(sortExpr, desc(contratos.idContrato))
+        .limit(input.pageSize)
+        .offset(offset);
 
-    const paginated = await query;
+      const paginated = await query;
 
-    return {
-      page: input.page,
-      pageSize: input.pageSize,
-      total,
-      data: paginated.map((row) => {
-        const liquido = centsToNumber(row.liquidoLiberadoCent);
-        const comissaoTotal = centsToNumber(row.comissaoTotalCent);
-        const comissaoVendedora = centsToNumber(calcularComissaoVendedoraCent(row));
-        const takeRate = liquido > 0 ? comissaoTotal / liquido : 0;
-        return {
-          idContrato: row.idContrato,
-          numeroContrato: row.numeroContrato,
-          dataPagamento: row.dataPagamento,
-          vendedorNome: row.vendedorNome,
-          digitadorNome: row.digitadorNome,
-          produto: row.produto,
-          tipoOperacao: row.tipoOperacao,
-          agenteId: row.agenteId,
-          etapaPipeline: row.etapaPipeline,
-          liquido,
-          comissaoBase: centsToNumber(row.comissaoBaseCent),
-          comissaoBonus: centsToNumber(row.comissaoBonusCent),
-          comissaoTotal,
-          comissaoVendedora,
-          takeRate,
-          diasDesdePagamento: Math.floor(
-            (Date.now() - row.dataPagamento.getTime()) / (1000 * 60 * 60 * 24)
-          ),
-          flags: {
-            inconsistenciaDataPagamento: row.inconsistenciaDataPagamento,
-            liquidoFallback: row.liquidoFallback,
-            comissaoCalculada: row.comissaoCalculada,
-            semComissao: row.comissaoTotalCent === 0,
-          },
-        };
-      }),
-    };
-  }),
+      return {
+        page: input.page,
+        pageSize: input.pageSize,
+        total,
+        data: paginated.map(row => {
+          const liquido = centsToNumber(row.liquidoLiberadoCent);
+          const comissaoTotal = centsToNumber(row.comissaoTotalCent);
+          const comissaoVendedora = centsToNumber(
+            calcularComissaoVendedoraCent(row)
+          );
+          const takeRate = liquido > 0 ? comissaoTotal / liquido : 0;
+          return {
+            idContrato: row.idContrato,
+            numeroContrato: row.numeroContrato,
+            dataPagamento: row.dataPagamento,
+            vendedorNome: row.vendedorNome,
+            digitadorNome: row.digitadorNome,
+            produto: row.produto,
+            tipoOperacao: row.tipoOperacao,
+            agenteId: row.agenteId,
+            etapaPipeline: row.etapaPipeline,
+            liquido,
+            comissaoBase: centsToNumber(row.comissaoBaseCent),
+            comissaoBonus: centsToNumber(row.comissaoBonusCent),
+            comissaoTotal,
+            comissaoVendedora,
+            takeRate,
+            diasDesdePagamento: Math.floor(
+              (Date.now() - row.dataPagamento.getTime()) / (1000 * 60 * 60 * 24)
+            ),
+            flags: {
+              inconsistenciaDataPagamento: row.inconsistenciaDataPagamento,
+              liquidoFallback: row.liquidoFallback,
+              comissaoCalculada: row.comissaoCalculada,
+              semComissao: row.comissaoTotalCent === 0,
+            },
+          };
+        }),
+      };
+    }),
 
   exportCSV: gestaoProcedure.input(FILTERS_SCHEMA).query(async ({ input }) => {
     const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database indisponível" });
+    if (!db)
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Database indisponível",
+      });
     const where = buildWhere(input);
     const data = await db.select().from(contratos).where(where);
 
@@ -614,7 +741,7 @@ export const gestaoRouter = router({
       "comissao_calculada",
     ];
 
-    const rows = data.map((row) =>
+    const rows = data.map(row =>
       [
         row.numeroContrato,
         row.dataPagamento.toISOString(),
@@ -633,7 +760,7 @@ export const gestaoRouter = router({
         row.liquidoFallback,
         row.comissaoCalculada,
       ]
-        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+        .map(v => `"${String(v).replace(/"/g, '""')}"`)
         .join(",")
     );
 
@@ -641,65 +768,87 @@ export const gestaoRouter = router({
     return { csv };
   }),
 
-  getHealth: gestaoProcedure.input(FILTERS_SCHEMA.partial()).query(async ({ input }) => {
-    const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database indisponível" });
+  getHealth: gestaoProcedure
+    .input(FILTERS_SCHEMA.partial())
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database indisponível",
+        });
 
-    const where = buildWhere({
-      dateFrom: input.dateFrom,
-      dateTo: input.dateTo,
-      etapaPipeline: input.etapaPipeline,
-      vendedorNome: input.vendedorNome,
-      produto: input.produto,
-      tipoOperacao: input.tipoOperacao,
-      agenteId: input.agenteId,
-      digitadorNome: input.digitadorNome,
-    });
+      const where = buildWhere({
+        dateFrom: input.dateFrom,
+        dateTo: input.dateTo,
+        etapaPipeline: input.etapaPipeline,
+        vendedorNome: input.vendedorNome,
+        produto: input.produto,
+        tipoOperacao: input.tipoOperacao,
+        agenteId: input.agenteId,
+        digitadorNome: input.digitadorNome,
+      });
 
-    const all = await db.select().from(contratos).where(where);
-    const total = all.length || 1;
-    const pctComissaoCalculada = all.filter((r) => r.comissaoCalculada).length / total;
-    const pctLiquidoFallback = all.filter((r) => r.liquidoFallback).length / total;
-    const pctInconsistenciaData = all.filter((r) => r.inconsistenciaDataPagamento).length / total;
+      const all = await db.select().from(contratos).where(where);
+      const total = all.length || 1;
+      const pctComissaoCalculada =
+        all.filter(r => r.comissaoCalculada).length / total;
+      const pctLiquidoFallback =
+        all.filter(r => r.liquidoFallback).length / total;
+      const pctInconsistenciaData =
+        all.filter(r => r.inconsistenciaDataPagamento).length / total;
 
-    const logs = await db
-      .select()
-      .from(gestaoSyncLogs)
-      .orderBy(desc(gestaoSyncLogs.createdAt))
-      .limit(5);
+      const logs = await db
+        .select()
+        .from(gestaoSyncLogs)
+        .orderBy(desc(gestaoSyncLogs.createdAt))
+        .limit(5);
 
-    const warnings = logs.map((l) => ({
-      id: l.id,
-      rangeInicio: l.rangeInicio,
-      rangeFim: l.rangeFim,
-      fetched: l.fetched,
-      upserted: l.upserted,
-      unchanged: l.unchanged,
-      skipped: l.skipped,
-      durationMs: l.durationMs,
-      warnings: l.warnings,
-      createdAt: l.createdAt,
-    }));
+      const warnings = logs.map(l => ({
+        id: l.id,
+        rangeInicio: l.rangeInicio,
+        rangeFim: l.rangeFim,
+        fetched: l.fetched,
+        upserted: l.upserted,
+        unchanged: l.unchanged,
+        skipped: l.skipped,
+        durationMs: l.durationMs,
+        warnings: l.warnings,
+        createdAt: l.createdAt,
+      }));
 
-    const lastSyncAt = logs[0]?.createdAt ?? null;
+      const lastSyncAt = logs[0]?.createdAt ?? null;
 
-    return {
-      totalRegistros: all.length,
-      pctComissaoCalculada,
-      pctLiquidoFallback,
-      pctInconsistenciaData,
-      lastSyncAt,
-      logs: warnings,
-    };
-  }),
+      return {
+        totalRegistros: all.length,
+        pctComissaoCalculada,
+        pctLiquidoFallback,
+        pctInconsistenciaData,
+        lastSyncAt,
+        logs: warnings,
+      };
+    }),
 
   setMetaComissao: gestaoProcedure
-    .input(z.object({ mes: z.string().min(7).max(7), valor: z.number().nonnegative() }))
+    .input(
+      z.object({
+        mes: z.string().min(7).max(7),
+        valor: z.number().nonnegative(),
+      })
+    )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database indisponível" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database indisponível",
+        });
 
-      const existing = await db.select().from(gestaoMetas).where(eq(gestaoMetas.mes, input.mes)).limit(1);
+      const existing = await db
+        .select()
+        .from(gestaoMetas)
+        .where(eq(gestaoMetas.mes, input.mes))
+        .limit(1);
       const metaValorStr = input.valor.toString();
 
       if (existing.length > 0) {
@@ -719,7 +868,20 @@ export const gestaoRouter = router({
     }),
 
   syncRange: gestaoProcedure
-    .input(z.object({ dateFrom: z.string().min(10), dateTo: z.string().min(10) }))
+    .input(
+      z.object({
+        dateFrom: z.string().min(10),
+        dateTo: z.string().min(10),
+        additionalRanges: z
+          .array(
+            z.object({
+              dateFrom: z.string().min(10),
+              dateTo: z.string().min(10),
+            })
+          )
+          .optional(),
+      })
+    )
     .mutation(async ({ input }) => {
       const { dateFrom, dateTo } = input;
       const start = new Date(dateFrom);
@@ -729,11 +891,39 @@ export const gestaoRouter = router({
       const effectiveEnd = needsSwap ? dateFrom : dateTo;
 
       if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Datas inválidas" });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Datas inválidas",
+        });
       }
 
       const jobId = nanoid();
-      const ranges = splitRangeByMonth(effectiveStart, effectiveEnd);
+      const baseIntervals = [
+        { dateFrom: effectiveStart, dateTo: effectiveEnd },
+      ];
+      const extraIntervals =
+        input.additionalRanges?.map(
+          ({ dateFrom: extraFrom, dateTo: extraTo }) => {
+            const extraStart = new Date(extraFrom);
+            const extraEnd = new Date(extraTo);
+            if (
+              Number.isNaN(extraStart.getTime()) ||
+              Number.isNaN(extraEnd.getTime())
+            ) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "Datas de comparação inválidas",
+              });
+            }
+            return extraStart.getTime() <= extraEnd.getTime()
+              ? { dateFrom: extraFrom, dateTo: extraTo }
+              : { dateFrom: extraTo, dateTo: extraFrom };
+          }
+        ) ?? [];
+      const ranges = buildMergedRangesForIntervals([
+        ...baseIntervals,
+        ...extraIntervals,
+      ]);
       const job: SyncJobStatus = {
         id: jobId,
         status: "pending",
@@ -746,7 +936,10 @@ export const gestaoRouter = router({
 
       // roda em background
       (async () => {
-        const updateJob = (range: { mesInicio: string; mesFim: string }, metrics: any) => {
+        const updateJob = (
+          range: { mesInicio: string; mesFim: string },
+          metrics: any
+        ) => {
           const current = syncJobs.get(jobId);
           if (!current) return;
           current.perMonth.push({
@@ -761,20 +954,23 @@ export const gestaoRouter = router({
             warnings: metrics.warnings ?? null,
           });
           current.completedMonths = current.perMonth.length;
-          current.status = current.completedMonths === current.totalMonths ? "done" : "running";
+          current.status =
+            current.completedMonths === current.totalMonths
+              ? "done"
+              : "running";
           if (current.status === "done") current.finishedAt = new Date();
           syncJobs.set(jobId, current);
         };
 
         syncJobs.set(jobId, { ...job, status: "running" });
-        await syncContratosGestaoIntervalo(effectiveStart, effectiveEnd, 1000, updateJob);
+        await syncContratosGestaoRanges(ranges, 1000, updateJob);
         const finalJob = syncJobs.get(jobId);
         if (finalJob) {
           finalJob.status = "done";
           finalJob.finishedAt = new Date();
           syncJobs.set(jobId, finalJob);
         }
-      })().catch((err) => {
+      })().catch(err => {
         console.error("[GestaoSync] job error", err);
         const current = syncJobs.get(jobId);
         if (current) {
@@ -792,7 +988,10 @@ export const gestaoRouter = router({
     .query(async ({ input }) => {
       const job = syncJobs.get(input.syncId);
       if (!job) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Sync não encontrada" });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Sync não encontrada",
+        });
       }
       return job;
     }),

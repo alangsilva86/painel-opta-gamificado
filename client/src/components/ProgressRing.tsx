@@ -6,6 +6,7 @@ interface ProgressRingProps {
   size?: number;
   strokeWidth?: number;
   color?: string;
+  tierColor?: string;
   backgroundColor?: string;
   showPercentage?: boolean;
   label?: string;
@@ -16,22 +17,25 @@ export function ProgressRing({
   size = 120,
   strokeWidth = 8,
   color = "oklch(0.7 0.2 140)",
+  tierColor,
   backgroundColor = "oklch(0.25 0.03 265)",
   showPercentage = true,
   label,
 }: ProgressRingProps) {
   const [displayProgress, setDisplayProgress] = useState(0);
-  
+
   useEffect(() => {
     setDisplayProgress(progress);
   }, [progress]);
 
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
-  const offset = circumference - (displayProgress / 100) * circumference;
+  const normalizedProgress = Math.max(0, Math.min(displayProgress, 100));
+  const offset = circumference - (normalizedProgress / 100) * circumference;
 
   // Determina cor baseada no progresso
   const getColor = () => {
+    if (tierColor) return tierColor;
     if (progress >= 100) return "oklch(0.7 0.2 140)"; // Verde
     if (progress >= 75) return "oklch(0.7 0.2 50)"; // Amarelo
     return color;
@@ -85,4 +89,3 @@ export function ProgressRing({
     </div>
   );
 }
-

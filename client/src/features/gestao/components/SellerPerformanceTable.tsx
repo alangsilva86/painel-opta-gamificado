@@ -1,7 +1,15 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { TrendingDown, TrendingUp } from "lucide-react";
 import { formatCurrency, formatPercent } from "../utils";
 import { FilterState } from "../useGestaoFilters";
 
@@ -34,6 +42,8 @@ type SellerPerformanceTableProps = {
   incluirSemComissao: boolean;
   filterState: FilterState;
   onSellerClick: (vendedor: string) => void;
+  sellerDeltas?: Map<string, number>;
+  rankEvolution?: Map<string, number>;
 };
 
 export function SellerPerformanceTable({
@@ -41,14 +51,18 @@ export function SellerPerformanceTable({
   incluirSemComissao,
   filterState,
   onSellerClick,
+  sellerDeltas,
+  rankEvolution,
 }: SellerPerformanceTableProps) {
-  const [sortKey, setSortKey] = useState<"producao" | "comissao" | "semComissao">("comissao");
+  const [sortKey, setSortKey] = useState<
+    "producao" | "comissao" | "semComissao"
+  >("comissao");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const semComissaoThreshold = 0.1;
 
   const handleSort = (key: "producao" | "comissao" | "semComissao") => {
     if (sortKey === key) {
-      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      setSortDir(prev => (prev === "asc" ? "desc" : "asc"));
       return;
     }
     setSortKey(key);
@@ -62,30 +76,32 @@ export function SellerPerformanceTable({
 
   const sorted = useMemo(() => {
     const getLiquidoDisplay = (row: SellerRow) =>
-      incluirSemComissao ? row.liquido : row.liquidoComissionado ?? row.liquido;
+      incluirSemComissao
+        ? row.liquido
+        : (row.liquidoComissionado ?? row.liquido);
     const getComissaoDisplay = (row: SellerRow) =>
-      incluirSemComissao ? row.comissao : row.comissaoComissionado ?? row.comissao;
+      incluirSemComissao
+        ? row.comissao
+        : (row.comissaoComissionado ?? row.comissao);
     const getSemComissaoPct = (row: SellerRow) =>
       row.count > 0 ? row.semComissaoCount / row.count : 0;
 
-    return rows
-      .slice()
-      .sort((a, b) => {
-        const aVal =
-          sortKey === "producao"
-            ? getLiquidoDisplay(a)
-            : sortKey === "comissao"
-              ? getComissaoDisplay(a)
-              : getSemComissaoPct(a);
-        const bVal =
-          sortKey === "producao"
-            ? getLiquidoDisplay(b)
-            : sortKey === "comissao"
-              ? getComissaoDisplay(b)
-              : getSemComissaoPct(b);
-        if (aVal === bVal) return b.comissao - a.comissao;
-        return sortDir === "asc" ? aVal - bVal : bVal - aVal;
-      });
+    return rows.slice().sort((a, b) => {
+      const aVal =
+        sortKey === "producao"
+          ? getLiquidoDisplay(a)
+          : sortKey === "comissao"
+            ? getComissaoDisplay(a)
+            : getSemComissaoPct(a);
+      const bVal =
+        sortKey === "producao"
+          ? getLiquidoDisplay(b)
+          : sortKey === "comissao"
+            ? getComissaoDisplay(b)
+            : getSemComissaoPct(b);
+      if (aVal === bVal) return b.comissao - a.comissao;
+      return sortDir === "asc" ? aVal - bVal : bVal - aVal;
+    });
   }, [rows, incluirSemComissao, sortKey, sortDir]);
 
   return (
@@ -99,16 +115,30 @@ export function SellerPerformanceTable({
             <TableRow>
               <TableHead>Vendedora</TableHead>
               <TableHead>Meta</TableHead>
-              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("producao")}>
-                Produção{sortLabel("producao") ? ` (${sortLabel("producao")})` : ""}
+              <TableHead
+                className="cursor-pointer select-none"
+                onClick={() => handleSort("producao")}
+              >
+                Produção
+                {sortLabel("producao") ? ` (${sortLabel("producao")})` : ""}
               </TableHead>
-              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("comissao")}>
-                Comissão Opta{sortLabel("comissao") ? ` (${sortLabel("comissao")})` : ""}
+              <TableHead
+                className="cursor-pointer select-none"
+                onClick={() => handleSort("comissao")}
+              >
+                Comissão Opta
+                {sortLabel("comissao") ? ` (${sortLabel("comissao")})` : ""}
               </TableHead>
               <TableHead>Comissão Vendedora</TableHead>
               <TableHead>Comissão média</TableHead>
-              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("semComissao")}>
-                Sem comissão{sortLabel("semComissao") ? ` (${sortLabel("semComissao")})` : ""}
+              <TableHead
+                className="cursor-pointer select-none"
+                onClick={() => handleSort("semComissao")}
+              >
+                Sem comissão
+                {sortLabel("semComissao")
+                  ? ` (${sortLabel("semComissao")})`
+                  : ""}
               </TableHead>
               <TableHead>Qualidade</TableHead>
             </TableRow>
@@ -125,26 +155,33 @@ export function SellerPerformanceTable({
               const ativo = filterState.vendedorNome.includes(row.vendedor);
               const liquidoDisplay = incluirSemComissao
                 ? row.liquido
-                : row.liquidoComissionado ?? row.liquido;
+                : (row.liquidoComissionado ?? row.liquido);
               const comissaoDisplay = incluirSemComissao
                 ? row.comissao
-                : row.comissaoComissionado ?? row.comissao;
+                : (row.comissaoComissionado ?? row.comissao);
               const ticketDisplay = incluirSemComissao
-                ? row.ticketMedio ?? (row.count > 0 ? row.liquido / row.count : 0)
-                : row.ticketMedioComissionado ??
-                  ((row.comissionadosCount ?? row.count - row.semComissaoCount) > 0
+                ? (row.ticketMedio ??
+                  (row.count > 0 ? row.liquido / row.count : 0))
+                : (row.ticketMedioComissionado ??
+                  ((row.comissionadosCount ??
+                    row.count - row.semComissaoCount) > 0
                     ? (row.liquidoComissionado ?? row.liquido) /
-                      Math.max(1, row.comissionadosCount ?? row.count - row.semComissaoCount)
-                    : 0);
+                      Math.max(
+                        1,
+                        row.comissionadosCount ??
+                          row.count - row.semComissaoCount
+                      )
+                    : 0));
               const takeRateDisplay = incluirSemComissao
                 ? row.takeRate
-                : row.takeRateLimpo ?? row.takeRate;
+                : (row.takeRateLimpo ?? row.takeRate);
               const takeRateLimpo = row.takeRateLimpo ?? row.takeRate;
               const liquidoSemComissao = Math.max(
                 0,
                 row.liquido - (row.liquidoComissionado ?? row.liquido)
               );
-              const pctSemComissao = row.count > 0 ? row.semComissaoCount / row.count : 0;
+              const pctSemComissao =
+                row.count > 0 ? row.semComissaoCount / row.count : 0;
               const semComissaoAlert = pctSemComissao >= semComissaoThreshold;
 
               return (
@@ -160,15 +197,51 @@ export function SellerPerformanceTable({
                   onClick={() => onSellerClick(row.vendedor)}
                 >
                   <TableCell>
-                    <div className="font-medium">{row.vendedor}</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="font-medium">{row.vendedor}</div>
+                      {sellerDeltas?.has(row.vendedor) && (
+                        <div
+                          className={`inline-flex items-center gap-1 text-xs ${
+                            (sellerDeltas.get(row.vendedor) ?? 0) >= 0
+                              ? "text-emerald-400"
+                              : "text-red-400"
+                          }`}
+                        >
+                          {(sellerDeltas.get(row.vendedor) ?? 0) >= 0 ? (
+                            <TrendingUp size={12} />
+                          ) : (
+                            <TrendingDown size={12} />
+                          )}
+                          {formatPercent(sellerDeltas.get(row.vendedor) ?? 0)}
+                        </div>
+                      )}
+                    </div>
                     <div className="text-xs text-slate-400">
                       {formatPercent(row.pctTotal ?? 0)} da comissão
                     </div>
+                    {rankEvolution?.has(row.vendedor) &&
+                      (rankEvolution.get(row.vendedor) ?? 0) !== 0 && (
+                        <div
+                          className={`text-[11px] ${
+                            (rankEvolution.get(row.vendedor) ?? 0) > 0
+                              ? "text-emerald-300"
+                              : "text-slate-400"
+                          }`}
+                        >
+                          {(rankEvolution.get(row.vendedor) ?? 0) > 0
+                            ? "↑"
+                            : "↓"}
+                          {Math.abs(rankEvolution.get(row.vendedor) ?? 0)}{" "}
+                          posição(ões)
+                        </div>
+                      )}
                   </TableCell>
                   <TableCell>
                     {row.meta && row.meta > 0 ? (
                       <>
-                        <div className="font-semibold">{formatCurrency(row.meta)}</div>
+                        <div className="font-semibold">
+                          {formatCurrency(row.meta)}
+                        </div>
                         <div className="text-xs text-slate-400">
                           {formatPercent(row.pctMeta ?? 0)} da meta
                         </div>
@@ -178,24 +251,32 @@ export function SellerPerformanceTable({
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="font-semibold">{formatCurrency(liquidoDisplay)}</div>
+                    <div className="font-semibold">
+                      {formatCurrency(liquidoDisplay)}
+                    </div>
                     <div className="text-xs text-slate-400">
                       Ticket {formatCurrency(ticketDisplay)}
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="font-semibold">{formatCurrency(comissaoDisplay)}</div>
+                    <div className="font-semibold">
+                      {formatCurrency(comissaoDisplay)}
+                    </div>
                     <div className="text-xs text-slate-400">
                       Base {formatCurrency(row.comissaoBase ?? 0)} • Bônus{" "}
                       {formatCurrency(row.comissaoBonus ?? 0)}
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="font-semibold">{formatCurrency(row.comissaoVendedora ?? 0)}</div>
+                    <div className="font-semibold">
+                      {formatCurrency(row.comissaoVendedora ?? 0)}
+                    </div>
                     <div className="text-xs text-slate-400">Base vendedora</div>
                   </TableCell>
                   <TableCell>
-                    <div className="font-semibold">{formatPercent(takeRateDisplay)}</div>
+                    <div className="font-semibold">
+                      {formatPercent(takeRateDisplay)}
+                    </div>
                     <div className="text-xs text-slate-400">
                       Limpa {formatPercent(takeRateLimpo)}
                     </div>
@@ -204,12 +285,15 @@ export function SellerPerformanceTable({
                     <div className="font-semibold">
                       {row.semComissaoCount} / {row.count}
                     </div>
-                    <div className={`text-xs ${semComissaoAlert ? "text-amber-300" : "text-slate-400"}`}>
+                    <div
+                      className={`text-xs ${semComissaoAlert ? "text-amber-300" : "text-slate-400"}`}
+                    >
                       {formatPercent(pctSemComissao)} sem comissão
                     </div>
                     {liquidoSemComissao > 0 && (
                       <div className="text-xs text-slate-500">
-                        Líquido sem comissão {formatCurrency(liquidoSemComissao)}
+                        Líquido sem comissão{" "}
+                        {formatCurrency(liquidoSemComissao)}
                       </div>
                     )}
                     {semComissaoAlert && (
@@ -229,7 +313,10 @@ export function SellerPerformanceTable({
                       data {formatPercent(row.pctInconsistenciaData ?? 0)}
                     </div>
                     {(row.semComissaoCount ?? 0) > 0 && (
-                      <Badge variant="outline" className="text-[10px] px-2 py-0.5">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-2 py-0.5"
+                      >
                         revisar comissão
                       </Badge>
                     )}

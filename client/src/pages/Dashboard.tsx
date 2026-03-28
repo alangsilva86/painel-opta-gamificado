@@ -18,12 +18,86 @@ import {
   Shield,
   SunMedium,
   CalendarRange,
+  Clock3,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EscadaAcelerador } from "@/components/EscadaAcelerador";
 import { GraficosAnalise } from "@/components/GraficosAnalise";
 import { useAudio } from "@/contexts/AudioContext";
+import { cn } from "@/lib/utils";
+import { getTierDefinition, getTierVisual } from "@/lib/tierVisuals";
+
+function getMotivationalMessage(percentualMeta: number) {
+  if (percentualMeta >= 150) return "SUPER META BATIDA! 🔥🔥🔥";
+  if (percentualMeta >= 100) return "Meta batida! 🏆 Bora para a Super Meta!";
+  if (percentualMeta >= 75) return "Acelerador quase lá! ⚡";
+  return "Vamos começar! 💪";
+}
+
+function getDayProgressTone(dayPct: number) {
+  if (dayPct >= 75) return "from-rose-500 via-amber-400 to-yellow-300";
+  if (dayPct >= 45) return "from-amber-400 via-yellow-300 to-lime-300";
+  return "from-emerald-500 via-green-400 to-lime-300";
+}
+
+function DashboardHeaderStatus({ percentualMeta }: { percentualMeta: number }) {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const hour = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+  const dayPct = Math.max(0, Math.min(((hour - 8) / 10) * 100, 100));
+
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-sm font-medium text-foreground">
+          <Sparkles size={14} className="text-primary" />
+          <span>{getMotivationalMessage(percentualMeta)}</span>
+        </div>
+        <div className="flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1.5 font-mono text-sm text-muted-foreground">
+          <Clock3 size={14} />
+          <span>{now.toLocaleTimeString("pt-BR")}</span>
+        </div>
+      </div>
+      <div className="space-y-1">
+        <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+          <span>Progresso do dia</span>
+          <span>{dayPct.toFixed(0)}%</span>
+        </div>
+        <div className="h-[3px] overflow-hidden rounded-full bg-secondary">
+          <motion.div
+            className={cn(
+              "h-full bg-gradient-to-r",
+              getDayProgressTone(dayPct)
+            )}
+            animate={{ width: `${dayPct}%` }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function getLeaderboardRankBadge(index: number) {
+  if (index === 0) return "🥇";
+  if (index === 1) return "🥈";
+  if (index === 2) return "🥉";
+  return `#${index + 1}`;
+}
+
+function getLeaderboardBorder(index: number) {
+  if (index === 0) return "border-l-yellow-400";
+  if (index === 1) return "border-l-gray-300";
+  if (index === 2) return "border-l-orange-400";
+  return "border-l-transparent";
+}
 
 export default function Dashboard() {
   const { data, isLoading, refetch } = trpc.dashboard.obterDashboard.useQuery(
@@ -33,19 +107,31 @@ export default function Dashboard() {
     }
   );
 
-  const { celebrate, celebrateMetaAlcancada, celebrateSuperMeta } = useCelebration();
+  const {
+    celebrate,
+    celebrateMetaAlcancada,
+    celebrateSuperMeta,
+    celebrateLevelUp,
+  } = useCelebration();
   const { playSale, playMeta, playSuperMeta, muted, toggleMute } = useAudio();
   const celebrationRef = useRef({ meta: false, superMeta: false });
   const lastContractsRef = useRef<number>(0);
   const lastSaleAudioAtRef = useRef<number>(0);
   const lastSaleCelebrationAtRef = useRef<number>(0);
   const lastContractsPorVendedoraRef = useRef<Map<string, number>>(new Map());
-  const [saleCelebration, setSaleCelebration] = useState<{ nome: string; id: string } | null>(null);
+  const lastTierRef = useRef<Map<string, string>>(new Map());
+  const [saleCelebration, setSaleCelebration] = useState<{
+    nome: string;
+    id: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!data) return;
 
-    if (!celebrationRef.current.superMeta && data.metaGlobal.superMetaGlobalBatida) {
+    if (
+      !celebrationRef.current.superMeta &&
+      data.metaGlobal.superMetaGlobalBatida
+    ) {
       celebrateSuperMeta();
       playSuperMeta();
       celebrationRef.current = { meta: true, superMeta: true };
@@ -57,12 +143,42 @@ export default function Dashboard() {
       playMeta();
       celebrationRef.current.meta = true;
     }
-  }, [data, celebrateMetaAlcancada, celebrateSuperMeta, playMeta, playSuperMeta]);
+  }, [
+    data,
+    celebrateMetaAlcancada,
+    celebrateSuperMeta,
+    playMeta,
+    playSuperMeta,
+  ]);
 
   useEffect(() => {
     if (!data) return;
     const now = Date.now();
-    if (lastContractsRef.current && data.totalContratos > lastContractsRef.current) {
+    const prevTierMap = lastTierRef.current;
+
+    let hasLevelUp = false;
+    const nextTierMap = new Map<string, string>();
+    data.vendedoras.forEach(v => {
+      nextTierMap.set(v.id, v.tier);
+      const prevTier = prevTierMap.get(v.id);
+      if (
+        prevTier &&
+        getTierDefinition(v.tier).multiplicador >
+          getTierDefinition(prevTier).multiplicador
+      ) {
+        hasLevelUp = true;
+      }
+    });
+    lastTierRef.current = nextTierMap;
+
+    if (hasLevelUp) {
+      celebrateLevelUp();
+    }
+
+    if (
+      lastContractsRef.current &&
+      data.totalContratos > lastContractsRef.current
+    ) {
       if (now - lastSaleAudioAtRef.current > 3000) {
         playSale();
         lastSaleAudioAtRef.current = now;
@@ -73,7 +189,7 @@ export default function Dashboard() {
     // Detecta novas vendas por vendedora para disparar confete nominal
     const prevMap = lastContractsPorVendedoraRef.current;
     const deltas: { id: string; nome: string; delta: number }[] = [];
-    data.vendedoras.forEach((v) => {
+    data.vendedoras.forEach(v => {
       const anterior = prevMap.get(v.id) ?? v.contratos.length;
       const delta = v.contratos.length - anterior;
       if (delta > 0) {
@@ -82,7 +198,7 @@ export default function Dashboard() {
     });
 
     const nextMap = new Map<string, number>();
-    data.vendedoras.forEach((v) => nextMap.set(v.id, v.contratos.length));
+    data.vendedoras.forEach(v => nextMap.set(v.id, v.contratos.length));
     lastContractsPorVendedoraRef.current = nextMap;
 
     if (deltas.length > 0 && now - lastSaleCelebrationAtRef.current > 5000) {
@@ -91,7 +207,7 @@ export default function Dashboard() {
       celebrate("small");
       lastSaleCelebrationAtRef.current = now;
     }
-  }, [data, playSale, celebrate]);
+  }, [data, playSale, celebrate, celebrateLevelUp]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -115,7 +231,11 @@ export default function Dashboard() {
   };
 
   const agora = new Date();
-  const inicioDoDia = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  const inicioDoDia = new Date(
+    agora.getFullYear(),
+    agora.getMonth(),
+    agora.getDate()
+  );
   const inicioDaSemana = new Date(inicioDoDia);
   const diasParaSegunda = (agora.getDay() + 6) % 7; // 0 = domingo -> 6, 1 = segunda -> 0
   inicioDaSemana.setDate(inicioDaSemana.getDate() - diasParaSegunda);
@@ -131,12 +251,17 @@ export default function Dashboard() {
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   };
 
-  const somarRealizadoDesde = (contratos: any[] | undefined, dataInicio: Date) => {
+  const somarRealizadoDesde = (
+    contratos: any[] | undefined,
+    dataInicio: Date
+  ) => {
     if (!contratos?.length) return 0;
     return contratos.reduce((acc, contrato) => {
       const dataPag = parseDataPagamento(contrato.dataPagamento);
       if (!dataPag) return acc;
-      return dataPag >= dataInicio && dataPag <= agora ? acc + (contrato.valorLiquido || 0) : acc;
+      return dataPag >= dataInicio && dataPag <= agora
+        ? acc + (contrato.valorLiquido || 0)
+        : acc;
     }, 0);
   };
 
@@ -179,7 +304,7 @@ export default function Dashboard() {
   }
 
   const faltaAcelerador = getFaltaParaProximoAcelerador();
-  const ranking = data.ranking.map((vendedora) => {
+  const ranking = data.ranking.map(vendedora => {
     const realizadoDia =
       typeof vendedora.realizadoDia === "number"
         ? vendedora.realizadoDia
@@ -216,13 +341,17 @@ export default function Dashboard() {
       ? data.metaGlobal.metaValor / data.operacional.diasUteis
       : 0;
   const metaSemanalGlobal =
-    data.operacional?.semanasPlanejadas && data.operacional.semanasPlanejadas > 0
+    data.operacional?.semanasPlanejadas &&
+    data.operacional.semanasPlanejadas > 0
       ? data.metaGlobal.metaValor / data.operacional.semanasPlanejadas
       : 0;
 
-  const pctDiaGlobal = metaDiariaGlobal > 0 ? (realizadoDiaGlobal / metaDiariaGlobal) * 100 : 0;
+  const pctDiaGlobal =
+    metaDiariaGlobal > 0 ? (realizadoDiaGlobal / metaDiariaGlobal) * 100 : 0;
   const pctSemanaGlobal =
-    metaSemanalGlobal > 0 ? (realizadoSemanaGlobal / metaSemanalGlobal) * 100 : 0;
+    metaSemanalGlobal > 0
+      ? (realizadoSemanaGlobal / metaSemanalGlobal) * 100
+      : 0;
 
   const getProgressTone = (pct: number) => {
     if (pct >= 100) return "bg-green-500";
@@ -234,6 +363,20 @@ export default function Dashboard() {
     if (pct >= 100) return "text-green-500";
     if (pct >= 75) return "text-amber-500";
     return "text-muted-foreground";
+  };
+
+  const leaderboardVariants = {
+    hidden: {},
+    show: {
+      transition: {
+        staggerChildren: 0.08,
+      },
+    },
+  };
+
+  const leaderboardItemVariants = {
+    hidden: { opacity: 0, y: 12 },
+    show: { opacity: 1, y: 0 },
   };
 
   return (
@@ -266,39 +409,42 @@ export default function Dashboard() {
       {/* Header */}
       <div className="bg-card border-b border-border">
         <div className="container py-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold">Painel de Vendas Opta</h1>
-                <p className="text-muted-foreground mt-1">
-                  {new Date().toLocaleDateString("pt-BR", {
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={toggleMute}
-                  className="gap-2"
-                >
-                  {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-                  {muted ? "Áudio off" : "Áudio on"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.location.href = "/tv"}
-                  className="gap-2"
-                >
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold">Painel de Vendas Opta</h1>
+              <p className="text-muted-foreground mt-1">
+                {new Date().toLocaleDateString("pt-BR", {
+                  month: "long",
+                  year: "numeric",
+                })}
+              </p>
+              <DashboardHeaderStatus
+                percentualMeta={data.metaGlobal.percentualMeta}
+              />
+            </div>
+            <div className="flex flex-wrap gap-2 lg:justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleMute}
+                className="gap-2"
+              >
+                {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                {muted ? "Áudio off" : "Áudio on"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => (window.location.href = "/tv")}
+                className="gap-2"
+              >
                 <Target size={16} />
                 Modo TV
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => window.location.href = "/admin"}
+                onClick={() => (window.location.href = "/admin")}
                 className="gap-2"
               >
                 <Users size={16} />
@@ -341,6 +487,16 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground mt-1">
                   Meta: {formatCurrency(data.metaGlobal.metaValor)}
                 </p>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-secondary">
+                  <motion.div
+                    className={`h-full ${getProgressTone(data.metaGlobal.percentualMeta)}`}
+                    initial={{ width: 0 }}
+                    animate={{
+                      width: `${Math.min(data.metaGlobal.percentualMeta, 100)}%`,
+                    }}
+                    transition={{ duration: 0.8, ease: "easeOut" }}
+                  />
+                </div>
               </CardContent>
             </Card>
           </motion.div>
@@ -366,6 +522,16 @@ export default function Dashboard() {
                     {faltaAcelerador.target}
                   </p>
                 )}
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-secondary">
+                  <motion.div
+                    className={`h-full ${getProgressTone(data.metaGlobal.percentualMeta)}`}
+                    initial={{ width: 0 }}
+                    animate={{
+                      width: `${Math.min(data.metaGlobal.percentualMeta, 100)}%`,
+                    }}
+                    transition={{ duration: 0.8, ease: "easeOut" }}
+                  />
+                </div>
               </CardContent>
             </Card>
           </motion.div>
@@ -378,7 +544,9 @@ export default function Dashboard() {
           >
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Super Meta</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Super Meta
+                </CardTitle>
                 <Shield className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
@@ -420,9 +588,19 @@ export default function Dashboard() {
                     ? `+${(data.metaGlobal.acelerador * 100).toFixed(0)}%`
                     : "0%"}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {getAceleradorLabel(data.metaGlobal.acelerador)}
-                </p>
+                {data.metaGlobal.acelerador > 0 ? (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {getAceleradorLabel(data.metaGlobal.acelerador)}
+                  </p>
+                ) : faltaAcelerador ? (
+                  <p className="mt-1 text-sm font-semibold text-yellow-300">
+                    Faltam {formatCurrency(faltaAcelerador.falta)}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {getAceleradorLabel(data.metaGlobal.acelerador)}
+                  </p>
+                )}
               </CardContent>
             </Card>
           </motion.div>
@@ -464,11 +642,15 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <EscadaAcelerador steps={data.metaGlobal.escada} realizado={data.metaGlobal.realizado} />
+              <EscadaAcelerador
+                steps={data.metaGlobal.escada}
+                realizado={data.metaGlobal.realizado}
+              />
               {faltaAcelerador && (
                 <p className="text-xs text-muted-foreground">
-                  Falta {formatCurrency(faltaAcelerador.falta)} para {faltaAcelerador.target}.
-                  Acelerador só impacta vendedoras com 75%+ da meta individual.
+                  Falta {formatCurrency(faltaAcelerador.falta)} para{" "}
+                  {faltaAcelerador.target}. Acelerador só impacta vendedoras com
+                  75%+ da meta individual.
                 </p>
               )}
             </CardContent>
@@ -481,7 +663,9 @@ export default function Dashboard() {
                     <SunMedium size={14} />
                     Ritmo Diário
                   </div>
-                  <span className={`font-semibold ${getProgressTextColor(pctDiaGlobal)}`}>
+                  <span
+                    className={`font-semibold ${getProgressTextColor(pctDiaGlobal)}`}
+                  >
                     {pctDiaGlobal.toFixed(0)}%
                   </span>
                 </div>
@@ -515,7 +699,9 @@ export default function Dashboard() {
                     <CalendarRange size={14} />
                     Ritmo Semanal
                   </div>
-                  <span className={`font-semibold ${getProgressTextColor(pctSemanaGlobal)}`}>
+                  <span
+                    className={`font-semibold ${getProgressTextColor(pctSemanaGlobal)}`}
+                  >
                     {pctSemanaGlobal.toFixed(0)}%
                   </span>
                 </div>
@@ -544,8 +730,12 @@ export default function Dashboard() {
             </Card>
             <Card>
               <CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Valor em liberação (fora do incentivo)</p>
-                <p className="text-xl font-bold">{formatCurrency(data.valorEmLiberacao || 0)}</p>
+                <p className="text-xs text-muted-foreground">
+                  Valor em liberação (fora do incentivo)
+                </p>
+                <p className="text-xl font-bold">
+                  {formatCurrency(data.valorEmLiberacao || 0)}
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -610,26 +800,61 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
+              <motion.div
+                className="space-y-3"
+                variants={leaderboardVariants}
+                initial="hidden"
+                animate="show"
+              >
                 {ranking.slice(0, 10).map((vendedora, index) => (
-                  <div
+                  <motion.div
                     key={vendedora.id}
-                    className="flex items-center gap-4 p-3 rounded-lg bg-secondary/50"
+                    variants={leaderboardItemVariants}
+                    className={cn(
+                      "flex items-center gap-4 rounded-lg border-l-4 bg-secondary/50 p-3",
+                      getLeaderboardBorder(index)
+                    )}
                   >
-                    <div className="text-2xl font-bold w-8 text-center">
-                      {index + 1}
+                    <div className="w-8 text-center text-2xl font-bold">
+                      {getLeaderboardRankBadge(index)}
                     </div>
                     <div className="flex-1">
-                      <div className="font-semibold">{vendedora.nome}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {vendedora.percentualMeta.toFixed(1)}% da meta •{" "}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="font-semibold">{vendedora.nome}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {vendedora.percentualMeta.toFixed(1)}%
+                        </div>
+                      </div>
+                      <div className="mt-1 text-sm text-muted-foreground">
                         {formatCurrency(vendedora.realizado)}
+                      </div>
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-background/70">
+                        <motion.div
+                          className={cn(
+                            "h-full",
+                            getTierVisual(vendedora.tier).softBgClass,
+                            {
+                              "bg-yellow-400": index === 0,
+                              "bg-slate-300": index === 1,
+                              "bg-orange-400": index === 2,
+                            }
+                          )}
+                          initial={{ width: 0 }}
+                          animate={{
+                            width: `${Math.min(vendedora.percentualMeta, 100)}%`,
+                          }}
+                          transition={{
+                            duration: 0.8,
+                            ease: "easeOut",
+                            delay: index * 0.05,
+                          }}
+                        />
                       </div>
                     </div>
                     <TierBadge tier={vendedora.tier} size="sm" />
-                  </div>
+                  </motion.div>
                 ))}
-              </div>
+              </motion.div>
             </CardContent>
           </Card>
         </motion.div>

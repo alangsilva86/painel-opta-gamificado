@@ -9,14 +9,21 @@ import { ActiveFilters } from "@/features/gestao/components/ActiveFilters";
 import { AlertsCard } from "@/features/gestao/components/AlertsCard";
 import { ClickableList } from "@/features/gestao/components/ClickableList";
 import { DrilldownTable } from "@/features/gestao/components/DrilldownTable";
+import { ExecutiveSummary } from "@/features/gestao/components/ExecutiveSummary";
 import { HealthPipelineSection } from "@/features/gestao/components/HealthPipelineSection";
 import { FilterBar } from "@/features/gestao/components/FilterBar";
 import { LeversSection } from "@/features/gestao/components/LeversSection";
 import { MetricCard } from "@/features/gestao/components/MetricCard";
 import { MixSection } from "@/features/gestao/components/MixSection";
 import { ProductRankingList } from "@/features/gestao/components/ProductRankingList";
+import { SalesHeatmap } from "@/features/gestao/components/SalesHeatmap";
 import { SellerPerformanceTable } from "@/features/gestao/components/SellerPerformanceTable";
-import { formatCurrency, formatPercent } from "@/features/gestao/utils";
+import {
+  aggregateTimeseries,
+  formatCurrency,
+  formatPercent,
+  type TimeseriesGranularity,
+} from "@/features/gestao/utils";
 import { useGestaoFilters } from "@/features/gestao/useGestaoFilters";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,9 +57,20 @@ export default function Gestao() {
     setDateFrom,
     setDateTo,
     filterState,
+    draftFilterState,
     applyFilter,
+    toggleDraftFilter,
     clearFilters,
     filters,
+    comparisonFilters,
+    comparisonMode,
+    comparisonModeApplied,
+    setComparisonMode,
+    comparisonDateFrom,
+    comparisonDateTo,
+    setComparisonDateFrom,
+    setComparisonDateTo,
+    applyComparisonPreset,
     flagFilters,
     applyAllFilters,
     toggleFlag,
@@ -65,7 +83,9 @@ export default function Gestao() {
     setPage,
   } = useGestaoFilters(now);
   const hasGestaoCookie =
-    typeof document !== "undefined" ? document.cookie.includes("gestao_access=1") : false;
+    typeof document !== "undefined"
+      ? document.cookie.includes("gestao_access=1")
+      : false;
   const [authed, setAuthed] = useState(hasGestaoCookie);
   const [password, setPassword] = useState("");
   const [isApplying, setIsApplying] = useState(false);
@@ -79,11 +99,24 @@ export default function Gestao() {
   } | null>(null);
 
   const [hasFetched, setHasFetched] = useState(false);
+  const [granularity, setGranularity] = useState<TimeseriesGranularity>("day");
 
   const resumoQuery = trpc.gestao.getResumo.useQuery(filters, {
     enabled: authed && hasFetched,
     retry: false,
   });
+
+  const comparisonQuery = trpc.gestao.getResumo.useQuery(
+    comparisonFilters ?? skipToken,
+    {
+      enabled:
+        authed &&
+        hasFetched &&
+        comparisonModeApplied &&
+        Boolean(comparisonFilters),
+      retry: false,
+    }
+  );
 
   const drilldownQuery = trpc.gestao.getDrilldown.useQuery(
     {
@@ -103,14 +136,19 @@ export default function Gestao() {
     }
   );
 
-  const exportQuery = trpc.gestao.exportCSV.useQuery(filters, { enabled: false });
-  const healthQuery = trpc.gestao.getHealth.useQuery({}, { enabled: authed && hasFetched });
+  const exportQuery = trpc.gestao.exportCSV.useQuery(filters, {
+    enabled: false,
+  });
+  const healthQuery = trpc.gestao.getHealth.useQuery(
+    { dateFrom: filters.dateFrom, dateTo: filters.dateTo },
+    { enabled: authed && hasFetched }
+  );
   const syncMutation = trpc.gestao.syncRange.useMutation({
-    onError: (err) => {
+    onError: err => {
       console.error("[GestaoLog] Falha ao sincronizar Zoho", err);
       toast.error("Falha ao sincronizar com Zoho");
     },
-    onSuccess: (data) => {
+    onSuccess: data => {
       setSyncId(data.syncId);
       setLastSyncSummary(null);
     },
@@ -140,12 +178,41 @@ export default function Gestao() {
     if (resumoQuery.data) setAuthed(true);
   }, [resumoQuery.data]);
 
+  const calculateDelta = (
+    current?: number | null,
+    previous?: number | null
+  ) => {
+    if (
+      typeof current !== "number" ||
+      typeof previous !== "number" ||
+      Math.abs(previous) < 0.0001
+    ) {
+      return undefined;
+    }
+    return (current - previous) / previous;
+  };
+
+  const getSellerMetricValue = (row: {
+    comissao: number;
+    comissaoComissionado?: number;
+  }) =>
+    incluirSemComissao
+      ? row.comissao
+      : (row.comissaoComissionado ?? row.comissao);
+
   const deltas = useMemo(() => {
     const ts = resumoQuery.data?.timeseries ?? [];
     if (ts.length === 0) return { comissao: 0, liquido: 0 };
     const sorted = [...ts].sort((a, b) => a.date.localeCompare(b.date));
-    const sliceSum = (arr: typeof sorted, startIdx: number, endIdx: number, key: "comissao" | "liquido") =>
-      arr.slice(startIdx, endIdx).reduce((acc, item) => acc + (item[key] ?? 0), 0);
+    const sliceSum = (
+      arr: typeof sorted,
+      startIdx: number,
+      endIdx: number,
+      key: "comissao" | "liquido"
+    ) =>
+      arr
+        .slice(startIdx, endIdx)
+        .reduce((acc, item) => acc + (item[key] ?? 0), 0);
     const last7Start = Math.max(0, sorted.length - 7);
     const prev7Start = Math.max(0, sorted.length - 14);
     const last7 = sliceSum(sorted, last7Start, sorted.length, "comissao");
@@ -159,22 +226,30 @@ export default function Gestao() {
 
   const flagCounts = useMemo(() => {
     const total = healthQuery.data?.totalRegistros ?? 0;
-    const calc = Math.round((healthQuery.data?.pctComissaoCalculada ?? 0) * total);
+    const calc = Math.round(
+      (healthQuery.data?.pctComissaoCalculada ?? 0) * total
+    );
     const liq = Math.round((healthQuery.data?.pctLiquidoFallback ?? 0) * total);
-    const dataInc = Math.round((healthQuery.data?.pctInconsistenciaData ?? 0) * total);
+    const dataInc = Math.round(
+      (healthQuery.data?.pctInconsistenciaData ?? 0) * total
+    );
     return { calc, liq, dataInc };
   }, [healthQuery.data]);
 
   const handleStageClick = (etapa: string) => {
     console.info("[GestaoLog] Clique em etapa de pipeline", { etapa });
     applyFilter({
-      etapaPipeline: filterState.etapaPipeline.includes(etapa) ? filterState.etapaPipeline : [etapa],
+      etapaPipeline: filterState.etapaPipeline.includes(etapa)
+        ? filterState.etapaPipeline
+        : [etapa],
     });
   };
   const handleProductClick = (produto: string) => {
     console.info("[GestaoLog] Clique em produto", { produto });
     applyFilter({
-      produto: filterState.produto.includes(produto) ? filterState.produto : [produto],
+      produto: filterState.produto.includes(produto)
+        ? filterState.produto
+        : [produto],
     });
   };
   const handleOperationClick = (tipoOperacao: string) => {
@@ -185,10 +260,18 @@ export default function Gestao() {
         : [tipoOperacao],
     });
   };
-  const handleProductOperationClick = (produto: string, tipoOperacao: string) => {
-    console.info("[GestaoLog] Clique em produto + operação", { produto, tipoOperacao });
+  const handleProductOperationClick = (
+    produto: string,
+    tipoOperacao: string
+  ) => {
+    console.info("[GestaoLog] Clique em produto + operação", {
+      produto,
+      tipoOperacao,
+    });
     applyFilter({
-      produto: filterState.produto.includes(produto) ? filterState.produto : [produto],
+      produto: filterState.produto.includes(produto)
+        ? filterState.produto
+        : [produto],
       tipoOperacao: filterState.tipoOperacao.includes(tipoOperacao)
         ? filterState.tipoOperacao
         : [tipoOperacao],
@@ -197,13 +280,15 @@ export default function Gestao() {
   const handleSellerClick = (vendedor: string) => {
     console.info("[GestaoLog] Clique em vendedor", { vendedor });
     applyFilter({
-      vendedorNome: filterState.vendedorNome.includes(vendedor) ? filterState.vendedorNome : [vendedor],
+      vendedorNome: filterState.vendedorNome.includes(vendedor)
+        ? filterState.vendedorNome
+        : [vendedor],
     });
   };
 
   const timeseriesData = useMemo(() => {
     const ts = resumoQuery.data?.timeseries ?? [];
-    return ts.map((t) => {
+    const withDisplayValues = ts.map(t => {
       const comissaoPlot =
         incluirSemComissao || t.comissaoComissionado === undefined
           ? t.comissao
@@ -214,17 +299,28 @@ export default function Gestao() {
           : t.liquidoComissionado;
       return { ...t, comissaoPlot, liquidoPlot };
     });
-  }, [resumoQuery.data?.timeseries, incluirSemComissao]);
+    return aggregateTimeseries(withDisplayValues, granularity).map(point => ({
+      ...point,
+      comissaoPlot:
+        point.comissaoComissionado !== undefined && !incluirSemComissao
+          ? point.comissaoComissionado
+          : point.comissao,
+      liquidoPlot:
+        point.liquidoComissionado !== undefined && !incluirSemComissao
+          ? point.liquidoComissionado
+          : point.liquido,
+    }));
+  }, [resumoQuery.data?.timeseries, incluirSemComissao, granularity]);
 
   const stageData = useMemo(() => {
     const arr = resumoQuery.data?.byStage ?? [];
-    return arr.map((item) => {
+    return arr.map(item => {
       const liquidoPlot = incluirSemComissao
         ? item.liquido
-        : item.liquidoComissionado ?? item.liquido;
+        : (item.liquidoComissionado ?? item.liquido);
       const comissaoPlot = incluirSemComissao
         ? item.comissao
-        : item.comissaoComissionado ?? item.comissao;
+        : (item.comissaoComissionado ?? item.comissao);
       const liquidoSem = incluirSemComissao
         ? Math.max(0, item.liquido - (item.liquidoComissionado ?? item.liquido))
         : 0;
@@ -234,13 +330,13 @@ export default function Gestao() {
 
   const productData = useMemo(() => {
     const arr = resumoQuery.data?.byProduct ?? [];
-    return arr.map((item) => {
+    return arr.map(item => {
       const liquidoPlot = incluirSemComissao
         ? item.liquido
-        : item.liquidoComissionado ?? item.liquido;
+        : (item.liquidoComissionado ?? item.liquido);
       const comissaoPlot = incluirSemComissao
         ? item.comissao
-        : item.comissaoComissionado ?? item.comissao;
+        : (item.comissaoComissionado ?? item.comissao);
       const liquidoSem = incluirSemComissao
         ? Math.max(0, item.liquido - (item.liquidoComissionado ?? item.liquido))
         : 0;
@@ -250,13 +346,13 @@ export default function Gestao() {
 
   const operationData = useMemo(() => {
     const arr = resumoQuery.data?.byOperationType ?? [];
-    return arr.map((item) => {
+    return arr.map(item => {
       const liquidoPlot = incluirSemComissao
         ? item.liquido
-        : item.liquidoComissionado ?? item.liquido;
+        : (item.liquidoComissionado ?? item.liquido);
       const comissaoPlot = incluirSemComissao
         ? item.comissao
-        : item.comissaoComissionado ?? item.comissao;
+        : (item.comissaoComissionado ?? item.comissao);
       const liquidoSem = incluirSemComissao
         ? Math.max(0, item.liquido - (item.liquidoComissionado ?? item.liquido))
         : 0;
@@ -265,12 +361,18 @@ export default function Gestao() {
   }, [resumoQuery.data?.byOperationType, incluirSemComissao]);
 
   const sellersSorted = useMemo(
-    () => (resumoQuery.data?.bySeller ?? []).slice().sort((a, b) => b.comissao - a.comissao),
+    () =>
+      (resumoQuery.data?.bySeller ?? [])
+        .slice()
+        .sort((a, b) => b.comissao - a.comissao),
     [resumoQuery.data?.bySeller]
   );
 
   const productsSorted = useMemo(
-    () => (resumoQuery.data?.byProduct ?? []).slice().sort((a, b) => b.comissao - a.comissao),
+    () =>
+      (resumoQuery.data?.byProduct ?? [])
+        .slice()
+        .sort((a, b) => b.comissao - a.comissao),
     [resumoQuery.data?.byProduct]
   );
 
@@ -282,6 +384,95 @@ export default function Gestao() {
     });
     return map;
   }, [resumoQuery.data?.byProductOperation]);
+
+  const comparisonMetricDeltas = useMemo(() => {
+    const prev = comparisonQuery.data?.cards;
+    const current = resumoQuery.data?.cards;
+    if (!prev || !current) return {};
+
+    return {
+      comissao: calculateDelta(current.comissao, prev.comissao),
+      liquido: calculateDelta(current.liquido, prev.liquido),
+      takeRate: calculateDelta(current.takeRate, prev.takeRate),
+      ticketMedio: calculateDelta(current.ticketMedio, prev.ticketMedio),
+      contratos: calculateDelta(current.contratos, prev.contratos),
+      pctComissaoCalculada: calculateDelta(
+        current.pctComissaoCalculada,
+        prev.pctComissaoCalculada
+      ),
+      paceComissao: calculateDelta(current.paceComissao, prev.paceComissao),
+      necessarioPorDia: calculateDelta(
+        current.necessarioPorDia,
+        prev.necessarioPorDia
+      ),
+    };
+  }, [comparisonQuery.data?.cards, resumoQuery.data?.cards]);
+
+  const sellerDeltas = useMemo(() => {
+    if (!comparisonQuery.data) return undefined;
+
+    const previousSellerMap = new Map(
+      comparisonQuery.data.bySeller.map(seller => [
+        seller.vendedor,
+        getSellerMetricValue(seller),
+      ])
+    );
+    const deltasMap = new Map<string, number>();
+
+    resumoQuery.data?.bySeller.forEach(seller => {
+      const currentValue = getSellerMetricValue(seller);
+      const previousValue = previousSellerMap.get(seller.vendedor);
+      const delta = calculateDelta(currentValue, previousValue);
+      if (delta !== undefined) {
+        deltasMap.set(seller.vendedor, delta);
+      }
+    });
+
+    return deltasMap;
+  }, [comparisonQuery.data, resumoQuery.data?.bySeller, incluirSemComissao]);
+
+  const rankEvolution = useMemo(() => {
+    if (!comparisonQuery.data || !resumoQuery.data) return undefined;
+
+    const currentRankMap = new Map(
+      resumoQuery.data.bySeller
+        .slice()
+        .sort((a, b) => getSellerMetricValue(b) - getSellerMetricValue(a))
+        .map((seller, index) => [seller.vendedor, index + 1])
+    );
+    const previousRankMap = new Map(
+      comparisonQuery.data.bySeller
+        .slice()
+        .sort((a, b) => getSellerMetricValue(b) - getSellerMetricValue(a))
+        .map((seller, index) => [seller.vendedor, index + 1])
+    );
+
+    const evolutionMap = new Map<string, number>();
+    currentRankMap.forEach((currentRank, seller) => {
+      const previousRank = previousRankMap.get(seller);
+      if (previousRank) {
+        evolutionMap.set(seller, previousRank - currentRank);
+      }
+    });
+
+    return evolutionMap;
+  }, [comparisonQuery.data, resumoQuery.data, incluirSemComissao]);
+
+  const availableSellers = useMemo(
+    () =>
+      (resumoQuery.data?.bySeller ?? [])
+        .map(seller => seller.vendedor)
+        .sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [resumoQuery.data?.bySeller]
+  );
+
+  const availableProducts = useMemo(
+    () =>
+      (resumoQuery.data?.byProduct ?? [])
+        .map(product => product.produto)
+        .sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [resumoQuery.data?.byProduct]
+  );
 
   const [seriesVisibility, setSeriesVisibility] = useState<{
     comissao: boolean;
@@ -304,7 +495,7 @@ export default function Gestao() {
     };
     const target = keyMap[dataKey];
     if (!target) return;
-    setSeriesVisibility((prev) => ({ ...prev, [target]: !prev[target] }));
+    setSeriesVisibility(prev => ({ ...prev, [target]: !prev[target] }));
   };
 
   const [metaInput, setMetaInput] = useState("");
@@ -319,14 +510,18 @@ export default function Gestao() {
     console.info("[GestaoLog] Botão aplicar filtros acionado", {
       draftDateFrom: dateFrom,
       draftDateTo: dateTo,
-      filtrosRascunho: filters,
+      filtrosRascunho: draftFilterState,
       flags: flagFilters,
     });
     setIsApplying(true);
     const applied = applyAllFilters();
     setHasFetched(true);
     try {
-      await syncMutation.mutateAsync({ dateFrom: applied.dateFrom, dateTo: applied.dateTo });
+      await syncMutation.mutateAsync({
+        dateFrom: applied.dateFrom,
+        dateTo: applied.dateTo,
+        additionalRanges: applied.comparison ? [applied.comparison] : undefined,
+      });
       toast.success("Sincronização iniciada. Acompanhe o progresso.");
     } catch (err) {
       console.error("[GestaoLog] Erro ao aplicar filtros/sincronizar", err);
@@ -337,10 +532,24 @@ export default function Gestao() {
   };
 
   const handleRefresh = async () => {
-    console.info("[GestaoLog] Botão atualizar dados acionado", { filtrosAplicados: filters });
+    console.info("[GestaoLog] Botão atualizar dados acionado", {
+      filtrosAplicados: filters,
+    });
     setHasFetched(true);
     try {
-      await syncMutation.mutateAsync({ dateFrom: filters.dateFrom, dateTo: filters.dateTo });
+      await syncMutation.mutateAsync({
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        additionalRanges:
+          comparisonModeApplied && comparisonFilters
+            ? [
+                {
+                  dateFrom: comparisonFilters.dateFrom,
+                  dateTo: comparisonFilters.dateTo,
+                },
+              ]
+            : undefined,
+      });
       toast.success("Sincronização iniciada. Acompanhe o progresso.");
     } catch (err) {
       console.error("[GestaoLog] Erro ao atualizar dados", err);
@@ -349,7 +558,9 @@ export default function Gestao() {
   };
 
   const handleExport = async () => {
-    console.info("[GestaoLog] Exportação CSV iniciada", { filtrosAplicados: filters });
+    console.info("[GestaoLog] Exportação CSV iniciada", {
+      filtrosAplicados: filters,
+    });
     const res = await exportQuery.refetch();
     if (!res.data?.csv) return;
     const blob = new Blob([res.data.csv], { type: "text/csv;charset=utf-8;" });
@@ -362,20 +573,23 @@ export default function Gestao() {
     console.info("[GestaoLog] Exportação CSV concluída");
   };
 
-  const syncStatusQuery = trpc.gestao.getSyncStatus.useQuery(syncId ? { syncId } : skipToken, {
-    refetchInterval: (data) => {
-      const status = (data as unknown as SyncStatus | undefined)?.status;
-      return status === "done" ? false : 1500;
-    },
-  });
+  const syncStatusQuery = trpc.gestao.getSyncStatus.useQuery(
+    syncId ? { syncId } : skipToken,
+    {
+      refetchInterval: data => {
+        const status = (data as unknown as SyncStatus | undefined)?.status;
+        return status === "done" ? false : 1500;
+      },
+    }
+  );
 
   const statusData = syncStatusQuery.data as unknown as SyncStatus | undefined;
 
-  const isLoading = resumoQuery.isLoading || drilldownQuery.isLoading;
   const isFetchingData =
     hasFetched &&
     (isApplying ||
       resumoQuery.isFetching ||
+      comparisonQuery.isFetching ||
       drilldownQuery.isFetching ||
       healthQuery.isFetching ||
       syncMutation.isPending ||
@@ -398,9 +612,24 @@ export default function Gestao() {
       );
       setLastSyncSummary(summary);
       setSyncId(null);
-      void Promise.all([resumoQuery.refetch(), drilldownQuery.refetch(), healthQuery.refetch()]);
+      void Promise.all([
+        resumoQuery.refetch(),
+        comparisonModeApplied && comparisonFilters
+          ? comparisonQuery.refetch()
+          : Promise.resolve(),
+        drilldownQuery.refetch(),
+        healthQuery.refetch(),
+      ]);
     }
-  }, [syncStatusQuery.data, drilldownQuery, healthQuery, resumoQuery]);
+  }, [
+    syncStatusQuery.data,
+    comparisonModeApplied,
+    comparisonFilters,
+    comparisonQuery,
+    drilldownQuery,
+    healthQuery,
+    resumoQuery,
+  ]);
 
   if (!authed) {
     return (
@@ -411,12 +640,15 @@ export default function Gestao() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-slate-300">
-              Insira a senha fixa para liberar a visualização dos KPIs de Gestão.
+              Insira a senha fixa para liberar a visualização dos KPIs de
+              Gestão.
             </p>
             <Input
               type="password"
               value={password}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setPassword(e.target.value)
+              }
               placeholder="Senha"
             />
             <Button
@@ -427,7 +659,9 @@ export default function Gestao() {
               {authMutation.isPending ? "Validando..." : "Entrar"}
             </Button>
             {authMutation.error && (
-              <p className="text-sm text-red-400">Erro: {authMutation.error.message}</p>
+              <p className="text-sm text-red-400">
+                Erro: {authMutation.error.message}
+              </p>
             )}
           </CardContent>
         </Card>
@@ -443,7 +677,7 @@ export default function Gestao() {
         onDateFromChange={setDateFrom}
         onDateToChange={setDateTo}
         incluirSemComissao={incluirSemComissao}
-        onToggleSemComissao={() => setIncluirSemComissao((v) => !v)}
+        onToggleSemComissao={() => setIncluirSemComissao(v => !v)}
         onRefresh={handleRefresh}
         isRefreshing={syncMutation.isPending && !isApplying}
         isApplying={isApplying}
@@ -451,6 +685,19 @@ export default function Gestao() {
         onExport={handleExport}
         onClear={clearFilters}
         isExporting={exportQuery.isFetching}
+        comparisonMode={comparisonMode}
+        onComparisonModeChange={setComparisonMode}
+        comparisonDateFrom={comparisonDateFrom}
+        comparisonDateTo={comparisonDateTo}
+        onComparisonDateFromChange={setComparisonDateFrom}
+        onComparisonDateToChange={setComparisonDateTo}
+        onComparisonPreset={applyComparisonPreset}
+        sellerOptions={availableSellers}
+        productOptions={availableProducts}
+        selectedSellers={draftFilterState.vendedorNome}
+        selectedProducts={draftFilterState.produto}
+        onToggleSeller={value => toggleDraftFilter("vendedorNome", value)}
+        onToggleProduct={value => toggleDraftFilter("produto", value)}
       />
 
       <ActiveFilters filterState={filterState} onRemove={applyFilter} />
@@ -460,7 +707,8 @@ export default function Gestao() {
           <CardContent className="flex items-center gap-3 text-slate-200 py-3">
             <Spinner className="h-4 w-4" />
             <div className="text-sm">
-              Sincronizando dados com Zoho para o período selecionado. Aguarde para ver os indicadores atualizados.
+              Sincronizando dados com Zoho para o período selecionado. Aguarde
+              para ver os indicadores atualizados.
             </div>
           </CardContent>
         </Card>
@@ -475,7 +723,9 @@ export default function Gestao() {
             <div>Iguais: {lastSyncSummary.unchanged}</div>
             <div>Pulados: {lastSyncSummary.skipped}</div>
             {lastSyncSummary.warnings > 0 && (
-              <div className="text-amber-300">Avisos: {lastSyncSummary.warnings}</div>
+              <div className="text-amber-300">
+                Avisos: {lastSyncSummary.warnings}
+              </div>
             )}
             {syncStatusQuery.data?.status !== "done" && (
               <div className="text-slate-400">Aguardando conclusão...</div>
@@ -484,34 +734,40 @@ export default function Gestao() {
         </Card>
       )}
 
-      {syncStatusQuery.data?.perMonth && syncStatusQuery.data?.perMonth.length > 0 && (
-        <Card className="bg-slate-950 border-slate-800">
-          <CardHeader>
-            <CardTitle>Progresso por mês</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {syncStatusQuery.data.perMonth
-              .slice()
-              .sort((a, b) => a.mesInicio.localeCompare(b.mesInicio))
-              .map((m) => (
-                <div
-                  key={`${m.mesInicio}-${m.mesFim}`}
-                  className="flex items-center justify-between rounded border border-slate-800 bg-slate-900 px-3 py-2"
-                >
-                  <div className="flex flex-col">
-                    <span className="font-medium">{m.mesInicio} → {m.mesFim}</span>
-                    <span className="text-xs text-slate-400">
-                      {m.status === "done" ? "Concluído" : "Erro"} · {m.fetched} buscados · {m.upserted} inseridos
-                    </span>
+      {syncStatusQuery.data?.perMonth &&
+        syncStatusQuery.data?.perMonth.length > 0 && (
+          <Card className="bg-slate-950 border-slate-800">
+            <CardHeader>
+              <CardTitle>Progresso por mês</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              {syncStatusQuery.data.perMonth
+                .slice()
+                .sort((a, b) => a.mesInicio.localeCompare(b.mesInicio))
+                .map(m => (
+                  <div
+                    key={`${m.mesInicio}-${m.mesFim}`}
+                    className="flex items-center justify-between rounded border border-slate-800 bg-slate-900 px-3 py-2"
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-medium">
+                        {m.mesInicio} → {m.mesFim}
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        {m.status === "done" ? "Concluído" : "Erro"} ·{" "}
+                        {m.fetched} buscados · {m.upserted} inseridos
+                      </span>
+                    </div>
+                    <div
+                      className={`text-xs px-2 py-1 rounded ${m.status === "done" ? "bg-emerald-900 text-emerald-200" : "bg-amber-900 text-amber-200"}`}
+                    >
+                      {m.status === "done" ? "100%" : "Com aviso"}
+                    </div>
                   </div>
-                  <div className={`text-xs px-2 py-1 rounded ${m.status === "done" ? "bg-emerald-900 text-emerald-200" : "bg-amber-900 text-amber-200"}`}>
-                    {m.status === "done" ? "100%" : "Com aviso"}
-                  </div>
-                </div>
-              ))}
-          </CardContent>
-        </Card>
-      )}
+                ))}
+            </CardContent>
+          </Card>
+        )}
 
       {isFetchingData && (
         <div className="flex items-center gap-3 text-slate-300">
@@ -526,13 +782,19 @@ export default function Gestao() {
             <CardTitle>Dados ainda não carregados</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-slate-300">
-            Escolha o período e clique em “Aplicar filtros” para buscar os indicadores.
+            Escolha o período e clique em “Aplicar filtros” para buscar os
+            indicadores.
           </CardContent>
         </Card>
       )}
 
       {hasFetched && resumoQuery.data && !isFetchingData && (
         <>
+          <ExecutiveSummary
+            data={resumoQuery.data}
+            comparisonData={comparisonModeApplied ? comparisonQuery.data : null}
+          />
+
           <TooltipProvider delayDuration={100}>
             <div className="space-y-3">
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 bg-slate-950/60 border border-slate-800 rounded-lg p-3">
@@ -541,6 +803,10 @@ export default function Gestao() {
                   value={formatCurrency(resumoQuery.data.cards.comissao)}
                   hint={`Δ7d: ${formatPercent(deltas.comissao)}`}
                   tooltip="Soma da comissão total no período filtrado."
+                  delta={comparisonMetricDeltas.comissao}
+                  deltaLabel={
+                    comparisonModeApplied ? "vs período comparado" : undefined
+                  }
                   compact
                 />
                 <MetricCard
@@ -548,6 +814,10 @@ export default function Gestao() {
                   value={formatCurrency(resumoQuery.data.cards.liquido)}
                   hint={`Δ7d: ${formatPercent(deltas.liquido)}`}
                   tooltip="Soma do líquido liberado no período."
+                  delta={comparisonMetricDeltas.liquido}
+                  deltaLabel={
+                    comparisonModeApplied ? "vs período comparado" : undefined
+                  }
                   compact
                 />
                 <MetricCard
@@ -555,25 +825,45 @@ export default function Gestao() {
                   value={formatPercent(resumoQuery.data.cards.takeRate)}
                   hint={`Limpa (sem pendências): ${formatPercent(resumoQuery.data.cards.takeRateLimpo ?? 0)}`}
                   tooltip="Percentual médio de comissão sobre o líquido."
+                  delta={comparisonMetricDeltas.takeRate}
+                  deltaLabel={
+                    comparisonModeApplied ? "vs período comparado" : undefined
+                  }
                   compact
                 />
                 <MetricCard
                   title="Ticket Médio"
                   value={formatCurrency(resumoQuery.data.cards.ticketMedio)}
                   tooltip="Líquido médio por contrato."
+                  delta={comparisonMetricDeltas.ticketMedio}
+                  deltaLabel={
+                    comparisonModeApplied ? "vs período comparado" : undefined
+                  }
                   compact
                 />
                 <MetricCard
-                title="Contratos"
-                value={resumoQuery.data.cards.contratos.toLocaleString("pt-BR")}
-                tooltip="Quantidade de contratos no período."
-                hint={`Sem comissão: ${resumoQuery.data.cards.contratosSemComissao ?? 0}`}
-                compact
-              />
+                  title="Contratos"
+                  value={resumoQuery.data.cards.contratos.toLocaleString(
+                    "pt-BR"
+                  )}
+                  tooltip="Quantidade de contratos no período."
+                  hint={`Sem comissão: ${resumoQuery.data.cards.contratosSemComissao ?? 0}`}
+                  delta={comparisonMetricDeltas.contratos}
+                  deltaLabel={
+                    comparisonModeApplied ? "vs período comparado" : undefined
+                  }
+                  compact
+                />
                 <MetricCard
                   title="% Comissão Calculada"
-                  value={formatPercent(resumoQuery.data.cards.pctComissaoCalculada)}
+                  value={formatPercent(
+                    resumoQuery.data.cards.pctComissaoCalculada
+                  )}
                   tooltip="Percentual de contratos com comissão calculada via percentual (dado ausente no Zoho)."
+                  delta={comparisonMetricDeltas.pctComissaoCalculada}
+                  deltaLabel={
+                    comparisonModeApplied ? "vs período comparado" : undefined
+                  }
                   compact
                 />
               </div>
@@ -587,7 +877,9 @@ export default function Gestao() {
                         type="number"
                         inputMode="decimal"
                         value={metaInput}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => setMetaInput(e.target.value)}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                          setMetaInput(e.target.value)
+                        }
                         className="bg-slate-900 border-slate-700 h-10 w-32"
                       />
                       <Button
@@ -598,7 +890,10 @@ export default function Gestao() {
                             toast.error("Valor inválido");
                             return;
                           }
-                          setMetaMutation.mutate({ mes: dateFrom.slice(0, 7), valor: val });
+                          setMetaMutation.mutate({
+                            mes: dateFrom.slice(0, 7),
+                            valor: val,
+                          });
                         }}
                         disabled={setMetaMutation.isPending}
                       >
@@ -609,18 +904,31 @@ export default function Gestao() {
                 />
                 <MetricCard
                   title="Pace Comissão (R$/dia)"
-                  value={formatCurrency(resumoQuery.data.cards.paceComissao ?? 0)}
+                  value={formatCurrency(
+                    resumoQuery.data.cards.paceComissao ?? 0
+                  )}
                   tooltip="Comissão média por dia corrido no período."
+                  delta={comparisonMetricDeltas.paceComissao}
+                  deltaLabel={
+                    comparisonModeApplied ? "vs período comparado" : undefined
+                  }
                 />
                 <MetricCard
                   title="Necessário/dia p/ meta"
-                  value={formatCurrency(resumoQuery.data.cards.necessarioPorDia ?? 0)}
+                  value={formatCurrency(
+                    resumoQuery.data.cards.necessarioPorDia ?? 0
+                  )}
                   badge={
-                    (resumoQuery.data.cards.paceComissao ?? 0) >= (resumoQuery.data.cards.necessarioPorDia ?? 0)
+                    (resumoQuery.data.cards.paceComissao ?? 0) >=
+                    (resumoQuery.data.cards.necessarioPorDia ?? 0)
                       ? "À frente"
                       : "Atrás"
                   }
                   tooltip="Quanto falta por dia para alcançar a meta de comissão."
+                  delta={comparisonMetricDeltas.necessarioPorDia}
+                  deltaLabel={
+                    comparisonModeApplied ? "vs período comparado" : undefined
+                  }
                 />
                 <MetricCard
                   title="Dias (decorridos/total)"
@@ -647,8 +955,16 @@ export default function Gestao() {
             seriesVisibility={seriesVisibility}
             onLegendToggle={handleLegendToggle}
             necessarioPorDia={resumoQuery.data.cards.necessarioPorDia}
+            granularity={granularity}
+            onGranularityChange={setGranularity}
             onStageClick={handleStageClick}
             onClearFilters={clearFilters}
+          />
+
+          <SalesHeatmap
+            data={resumoQuery.data.timeseries}
+            dateFrom={filters.dateFrom}
+            dateTo={filters.dateTo}
           />
 
           <LeversSection
@@ -666,6 +982,8 @@ export default function Gestao() {
             incluirSemComissao={incluirSemComissao}
             filterState={filterState}
             onSellerClick={handleSellerClick}
+            sellerDeltas={sellerDeltas}
+            rankEvolution={rankEvolution}
           />
 
           <MixSection
@@ -681,7 +999,7 @@ export default function Gestao() {
           <div className="grid gap-4 md:grid-cols-3">
             <ClickableList
               title="Por Etapa"
-              rows={resumoQuery.data.byStage.map((b) => ({
+              rows={resumoQuery.data.byStage.map(b => ({
                 label: b.etapa,
                 value: formatCurrency(b.comissao),
                 extra: `${b.count} | ${formatPercent(b.takeRate)}`,
@@ -696,7 +1014,7 @@ export default function Gestao() {
             />
             <ClickableList
               title="Por Vendedor"
-              rows={sellersSorted.map((b) => ({
+              rows={sellersSorted.map(b => ({
                 label: b.vendedor,
                 value: formatCurrency(b.comissao),
                 extra: `${b.count} | ${formatPercent(b.takeRate)}`,
@@ -729,8 +1047,8 @@ export default function Gestao() {
             toggleFlag={toggleFlag}
             flagCounts={flagCounts}
             page={page}
-            onPrevPage={() => setPage((p) => Math.max(1, p - 1))}
-            onNextPage={() => setPage((p) => p + 1)}
+            onPrevPage={() => setPage(p => Math.max(1, p - 1))}
+            onNextPage={() => setPage(p => p + 1)}
             onExport={handleExport}
             takeRateBaseline={resumoQuery.data?.cards.takeRate}
             isEmpty={(drilldownQuery.data?.data?.length ?? 0) === 0}

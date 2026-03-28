@@ -1,9 +1,34 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis, Bar, BarChart } from "recharts";
-import { formatCurrency, formatDateTick, formatPercent, shortLabel, tooltipBox } from "../utils";
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  Bar,
+  BarChart,
+} from "recharts";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  formatCurrency,
+  formatGranularityTick,
+  formatGranularityTooltipLabel,
+  formatPercent,
+  shortLabel,
+  tooltipBox,
+  type TimeseriesGranularity,
+} from "../utils";
 import { EmptyChart } from "./EmptyChart";
 
-type SeriesVisibility = { comissao: boolean; liquido: boolean; liquidoSem: boolean };
+type SeriesVisibility = {
+  comissao: boolean;
+  liquido: boolean;
+  liquidoSem: boolean;
+};
 
 type HealthPipelineSectionProps = {
   timeseriesData: Array<any>;
@@ -11,6 +36,8 @@ type HealthPipelineSectionProps = {
   seriesVisibility: SeriesVisibility;
   onLegendToggle: (dataKey?: string) => void;
   necessarioPorDia?: number | null;
+  granularity: TimeseriesGranularity;
+  onGranularityChange: (value: TimeseriesGranularity) => void;
   onStageClick: (etapa: string) => void;
   onClearFilters: () => void;
 };
@@ -21,6 +48,8 @@ export function HealthPipelineSection({
   seriesVisibility,
   onLegendToggle,
   necessarioPorDia,
+  granularity,
+  onGranularityChange,
   onStageClick,
   onClearFilters,
 }: HealthPipelineSectionProps) {
@@ -28,16 +57,30 @@ export function HealthPipelineSection({
 
   const dualLineTooltip = ({ label, payload }: any) => {
     if (!payload || payload.length === 0) return null;
-    const date = label ? formatDateTick(label) : "";
+    const date = label ? formatGranularityTooltipLabel(label, granularity) : "";
     const item = payload[0]?.payload;
     return tooltipBox(date, [
       ...(seriesVisibility.comissao
-        ? [{ label: "Comissão", value: formatCurrency(item?.comissaoPlot ?? item?.comissao ?? 0), emphasis: true }]
+        ? [
+            {
+              label: "Comissão",
+              value: formatCurrency(item?.comissaoPlot ?? item?.comissao ?? 0),
+              emphasis: true,
+            },
+          ]
         : []),
       ...(seriesVisibility.liquido
-        ? [{ label: "Líquido", value: formatCurrency(item?.liquidoPlot ?? item?.liquido ?? 0) }]
+        ? [
+            {
+              label: "Líquido",
+              value: formatCurrency(item?.liquidoPlot ?? item?.liquido ?? 0),
+            },
+          ]
         : []),
-      { label: "Contratos sem comissão", value: String(item?.contratosSemComissao ?? 0) },
+      {
+        label: "Contratos sem comissão",
+        value: String(item?.contratosSemComissao ?? 0),
+      },
     ]);
   };
 
@@ -49,15 +92,28 @@ export function HealthPipelineSection({
     const takeRateVal = liquidoVal > 0 ? comissaoVal / liquidoVal : 0;
     return tooltipBox(label, [
       ...(seriesVisibility.comissao
-        ? [{ label: "Comissão", value: formatCurrency(comissaoVal), emphasis: true }]
+        ? [
+            {
+              label: "Comissão",
+              value: formatCurrency(comissaoVal),
+              emphasis: true,
+            },
+          ]
         : []),
       ...(seriesVisibility.liquido
         ? [{ label: "Líquido", value: formatCurrency(liquidoVal) }]
         : []),
       ...(item?.liquidoSem !== undefined
-        ? [{ label: "Líquido sem comissão", value: formatCurrency(item.liquidoSem) }]
+        ? [
+            {
+              label: "Líquido sem comissão",
+              value: formatCurrency(item.liquidoSem),
+            },
+          ]
         : []),
-      ...(item?.count !== undefined ? [{ label: "Contratos", value: String(item.count) }] : []),
+      ...(item?.count !== undefined
+        ? [{ label: "Contratos", value: String(item.count) }]
+        : []),
       ...(item?.semComissaoCount !== undefined
         ? [{ label: "Sem comissão", value: String(item.semComissaoCount) }]
         : []),
@@ -69,17 +125,37 @@ export function HealthPipelineSection({
     <div className="grid gap-4 lg:grid-cols-2">
       <Card className="bg-slate-950 border-slate-800">
         <CardHeader>
-          <CardTitle>Série temporal (Comissão x Líquido)</CardTitle>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <CardTitle>Série temporal (Comissão x Líquido)</CardTitle>
+            <Tabs
+              value={granularity}
+              onValueChange={value =>
+                onGranularityChange(value as TimeseriesGranularity)
+              }
+            >
+              <TabsList className="bg-slate-900">
+                <TabsTrigger value="day">Dia</TabsTrigger>
+                <TabsTrigger value="week">Semana</TabsTrigger>
+                <TabsTrigger value="month">Mês</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </CardHeader>
         <CardContent className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={timeseriesData}>
               <CartesianGrid strokeDasharray="2 4" stroke="#1f2937" />
-              <XAxis dataKey="date" stroke="#9ca3af" tickFormatter={formatDateTick} />
+              <XAxis
+                dataKey="date"
+                stroke="#9ca3af"
+                tickFormatter={value =>
+                  formatGranularityTick(value, granularity)
+                }
+              />
               <YAxis stroke="#9ca3af" tickFormatter={currencyTick} />
               <Tooltip content={dualLineTooltip} />
               <Legend
-                onClick={(o) => onLegendToggle((o as any).dataKey)}
+                onClick={o => onLegendToggle((o as any).dataKey)}
                 formatter={(value, entry) => {
                   const key = (entry as any)?.dataKey;
                   const isHidden =
@@ -89,7 +165,9 @@ export function HealthPipelineSection({
                         ? !seriesVisibility.liquido
                         : false;
                   return (
-                    <span className={`text-xs ${isHidden ? "text-slate-500 line-through" : "text-slate-200"}`}>
+                    <span
+                      className={`text-xs ${isHidden ? "text-slate-500 line-through" : "text-slate-200"}`}
+                    >
                       {value} · clique para esconder/mostrar
                     </span>
                   );
@@ -115,12 +193,17 @@ export function HealthPipelineSection({
                 hide={!seriesVisibility.liquido}
                 activeDot={{ r: 4 }}
               />
-              {necessarioPorDia ? (
+              {necessarioPorDia && granularity === "day" ? (
                 <ReferenceLine
                   y={necessarioPorDia}
                   stroke="#f97316"
                   strokeDasharray="4 4"
-                  label={{ value: "Necessário/dia", position: "left", fill: "#f97316", fontSize: 12 }}
+                  label={{
+                    value: "Necessário/dia",
+                    position: "left",
+                    fill: "#f97316",
+                    fontSize: 12,
+                  }}
                 />
               ) : null}
             </LineChart>
@@ -135,15 +218,25 @@ export function HealthPipelineSection({
         <CardContent className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             {stageData.length === 0 ? (
-              <EmptyChart message="Sem dados de pipeline para este recorte." onClearFilters={onClearFilters} />
+              <EmptyChart
+                message="Sem dados de pipeline para este recorte."
+                onClearFilters={onClearFilters}
+              />
             ) : (
               <BarChart data={stageData}>
                 <CartesianGrid strokeDasharray="2 4" stroke="#1f2937" />
-                <XAxis dataKey="etapa" stroke="#9ca3af" tickFormatter={(v) => shortLabel(v, 14)} />
-                <YAxis stroke="#9ca3af" tickFormatter={(v) => formatCurrency(v)} />
+                <XAxis
+                  dataKey="etapa"
+                  stroke="#9ca3af"
+                  tickFormatter={v => shortLabel(v, 14)}
+                />
+                <YAxis
+                  stroke="#9ca3af"
+                  tickFormatter={v => formatCurrency(v)}
+                />
                 <Tooltip content={dualBarTooltip} />
                 <Legend
-                  onClick={(o) => onLegendToggle((o as any).dataKey)}
+                  onClick={o => onLegendToggle((o as any).dataKey)}
                   formatter={(value, entry) => {
                     const key = (entry as any)?.dataKey;
                     const isHidden =
@@ -155,7 +248,9 @@ export function HealthPipelineSection({
                             ? !seriesVisibility.liquidoSem
                             : false;
                     return (
-                      <span className={`text-xs ${isHidden ? "text-slate-500 line-through" : "text-slate-200"}`}>
+                      <span
+                        className={`text-xs ${isHidden ? "text-slate-500 line-through" : "text-slate-200"}`}
+                      >
                         {value} · clique para esconder/mostrar
                       </span>
                     );
@@ -167,7 +262,7 @@ export function HealthPipelineSection({
                   fill="#22c55e"
                   cursor="pointer"
                   hide={!seriesVisibility.comissao}
-                  onClick={(data) => onStageClick((data as any).etapa)}
+                  onClick={data => onStageClick((data as any).etapa)}
                 />
                 <Bar
                   dataKey="liquidoPlot"
@@ -175,7 +270,7 @@ export function HealthPipelineSection({
                   fill="#3b82f6"
                   cursor="pointer"
                   hide={!seriesVisibility.liquido}
-                  onClick={(data) => onStageClick((data as any).etapa)}
+                  onClick={data => onStageClick((data as any).etapa)}
                 />
                 <Bar
                   dataKey="liquidoSem"
@@ -184,7 +279,7 @@ export function HealthPipelineSection({
                   cursor="pointer"
                   stackId="sem"
                   hide={!seriesVisibility.liquidoSem}
-                  onClick={(data) => onStageClick((data as any).etapa)}
+                  onClick={data => onStageClick((data as any).etapa)}
                 />
               </BarChart>
             )}

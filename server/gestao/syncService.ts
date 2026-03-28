@@ -1,5 +1,9 @@
 import { inArray } from "drizzle-orm";
-import { contratos, gestaoSyncLogs, zohoContratosSnapshot } from "../../drizzle/schema";
+import {
+  contratos,
+  gestaoSyncLogs,
+  zohoContratosSnapshot,
+} from "../../drizzle/schema";
 import { getDb } from "../db";
 import { normalizeContratoZoho } from "./normalizeZoho";
 import { zohoService } from "../zohoService";
@@ -20,7 +24,10 @@ export interface SyncMetrics {
   range: SyncRange;
 }
 
-export function buildMonthRange(year: number, monthIndexZeroBased: number): SyncRange {
+export function buildMonthRange(
+  year: number,
+  monthIndexZeroBased: number
+): SyncRange {
   const mes = String(monthIndexZeroBased + 1).padStart(2, "0");
   const mesInicio = `${year}-${mes}-01`;
   const ultimoDia = new Date(year, monthIndexZeroBased + 1, 0).getDate();
@@ -28,15 +35,24 @@ export function buildMonthRange(year: number, monthIndexZeroBased: number): Sync
   return { mesInicio, mesFim };
 }
 
-export function buildCurrentAndPreviousRange(): { atual: SyncRange; anterior: SyncRange } {
+export function buildCurrentAndPreviousRange(): {
+  atual: SyncRange;
+  anterior: SyncRange;
+} {
   const now = new Date();
   const atual = buildMonthRange(now.getFullYear(), now.getMonth());
   const anteriorDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const anterior = buildMonthRange(anteriorDate.getFullYear(), anteriorDate.getMonth());
+  const anterior = buildMonthRange(
+    anteriorDate.getFullYear(),
+    anteriorDate.getMonth()
+  );
   return { atual, anterior };
 }
 
-export function normalizeRange(startISO: string, endISO: string): { start: string; end: string } {
+export function normalizeRange(
+  startISO: string,
+  endISO: string
+): { start: string; end: string } {
   const start = new Date(startISO);
   const end = new Date(endISO);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
@@ -46,7 +62,10 @@ export function normalizeRange(startISO: string, endISO: string): { start: strin
   return { start: endISO, end: startISO };
 }
 
-export function splitRangeByMonth(startISO: string, endISO: string): SyncRange[] {
+export function splitRangeByMonth(
+  startISO: string,
+  endISO: string
+): SyncRange[] {
   const norm = normalizeRange(startISO, endISO);
   const start = new Date(norm.start);
   const end = new Date(norm.end);
@@ -61,12 +80,17 @@ export function splitRangeByMonth(startISO: string, endISO: string): SyncRange[]
     const { mesInicio, mesFim } = buildMonthRange(year, month);
 
     // Limita início/fim ao intervalo original
-    const clampedInicio = cursor.getTime() === new Date(Date.UTC(start.getFullYear(), start.getMonth(), 1)).getTime()
-      ? startISO
-      : mesInicio;
+    const clampedInicio =
+      cursor.getTime() ===
+      new Date(Date.UTC(start.getFullYear(), start.getMonth(), 1)).getTime()
+        ? startISO
+        : mesInicio;
     const ultimoDia = new Date(year, month + 1, 0).getDate();
     const rawFim = `${year}-${String(month + 1).padStart(2, "0")}-${String(ultimoDia).padStart(2, "0")}`;
-    const clampedFim = month === end.getUTCMonth() && year === end.getUTCFullYear() ? endISO : rawFim;
+    const clampedFim =
+      month === end.getUTCMonth() && year === end.getUTCFullYear()
+        ? endISO
+        : rawFim;
 
     ranges.push({ mesInicio: clampedInicio, mesFim: clampedFim });
     cursor.setUTCMonth(cursor.getUTCMonth() + 1);
@@ -75,7 +99,38 @@ export function splitRangeByMonth(startISO: string, endISO: string): SyncRange[]
   return ranges;
 }
 
-export async function syncContratosGestao(range: SyncRange): Promise<SyncMetrics> {
+export function buildMergedRangesForIntervals(
+  intervals: Array<{ dateFrom: string; dateTo: string }>
+): SyncRange[] {
+  const rangesByMonth = new Map<string, SyncRange>();
+
+  intervals.forEach(({ dateFrom, dateTo }) => {
+    splitRangeByMonth(dateFrom, dateTo).forEach(range => {
+      const key = range.mesInicio.slice(0, 7);
+      const existing = rangesByMonth.get(key);
+      if (!existing) {
+        rangesByMonth.set(key, range);
+        return;
+      }
+
+      rangesByMonth.set(key, {
+        mesInicio:
+          existing.mesInicio < range.mesInicio
+            ? existing.mesInicio
+            : range.mesInicio,
+        mesFim: existing.mesFim > range.mesFim ? existing.mesFim : range.mesFim,
+      });
+    });
+  });
+
+  return Array.from(rangesByMonth.values()).sort((a, b) =>
+    a.mesInicio.localeCompare(b.mesInicio)
+  );
+}
+
+export async function syncContratosGestao(
+  range: SyncRange
+): Promise<SyncMetrics> {
   const started = Date.now();
   const db = await getDb();
   if (!db) {
@@ -92,7 +147,7 @@ export async function syncContratosGestao(range: SyncRange): Promise<SyncMetrics
   }
 
   const rawContratos = await zohoService.buscarContratosRaw(range);
-  const ids = rawContratos.map((c) => c.ID);
+  const ids = rawContratos.map(c => c.ID);
 
   const existingHashes =
     ids.length > 0
@@ -105,7 +160,9 @@ export async function syncContratosGestao(range: SyncRange): Promise<SyncMetrics
           .where(inArray(zohoContratosSnapshot.idContrato, ids))
       : [];
 
-  const hashMap = new Map(existingHashes.map((row) => [row.idContrato, row.sourceHash]));
+  const hashMap = new Map(
+    existingHashes.map(row => [row.idContrato, row.sourceHash])
+  );
 
   let upserted = 0;
   let unchanged = 0;
@@ -165,7 +222,9 @@ export async function syncContratosGestao(range: SyncRange): Promise<SyncMetrics
       });
 
     upserted++;
-    localWarnings.forEach((w) => warnings.push(`contrato ${snapshot.idContrato}: ${w}`));
+    localWarnings.forEach(w =>
+      warnings.push(`contrato ${snapshot.idContrato}: ${w}`)
+    );
   }
 
   const durationMs = Date.now() - started;
@@ -199,10 +258,20 @@ export async function syncContratosGestao(range: SyncRange): Promise<SyncMetrics
       },
     });
 
-  return { fetched: rawContratos.length, upserted, unchanged, skipped, durationMs, warnings, range };
+  return {
+    fetched: rawContratos.length,
+    upserted,
+    unchanged,
+    skipped,
+    durationMs,
+    warnings,
+    range,
+  };
 }
 
-export async function syncContratosGestaoMesAtualEAnterior(): Promise<SyncMetrics[]> {
+export async function syncContratosGestaoMesAtualEAnterior(): Promise<
+  SyncMetrics[]
+> {
   const ranges = buildCurrentAndPreviousRange();
   const resultados: SyncMetrics[] = [];
 
@@ -212,13 +281,11 @@ export async function syncContratosGestaoMesAtualEAnterior(): Promise<SyncMetric
   return resultados;
 }
 
-export async function syncContratosGestaoIntervalo(
-  dateFrom: string,
-  dateTo: string,
+export async function syncContratosGestaoRanges(
+  ranges: SyncRange[],
   maxRecords: SyncRange["maxRecords"] = 1000,
   onProgress?: (range: SyncRange, metrics: SyncMetrics) => void
 ) {
-  const ranges = splitRangeByMonth(dateFrom, dateTo);
   const concurrency = 3;
   const timeoutMs = 30_000;
 
@@ -230,7 +297,9 @@ export async function syncContratosGestaoIntervalo(
       const current = index++;
       if (current >= ranges.length) break;
       const r = ranges[current];
-      console.log(`[GestaoSync] Sincronizando range mensal ${r.mesInicio} -> ${r.mesFim}`);
+      console.log(
+        `[GestaoSync] Sincronizando range mensal ${r.mesInicio} -> ${r.mesFim}`
+      );
       try {
         const task = syncContratosGestao({ ...r, maxRecords });
         const result = await Promise.race([
@@ -261,8 +330,24 @@ export async function syncContratosGestaoIntervalo(
     }
   };
 
-  const workers = Array.from({ length: Math.min(concurrency, ranges.length) }, () => worker());
+  const workers = Array.from(
+    { length: Math.min(concurrency, ranges.length) },
+    () => worker()
+  );
   await Promise.all(workers);
 
   return results;
+}
+
+export async function syncContratosGestaoIntervalo(
+  dateFrom: string,
+  dateTo: string,
+  maxRecords: SyncRange["maxRecords"] = 1000,
+  onProgress?: (range: SyncRange, metrics: SyncMetrics) => void
+) {
+  return syncContratosGestaoRanges(
+    splitRangeByMonth(dateFrom, dateTo),
+    maxRecords,
+    onProgress
+  );
 }
