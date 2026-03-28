@@ -39,6 +39,7 @@ interface VendedoraCardProps {
     meta: number;
     percentualMeta: number;
     tier: string;
+    baseComissionavelTotal: number;
     comissaoPrevista: number;
     contratos: any[];
     contratosSemComissao: number;
@@ -198,6 +199,35 @@ export function VendedoraCard({
   const isEligibleForIncentive = tierDefinition.multiplicador > 0;
   const showAceleradorPill =
     isEligibleForIncentive && (vendedora.aceleradorAplicado || 0) > 0;
+  const acceleratorFactor = 1 + (vendedora.aceleradorAplicado || 0);
+  const incentiveMilestones = [75, 100].map(threshold => {
+    const milestoneTier = getTierByThreshold(threshold);
+    const milestoneVisual = getTierVisual(milestoneTier.nome);
+    const unlocked = vendedora.percentualMeta >= threshold;
+    const missingPct = Math.max(0, threshold - vendedora.percentualMeta);
+
+    return {
+      threshold,
+      tierName: milestoneTier.nome,
+      visual: milestoneVisual,
+      unlocked,
+      missingPct,
+      amount:
+        vendedora.baseComissionavelTotal *
+        milestoneTier.multiplicador *
+        acceleratorFactor,
+    };
+  });
+  const incentiveSupportCopy =
+    vendedora.percentualMeta < 75
+      ? `Ao bater 75% da meta, com a produção atual você libera ${formatCurrency(
+          incentiveMilestones[0].amount
+        )}.`
+      : vendedora.percentualMeta < 100
+        ? `Em 100% da meta, com a produção atual esse incentivo sobe para ${formatCurrency(
+            incentiveMilestones[1].amount
+          )}.`
+        : "Com a produção atual, você já liberou os marcos de 75% e 100% da meta.";
   const bannerClass =
     vendedora.percentualMeta >= 150
       ? "bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 text-slate-950"
@@ -287,7 +317,7 @@ export function VendedoraCard({
                 )}
               >
                 <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                  Comissão prevista
+                  Incentivo atual
                 </div>
                 {isEligibleForIncentive ? (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -310,16 +340,92 @@ export function VendedoraCard({
                   <div className="mt-2 flex items-center gap-2 text-muted-foreground">
                     <Lock size={16} />
                     <span className="text-base font-semibold">
-                      Sem incentivo
+                      Incentivo bloqueado
                     </span>
                   </div>
                 )}
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {incentiveSupportCopy}
+                </p>
                 {vendedora.contratosSemComissao > 0 && (
                   <p className="mt-2 text-xs text-muted-foreground">
                     {vendedora.contratosSemComissao} contratos sem incentivo no
                     período.
                   </p>
                 )}
+
+                <div className="mt-4 rounded-xl border border-white/10 bg-background/40 p-3">
+                  <div className="flex items-center justify-between gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                    <span>Degraus do incentivo</span>
+                    <span>com a produção atual</span>
+                  </div>
+                  <div className="relative mt-3 space-y-3 pl-5 before:absolute before:left-[7px] before:top-3 before:bottom-3 before:w-px before:bg-white/10">
+                    {incentiveMilestones.map(milestone => (
+                      <div key={milestone.threshold} className="relative">
+                        <span
+                          className="absolute -left-[18px] top-5 h-3 w-3 rounded-full border-2"
+                          style={{
+                            backgroundColor: milestone.unlocked
+                              ? milestone.visual.accentColor
+                              : "rgba(15, 23, 42, 0.95)",
+                            borderColor: milestone.visual.accentColor,
+                          }}
+                        />
+                        <div
+                          className={cn(
+                            "rounded-xl border px-3 py-2",
+                            milestone.unlocked
+                              ? milestone.visual.softBgClass
+                              : "border-white/10 bg-background/60"
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm font-semibold text-foreground">
+                                  {milestone.threshold}% da meta
+                                </span>
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    "text-[10px]",
+                                    milestone.unlocked
+                                      ? `${milestone.visual.textClass} border-white/10`
+                                      : "border-white/10 text-muted-foreground"
+                                  )}
+                                >
+                                  {milestone.tierName}
+                                </Badge>
+                              </div>
+                              <p className="mt-1 text-[11px] text-muted-foreground">
+                                {milestone.unlocked
+                                  ? `Degrau liberado. Incentivo ativo nesse nível.`
+                                  : `Faltam ${milestone.missingPct.toFixed(
+                                      1
+                                    )}% da meta para destravar.`}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <div
+                                className={cn(
+                                  "text-sm font-black",
+                                  milestone.unlocked
+                                    ? milestone.visual.textClass
+                                    : "text-slate-100"
+                                )}
+                              >
+                                {formatCurrency(milestone.amount)}
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">
+                                no {milestone.tierName}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Stats */}

@@ -10,12 +10,14 @@ export default function TVMode() {
     refetchInterval: 30000, // Atualiza a cada 30 segundos no modo TV
   });
 
-  const [currentView, setCurrentView] = useState<"overview" | "ranking">("overview");
+  const [currentView, setCurrentView] = useState<"overview" | "ranking">(
+    "overview"
+  );
 
   // Alterna entre visões a cada 15 segundos
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentView((prev) => (prev === "overview" ? "ranking" : "overview"));
+      setCurrentView(prev => (prev === "overview" ? "ranking" : "overview"));
     }, 15000);
 
     return () => clearInterval(interval);
@@ -96,7 +98,9 @@ export default function TVMode() {
             </div>
             <div
               className={`text-5xl font-bold ${
-                data.metaGlobal.acelerador > 0 ? "text-yellow-400" : "text-gray-500"
+                data.metaGlobal.acelerador > 0
+                  ? "text-yellow-400"
+                  : "text-gray-500"
               }`}
             >
               {data.metaGlobal.acelerador > 0
@@ -166,8 +170,8 @@ export default function TVMode() {
                           index === 0
                             ? "text-yellow-400"
                             : index === 1
-                            ? "text-gray-300"
-                            : "text-orange-400"
+                              ? "text-gray-300"
+                              : "text-orange-400"
                         }`}
                       >
                         <Trophy size={32} />
@@ -197,17 +201,21 @@ export default function TVMode() {
 
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
-                      <div className="text-sm text-muted-foreground">Realizado</div>
+                      <div className="text-sm text-muted-foreground">
+                        Realizado
+                      </div>
                       <div className="text-xl font-bold">
                         {formatCurrency(vendedora.realizado)}
                       </div>
                     </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground">Incentivo</div>
-                    <div className="text-xl font-bold text-green-400">
-                      {formatCurrency(vendedora.comissaoPrevista)}
+                    <div>
+                      <div className="text-sm text-muted-foreground">
+                        Incentivo
+                      </div>
+                      <div className="text-xl font-bold text-green-400">
+                        {formatCurrency(vendedora.comissaoPrevista)}
+                      </div>
                     </div>
-                  </div>
                   </div>
 
                   <div className="flex items-center justify-between">
@@ -217,7 +225,9 @@ export default function TVMode() {
                       strokeWidth={6}
                     />
                     <div className="text-right">
-                      <div className="text-sm text-muted-foreground">Contratos</div>
+                      <div className="text-sm text-muted-foreground">
+                        Contratos
+                      </div>
                       <div className="text-3xl font-bold">
                         {vendedora.contratos.length}
                       </div>
@@ -264,7 +274,9 @@ export default function TVMode() {
                     </div>
                     <TierBadge tier={vendedora.tier} size="lg" />
                     <div className="text-right">
-                      <div className="text-sm text-muted-foreground">Comissão</div>
+                      <div className="text-sm text-muted-foreground">
+                        Incentivo
+                      </div>
                       <div className="text-2xl font-bold text-green-400">
                         {formatCurrency(vendedora.comissaoPrevista)}
                       </div>
