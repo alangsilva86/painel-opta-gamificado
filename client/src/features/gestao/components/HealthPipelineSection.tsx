@@ -121,38 +121,56 @@ export function HealthPipelineSection({
     ]);
   };
 
+  const gridColor = "rgba(255,255,255,0.06)";
+  const axisColor = "rgba(255,255,255,0.35)";
+  const legendFormatter = (value: string, entry: any, hiddenKey: boolean) => (
+    <span className={`text-xs ${hiddenKey ? "text-muted-foreground/50 line-through" : "text-foreground/80"}`}>
+      {value}
+    </span>
+  );
+
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Card className="bg-slate-950 border-slate-800">
-        <CardHeader>
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-2">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <CardTitle>Série temporal (Comissão x Líquido)</CardTitle>
+            <CardTitle className="text-sm font-semibold">Comissão × Líquido ao longo do tempo</CardTitle>
             <Tabs
               value={granularity}
               onValueChange={value =>
                 onGranularityChange(value as TimeseriesGranularity)
               }
             >
-              <TabsList className="bg-slate-900">
-                <TabsTrigger value="day">Dia</TabsTrigger>
-                <TabsTrigger value="week">Semana</TabsTrigger>
-                <TabsTrigger value="month">Mês</TabsTrigger>
+              <TabsList className="bg-secondary h-8">
+                <TabsTrigger value="day" className="text-xs h-6">Dia</TabsTrigger>
+                <TabsTrigger value="week" className="text-xs h-6">Semana</TabsTrigger>
+                <TabsTrigger value="month" className="text-xs h-6">Mês</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
         </CardHeader>
-        <CardContent className="h-64">
+        <CardContent className="h-72">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={timeseriesData}>
-              <CartesianGrid strokeDasharray="2 4" stroke="#1f2937" />
+            <LineChart data={timeseriesData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 6" stroke={gridColor} vertical={false} />
               <XAxis
                 dataKey="date"
-                stroke="#9ca3af"
+                stroke={axisColor}
+                tick={{ fill: axisColor, fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
                 tickFormatter={value =>
                   formatGranularityTick(value, granularity)
                 }
               />
-              <YAxis stroke="#9ca3af" tickFormatter={currencyTick} />
+              <YAxis
+                stroke={axisColor}
+                tick={{ fill: axisColor, fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={currencyTick}
+                width={72}
+              />
               <Tooltip content={dualLineTooltip} />
               <Legend
                 onClick={o => onLegendToggle((o as any).dataKey)}
@@ -164,13 +182,7 @@ export function HealthPipelineSection({
                       : key === "liquidoPlot"
                         ? !seriesVisibility.liquido
                         : false;
-                  return (
-                    <span
-                      className={`text-xs ${isHidden ? "text-slate-500 line-through" : "text-slate-200"}`}
-                    >
-                      {value} · clique para esconder/mostrar
-                    </span>
-                  );
+                  return legendFormatter(value, entry, isHidden);
                 }}
               />
               <Line
@@ -181,17 +193,17 @@ export function HealthPipelineSection({
                 dot={false}
                 strokeWidth={2}
                 hide={!seriesVisibility.comissao}
-                activeDot={{ r: 4 }}
+                activeDot={{ r: 4, strokeWidth: 0 }}
               />
               <Line
                 type="monotone"
                 dataKey="liquidoPlot"
                 name="Líquido"
-                stroke="#3b82f6"
+                stroke="#6366f1"
                 dot={false}
                 strokeWidth={2}
                 hide={!seriesVisibility.liquido}
-                activeDot={{ r: 4 }}
+                activeDot={{ r: 4, strokeWidth: 0 }}
               />
               {necessarioPorDia && granularity === "day" ? (
                 <ReferenceLine
@@ -199,10 +211,10 @@ export function HealthPipelineSection({
                   stroke="#f97316"
                   strokeDasharray="4 4"
                   label={{
-                    value: "Necessário/dia",
-                    position: "left",
+                    value: "Meta/dia",
+                    position: "insideTopLeft",
                     fill: "#f97316",
-                    fontSize: 12,
+                    fontSize: 11,
                   }}
                 />
               ) : null}
@@ -211,11 +223,11 @@ export function HealthPipelineSection({
         </CardContent>
       </Card>
 
-      <Card className="bg-slate-950 border-slate-800">
-        <CardHeader>
-          <CardTitle>Pipeline por Etapa</CardTitle>
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold">Distribuição por Etapa do Pipeline</CardTitle>
         </CardHeader>
-        <CardContent className="h-64">
+        <CardContent className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             {stageData.length === 0 ? (
               <EmptyChart
@@ -223,16 +235,23 @@ export function HealthPipelineSection({
                 onClearFilters={onClearFilters}
               />
             ) : (
-              <BarChart data={stageData}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1f2937" />
+              <BarChart data={stageData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 6" stroke={gridColor} vertical={false} />
                 <XAxis
                   dataKey="etapa"
-                  stroke="#9ca3af"
+                  stroke={axisColor}
+                  tick={{ fill: axisColor, fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
                   tickFormatter={v => shortLabel(v, 14)}
                 />
                 <YAxis
-                  stroke="#9ca3af"
+                  stroke={axisColor}
+                  tick={{ fill: axisColor, fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
                   tickFormatter={v => formatCurrency(v)}
+                  width={72}
                 />
                 <Tooltip content={dualBarTooltip} />
                 <Legend
@@ -247,19 +266,14 @@ export function HealthPipelineSection({
                           : key === "liquidoSem"
                             ? !seriesVisibility.liquidoSem
                             : false;
-                    return (
-                      <span
-                        className={`text-xs ${isHidden ? "text-slate-500 line-through" : "text-slate-200"}`}
-                      >
-                        {value} · clique para esconder/mostrar
-                      </span>
-                    );
+                    return legendFormatter(value, entry, isHidden);
                   }}
                 />
                 <Bar
                   dataKey="comissaoPlot"
                   name="Comissão"
                   fill="#22c55e"
+                  radius={[3, 3, 0, 0]}
                   cursor="pointer"
                   hide={!seriesVisibility.comissao}
                   onClick={data => onStageClick((data as any).etapa)}
@@ -267,7 +281,8 @@ export function HealthPipelineSection({
                 <Bar
                   dataKey="liquidoPlot"
                   name="Líquido"
-                  fill="#3b82f6"
+                  fill="#6366f1"
+                  radius={[3, 3, 0, 0]}
                   cursor="pointer"
                   hide={!seriesVisibility.liquido}
                   onClick={data => onStageClick((data as any).etapa)}
@@ -275,7 +290,8 @@ export function HealthPipelineSection({
                 <Bar
                   dataKey="liquidoSem"
                   name="Líquido sem comissão"
-                  fill="#9ca3af"
+                  fill="rgba(255,255,255,0.18)"
+                  radius={[3, 3, 0, 0]}
                   cursor="pointer"
                   stackId="sem"
                   hide={!seriesVisibility.liquidoSem}

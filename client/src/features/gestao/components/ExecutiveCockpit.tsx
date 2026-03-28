@@ -30,19 +30,23 @@ export function ExecutiveCockpit({
 }: ExecutiveCockpitProps) {
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-white">
-            Executive Cockpit
+          <h2 className="text-lg font-semibold text-foreground">
+            Visão Executiva
           </h2>
-          <p className="text-sm text-slate-400">
-            Leitura semântica do negócio para decisão rápida.
+          <p className="text-sm text-muted-foreground">
+            Diagnóstico semântico do negócio para decisão rápida.
           </p>
         </div>
-        <div className="rounded-full border border-slate-800 bg-slate-950/90 px-3 py-1.5 text-xs text-slate-300">
+        <div className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+          comparisonEnabled
+            ? "border-primary/30 bg-primary/10 text-primary"
+            : "border-border bg-card text-muted-foreground"
+        }`}>
           {comparisonEnabled
-            ? "Comparação contextual ligada"
-            : "Ative a comparação para enriquecer os deltas executivos"}
+            ? "Comparação ativa"
+            : "Comparação desligada"}
         </div>
       </div>
 

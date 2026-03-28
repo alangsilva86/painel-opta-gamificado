@@ -52,6 +52,7 @@
   --chart-3: oklch(0.7 0.2 50);
   --chart-4: oklch(0.6 0.22 330);
   --chart-5: oklch(0.65 0.2 200);
+  --chart-6: oklch(0.62 0.22 290);
   --radius: 0.75rem;
   --background: oklch(0.12 0.02 265);
   --foreground: oklch(0.98 0 0);
@@ -133,6 +134,11 @@
 @layer utilities {
   .container {
     @apply mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Section header pattern: thin left accent + label */
+  .section-heading {
+    @apply relative pl-3 before:absolute before:left-0 before:top-0.5 before:h-[1.1em] before:w-0.5 before:rounded-full before:bg-primary/60;
   }
 }
 

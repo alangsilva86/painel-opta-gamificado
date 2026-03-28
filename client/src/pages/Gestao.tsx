@@ -880,13 +880,13 @@ export default function Gestao() {
 
   if (!authed) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white px-4">
-        <Card className="w-full max-w-md bg-slate-950 border-slate-800">
+      <div className="min-h-screen flex items-center justify-center bg-background text-foreground px-4">
+        <Card className="w-full max-w-md bg-card border-border">
           <CardHeader>
             <CardTitle>Acesso Gestão</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-slate-300">
+            <p className="text-sm text-muted-foreground">
               Insira a senha fixa para liberar a visualização dos KPIs de
               Gestão.
             </p>
@@ -917,7 +917,7 @@ export default function Gestao() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white px-4 py-6 space-y-6">
+    <div className="min-h-screen bg-background text-foreground px-4 py-6 space-y-6">
       <FilterBar
         dateFrom={dateFrom}
         dateTo={dateTo}
@@ -971,37 +971,27 @@ export default function Gestao() {
       <div className="space-y-6 pt-2">
         <ActiveFilters filterState={filterState} onRemove={applyFilter} />
 
-        {(isApplying ||
-          syncMutation.isPending ||
-          syncStatusQuery.isFetching) && (
-          <Card className="bg-slate-950 border-slate-800">
-            <CardContent className="flex items-center gap-3 text-slate-200 py-3">
-              <Spinner className="h-4 w-4" />
+        {isFetchingData && (
+          <Card className="bg-card border-border">
+            <CardContent className="flex items-center gap-3 text-foreground/80 py-3">
+              <Spinner className="h-4 w-4 text-primary" />
               <div className="text-sm">
-                Sincronizando dados com Zoho para o período selecionado. Aguarde
-                para ver os indicadores atualizados.
+                {isApplying || syncMutation.isPending
+                  ? "Sincronizando dados com Zoho para o período selecionado..."
+                  : "Preparando indicadores, aguarde..."}
               </div>
             </CardContent>
           </Card>
         )}
 
-        {isFetchingData && (
-          <div className="flex items-center gap-3 text-slate-300">
-            <Spinner className="h-5 w-5" />
-            <span>
-              Buscando dados no Zoho e preparando a leitura executiva...
-            </span>
-          </div>
-        )}
-
         {!hasFetched && (
-          <Card className="bg-slate-950 border-slate-800">
+          <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle>Dados ainda não carregados</CardTitle>
+              <CardTitle className="text-base">Nenhum dado carregado</CardTitle>
             </CardHeader>
-            <CardContent className="text-sm text-slate-300">
-              Escolha o período e clique em “Aplicar filtros” para buscar os
-              indicadores.
+            <CardContent className="text-sm text-muted-foreground">
+              Selecione o período desejado e clique em "Aplicar filtros" para
+              buscar os indicadores.
             </CardContent>
           </Card>
         )}
@@ -1016,12 +1006,11 @@ export default function Gestao() {
 
             <section className="space-y-4">
               <div>
-                <h2 className="text-lg font-semibold text-white">
-                  Drivers & Risks
+                <h2 className="text-lg font-semibold text-foreground section-heading">
+                  Análise de Drivers
                 </h2>
-                <p className="text-sm text-slate-400">
-                  Explicações acionáveis para a diretoria entender o que mudou,
-                  por que mudou e onde agir agora.
+                <p className="text-sm text-muted-foreground">
+                  O que mudou, por que mudou e onde agir agora.
                 </p>
               </div>
               <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
@@ -1045,16 +1034,15 @@ export default function Gestao() {
 
             <section className="space-y-3">
               <div>
-                <h2 className="text-lg font-semibold text-white">
-                  Contexto Executivo
+                <h2 className="text-lg font-semibold text-foreground section-heading">
+                  KPIs do Período
                 </h2>
-                <p className="text-sm text-slate-400">
-                  Indicadores complementares para calibrar meta, ritmo, volume e
-                  qualidade do recorte.
+                <p className="text-sm text-muted-foreground">
+                  Indicadores de meta, ritmo, volume e qualidade do recorte selecionado.
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-3 md:grid-cols-3 xl:grid-cols-6">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
                 <MetricCard
                   title="Comissão"
                   value={formatCurrency(resumoQuery.data.cards.comissao)}
@@ -1201,12 +1189,11 @@ export default function Gestao() {
 
             <section className="space-y-4">
               <div>
-                <h2 className="text-lg font-semibold text-white">
-                  Diagnostics
+                <h2 className="text-lg font-semibold text-foreground section-heading">
+                  Diagnóstico
                 </h2>
-                <p className="text-sm text-slate-400">
-                  Exploração guiada do desempenho por tempo, pipeline, mix,
-                  vendedoras e oportunidades de alavanca.
+                <p className="text-sm text-muted-foreground">
+                  Desempenho por tempo, pipeline, mix, vendedoras e alavancas de melhoria.
                 </p>
               </div>
 
@@ -1308,12 +1295,11 @@ export default function Gestao() {
 
             <section className="space-y-4">
               <div>
-                <h2 className="text-lg font-semibold text-white">
-                  Audit & Drilldown
+                <h2 className="text-lg font-semibold text-foreground section-heading">
+                  Auditoria e Rastreamento
                 </h2>
-                <p className="text-sm text-slate-400">
-                  Confiabilidade, sinais automáticos, progresso de sincronização
-                  e rastreabilidade detalhada do recorte.
+                <p className="text-sm text-muted-foreground">
+                  Alertas automáticos, progresso de sincronização e rastreabilidade detalhada do recorte.
                 </p>
               </div>
 
@@ -1325,20 +1311,20 @@ export default function Gestao() {
               />
 
               {!isApplying && !syncMutation.isPending && lastSyncSummary && (
-                <Card className="bg-slate-950 border-slate-800">
-                  <CardContent className="flex flex-wrap items-center gap-4 py-3 text-sm text-slate-200">
-                    <div className="font-semibold">Última sincronização</div>
-                    <div>Buscados: {lastSyncSummary.fetched}</div>
-                    <div>Inseridos: {lastSyncSummary.upserted}</div>
-                    <div>Iguais: {lastSyncSummary.unchanged}</div>
-                    <div>Pulados: {lastSyncSummary.skipped}</div>
+                <Card className="bg-card border-border">
+                  <CardContent className="flex flex-wrap items-center gap-x-5 gap-y-2 py-3 text-sm">
+                    <div className="font-semibold text-foreground">Última sincronização</div>
+                    <div className="text-muted-foreground">Buscados: <span className="text-foreground font-medium">{lastSyncSummary.fetched}</span></div>
+                    <div className="text-muted-foreground">Inseridos: <span className="text-foreground font-medium">{lastSyncSummary.upserted}</span></div>
+                    <div className="text-muted-foreground">Iguais: <span className="text-foreground font-medium">{lastSyncSummary.unchanged}</span></div>
+                    <div className="text-muted-foreground">Pulados: <span className="text-foreground font-medium">{lastSyncSummary.skipped}</span></div>
                     {lastSyncSummary.warnings > 0 && (
-                      <div className="text-amber-300">
-                        Avisos: {lastSyncSummary.warnings}
+                      <div className="text-amber-400 font-medium">
+                        {lastSyncSummary.warnings} aviso{lastSyncSummary.warnings > 1 ? "s" : ""}
                       </div>
                     )}
                     {syncStatusQuery.data?.status !== "done" && (
-                      <div className="text-slate-400">
+                      <div className="text-muted-foreground">
                         Aguardando conclusão...
                       </div>
                     )}
@@ -1348,36 +1334,35 @@ export default function Gestao() {
 
               {syncStatusQuery.data?.perMonth &&
                 syncStatusQuery.data?.perMonth.length > 0 && (
-                  <Card className="bg-slate-950 border-slate-800">
-                    <CardHeader>
-                      <CardTitle>Progresso por mês</CardTitle>
+                  <Card className="bg-card border-border">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-semibold">Progresso de sincronização por mês</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-2 text-sm">
+                    <CardContent className="space-y-1.5 text-sm">
                       {syncStatusQuery.data.perMonth
                         .slice()
                         .sort((a, b) => a.mesInicio.localeCompare(b.mesInicio))
                         .map(m => (
                           <div
                             key={`${m.mesInicio}-${m.mesFim}`}
-                            className="flex items-center justify-between rounded border border-slate-800 bg-slate-900 px-3 py-2"
+                            className="flex items-center justify-between rounded-lg border border-border bg-secondary/50 px-3 py-2"
                           >
-                            <div className="flex flex-col">
-                              <span className="font-medium">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-medium text-foreground">
                                 {m.mesInicio} → {m.mesFim}
                               </span>
-                              <span className="text-xs text-slate-400">
-                                {m.status === "done" ? "Concluído" : "Erro"} ·{" "}
-                                {m.fetched} buscados · {m.upserted} inseridos
+                              <span className="text-xs text-muted-foreground">
+                                {m.status === "done" ? "Concluído" : "Erro"} · {m.fetched} buscados · {m.upserted} inseridos
                               </span>
                             </div>
                             <div
-                              className={`rounded px-2 py-1 text-xs ${
+                              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                                 m.status === "done"
-                                  ? "bg-emerald-900 text-emerald-200"
-                                  : "bg-amber-900 text-amber-200"
+                                  ? "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/25"
+                                  : "bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/25"
                               }`}
                             >
-                              {m.status === "done" ? "100%" : "Com aviso"}
+                              {m.status === "done" ? "OK" : "Aviso"}
                             </div>
                           </div>
                         ))}
