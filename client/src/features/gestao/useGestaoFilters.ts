@@ -1,27 +1,14 @@
 import { useCallback, useMemo, useState } from "react";
 import { endOfMonthISO, startOfMonthISO } from "./utils";
+import type {
+  GestaoComparisonPreset as ComparisonPreset,
+  GestaoFilterState as FilterState,
+  GestaoFlagFilters as FlagFilters,
+  GestaoSortBy as SortBy,
+  GestaoSortDir as SortDir,
+} from "./types";
 
-export type SortBy = "data" | "comissao" | "liquido" | "takeRate";
-export type SortDir = "asc" | "desc";
-export type ComparisonPreset =
-  | "prev_month"
-  | "prev_week"
-  | "prev_year"
-  | "custom";
-
-export type FilterState = {
-  etapaPipeline: string[];
-  vendedorNome: string[];
-  produto: string[];
-  tipoOperacao: string[];
-};
-
-export type FlagFilters = {
-  comissaoCalculada: boolean;
-  liquidoFallback: boolean;
-  inconsistenciaData: boolean;
-  semComissao: boolean;
-};
+export type { ComparisonPreset, FilterState, FlagFilters, SortBy, SortDir };
 
 const initialFilterState: FilterState = {
   etapaPipeline: [],
@@ -96,32 +83,91 @@ function shiftYears(dateISO: string, years: number) {
   return formatISO(target);
 }
 
-export function useGestaoFilters(now = new Date()) {
+type UseGestaoFiltersOptions = {
+  initialState?: Partial<{
+    dateFrom: string;
+    dateTo: string;
+    comparisonMode: boolean;
+    comparisonDateFrom: string;
+    comparisonDateTo: string;
+    filterState: FilterState;
+    flagFilters: FlagFilters;
+    sortBy: SortBy;
+    sortDir: SortDir;
+    incluirSemComissao: boolean;
+  }>;
+};
+
+function cloneFilterState(state?: Partial<FilterState>): FilterState {
+  return {
+    etapaPipeline: [...(state?.etapaPipeline ?? [])],
+    vendedorNome: [...(state?.vendedorNome ?? [])],
+    produto: [...(state?.produto ?? [])],
+    tipoOperacao: [...(state?.tipoOperacao ?? [])],
+  };
+}
+
+function cloneFlags(flags?: Partial<FlagFilters>): FlagFilters {
+  return {
+    comissaoCalculada: flags?.comissaoCalculada ?? false,
+    liquidoFallback: flags?.liquidoFallback ?? false,
+    inconsistenciaData: flags?.inconsistenciaData ?? false,
+    semComissao: flags?.semComissao ?? false,
+  };
+}
+
+export function useGestaoFilters(
+  now = new Date(),
+  options?: UseGestaoFiltersOptions
+) {
   const initialFrom = startOfMonthISO(now);
   const initialTo = endOfMonthISO(now);
+  const initialState = options?.initialState;
+  const defaultDateFrom = initialState?.dateFrom || initialFrom;
+  const defaultDateTo = initialState?.dateTo || initialTo;
+  const defaultFilters = cloneFilterState(initialState?.filterState);
+  const defaultFlags = cloneFlags(initialState?.flagFilters);
+  const defaultComparisonMode = initialState?.comparisonMode ?? false;
+  const defaultComparisonDateFrom = initialState?.comparisonDateFrom || "";
+  const defaultComparisonDateTo = initialState?.comparisonDateTo || "";
+  const defaultSortBy = initialState?.sortBy || "data";
+  const defaultSortDir = initialState?.sortDir || "desc";
+  const defaultIncludeNoCommission = initialState?.incluirSemComissao ?? true;
 
-  const [draftDateFrom, setDraftDateFrom] = useState(initialFrom);
-  const [draftDateTo, setDraftDateTo] = useState(initialTo);
-  const [appliedDateFrom, setAppliedDateFrom] = useState(initialFrom);
-  const [appliedDateTo, setAppliedDateTo] = useState(initialTo);
+  const [draftDateFrom, setDraftDateFrom] = useState(defaultDateFrom);
+  const [draftDateTo, setDraftDateTo] = useState(defaultDateTo);
+  const [appliedDateFrom, setAppliedDateFrom] = useState(defaultDateFrom);
+  const [appliedDateTo, setAppliedDateTo] = useState(defaultDateTo);
 
   const [draftFilterState, setDraftFilterState] =
-    useState<FilterState>(initialFilterState);
-  const [filterState, setFilterState] =
-    useState<FilterState>(initialFilterState);
+    useState<FilterState>(defaultFilters);
+  const [filterState, setFilterState] = useState<FilterState>(defaultFilters);
 
-  const [draftComparisonMode, setDraftComparisonMode] = useState(false);
-  const [comparisonModeApplied, setComparisonModeApplied] = useState(false);
-  const [draftComparisonDateFrom, setDraftComparisonDateFrom] = useState("");
-  const [draftComparisonDateTo, setDraftComparisonDateTo] = useState("");
-  const [appliedComparisonDateFrom, setAppliedComparisonDateFrom] =
-    useState("");
-  const [appliedComparisonDateTo, setAppliedComparisonDateTo] = useState("");
+  const [draftComparisonMode, setDraftComparisonMode] = useState(
+    defaultComparisonMode
+  );
+  const [comparisonModeApplied, setComparisonModeApplied] = useState(
+    defaultComparisonMode
+  );
+  const [draftComparisonDateFrom, setDraftComparisonDateFrom] = useState(
+    defaultComparisonDateFrom
+  );
+  const [draftComparisonDateTo, setDraftComparisonDateTo] = useState(
+    defaultComparisonDateTo
+  );
+  const [appliedComparisonDateFrom, setAppliedComparisonDateFrom] = useState(
+    defaultComparisonDateFrom
+  );
+  const [appliedComparisonDateTo, setAppliedComparisonDateTo] = useState(
+    defaultComparisonDateTo
+  );
 
-  const [flagFilters, setFlagFilters] = useState<FlagFilters>(initialFlags);
-  const [sortBy, setSortBy] = useState<SortBy>("data");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [incluirSemComissao, setIncluirSemComissao] = useState(true);
+  const [flagFilters, setFlagFilters] = useState<FlagFilters>(defaultFlags);
+  const [sortBy, setSortBy] = useState<SortBy>(defaultSortBy);
+  const [sortDir, setSortDir] = useState<SortDir>(defaultSortDir);
+  const [incluirSemComissao, setIncluirSemComissao] = useState(
+    defaultIncludeNoCommission
+  );
   const [page, setPage] = useState(1);
 
   const setDateFrom = useCallback((value: string) => {
@@ -190,9 +236,9 @@ export function useGestaoFilters(now = new Date()) {
       newDateTo,
     });
     setPage(1);
-    setDraftFilterState(initialFilterState);
-    setFilterState(initialFilterState);
-    setFlagFilters(initialFlags);
+    setDraftFilterState({ ...initialFilterState });
+    setFilterState({ ...initialFilterState });
+    setFlagFilters({ ...initialFlags });
     setIncluirSemComissao(true);
     setDraftDateFrom(newDateFrom);
     setDraftDateTo(newDateTo);
@@ -205,6 +251,50 @@ export function useGestaoFilters(now = new Date()) {
     setAppliedComparisonDateFrom("");
     setAppliedComparisonDateTo("");
   }, [now]);
+
+  const applyViewState = useCallback(
+    (
+      view: Partial<{
+        dateFrom: string;
+        dateTo: string;
+        comparisonMode: boolean;
+        comparisonDateFrom: string;
+        comparisonDateTo: string;
+        filterState: FilterState;
+        flagFilters: FlagFilters;
+        sortBy: SortBy;
+        sortDir: SortDir;
+        incluirSemComissao: boolean;
+      }>
+    ) => {
+      const nextDateFrom = view.dateFrom || initialFrom;
+      const nextDateTo = view.dateTo || initialTo;
+      const nextComparisonMode = view.comparisonMode ?? false;
+      const nextComparisonDateFrom = view.comparisonDateFrom || "";
+      const nextComparisonDateTo = view.comparisonDateTo || "";
+      const nextFilterState = cloneFilterState(view.filterState);
+      const nextFlags = cloneFlags(view.flagFilters);
+
+      setPage(1);
+      setDraftDateFrom(nextDateFrom);
+      setDraftDateTo(nextDateTo);
+      setAppliedDateFrom(nextDateFrom);
+      setAppliedDateTo(nextDateTo);
+      setDraftFilterState(nextFilterState);
+      setFilterState(nextFilterState);
+      setDraftComparisonMode(nextComparisonMode);
+      setComparisonModeApplied(nextComparisonMode);
+      setDraftComparisonDateFrom(nextComparisonDateFrom);
+      setDraftComparisonDateTo(nextComparisonDateTo);
+      setAppliedComparisonDateFrom(nextComparisonDateFrom);
+      setAppliedComparisonDateTo(nextComparisonDateTo);
+      setFlagFilters(nextFlags);
+      setSortBy(view.sortBy || "data");
+      setSortDir(view.sortDir || "desc");
+      setIncluirSemComissao(view.incluirSemComissao ?? true);
+    },
+    [initialFrom, initialTo]
+  );
 
   const handleSort = useCallback(
     (col: SortBy) => {
@@ -370,5 +460,6 @@ export function useGestaoFilters(now = new Date()) {
     setIncluirSemComissao,
     page,
     setPage,
+    applyViewState,
   };
 }

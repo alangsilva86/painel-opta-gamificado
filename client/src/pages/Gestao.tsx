@@ -3,12 +3,12 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { ActiveFilters } from "@/features/gestao/components/ActiveFilters";
 import { AlertsCard } from "@/features/gestao/components/AlertsCard";
 import { ClickableList } from "@/features/gestao/components/ClickableList";
 import { DrilldownTable } from "@/features/gestao/components/DrilldownTable";
+import { ExecutiveCockpit } from "@/features/gestao/components/ExecutiveCockpit";
 import { ExecutiveSummary } from "@/features/gestao/components/ExecutiveSummary";
 import { HealthPipelineSection } from "@/features/gestao/components/HealthPipelineSection";
 import { FilterBar } from "@/features/gestao/components/FilterBar";
@@ -18,13 +18,32 @@ import { MixSection } from "@/features/gestao/components/MixSection";
 import { ProductRankingList } from "@/features/gestao/components/ProductRankingList";
 import { SalesHeatmap } from "@/features/gestao/components/SalesHeatmap";
 import { SellerPerformanceTable } from "@/features/gestao/components/SellerPerformanceTable";
+import { VariationDrivers } from "@/features/gestao/components/VariationDrivers";
+import { WatchlistPanel } from "@/features/gestao/components/WatchlistPanel";
 import {
   aggregateTimeseries,
   formatCurrency,
   formatPercent,
+  mergeExecutiveMetricsWithComparison,
   type TimeseriesGranularity,
 } from "@/features/gestao/utils";
 import { useGestaoFilters } from "@/features/gestao/useGestaoFilters";
+import type {
+  GestaoSavedView,
+  GestaoSeriesVisibility,
+  GestaoViewState,
+} from "@/features/gestao/types";
+import {
+  buildPresetViews,
+  createCustomSavedView,
+  GESTAO_VIEW_DEFAULTS,
+  loadLastViewId,
+  loadSavedViews,
+  parseGestaoViewStateFromSearch,
+  persistLastViewId,
+  persistSavedViews,
+  serializeGestaoViewStateToSearch,
+} from "@/features/gestao/viewState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { skipToken } from "@tanstack/react-query";
@@ -51,6 +70,13 @@ type SyncStatus = {
 
 export default function Gestao() {
   const now = useMemo(() => new Date(), []);
+  const initialViewState = useMemo<Partial<GestaoViewState>>(
+    () =>
+      typeof window !== "undefined"
+        ? parseGestaoViewStateFromSearch(window.location.search)
+        : {},
+    []
+  );
   const {
     dateFrom,
     dateTo,
@@ -81,7 +107,21 @@ export default function Gestao() {
     setIncluirSemComissao,
     page,
     setPage,
-  } = useGestaoFilters(now);
+    applyViewState,
+  } = useGestaoFilters(now, {
+    initialState: {
+      dateFrom: initialViewState.dateFrom,
+      dateTo: initialViewState.dateTo,
+      comparisonMode: initialViewState.comparisonMode,
+      comparisonDateFrom: initialViewState.comparisonDateFrom,
+      comparisonDateTo: initialViewState.comparisonDateTo,
+      filterState: initialViewState.filterState,
+      flagFilters: initialViewState.flagFilters,
+      sortBy: initialViewState.sortBy,
+      sortDir: initialViewState.sortDir,
+      incluirSemComissao: initialViewState.incluirSemComissao,
+    },
+  });
   const hasGestaoCookie =
     typeof document !== "undefined"
       ? document.cookie.includes("gestao_access=1")
@@ -99,7 +139,22 @@ export default function Gestao() {
   } | null>(null);
 
   const [hasFetched, setHasFetched] = useState(false);
-  const [granularity, setGranularity] = useState<TimeseriesGranularity>("day");
+  const [granularity, setGranularity] = useState<TimeseriesGranularity>(
+    initialViewState.granularity || "day"
+  );
+  const [seriesVisibility, setSeriesVisibility] =
+    useState<GestaoSeriesVisibility>(
+      initialViewState.seriesVisibility || GESTAO_VIEW_DEFAULTS.seriesVisibility
+    );
+  const [customViews, setCustomViews] = useState<GestaoSavedView[]>(() =>
+    typeof window !== "undefined" ? loadSavedViews() : []
+  );
+  const [activeViewId, setActiveViewId] = useState<string | null>(
+    initialViewState.activeViewId || null
+  );
+  const [lastViewId, setLastViewId] = useState<string | null>(() =>
+    typeof window !== "undefined" ? loadLastViewId() : null
+  );
 
   const resumoQuery = trpc.gestao.getResumo.useQuery(filters, {
     enabled: authed && hasFetched,
@@ -474,16 +529,6 @@ export default function Gestao() {
     [resumoQuery.data?.byProduct]
   );
 
-  const [seriesVisibility, setSeriesVisibility] = useState<{
-    comissao: boolean;
-    liquido: boolean;
-    liquidoSem: boolean;
-  }>({
-    comissao: true,
-    liquido: true,
-    liquidoSem: true,
-  });
-
   const handleLegendToggle = (dataKey?: string) => {
     if (!dataKey) return;
     const keyMap: Record<string, "comissao" | "liquido" | "liquidoSem"> = {
@@ -496,6 +541,193 @@ export default function Gestao() {
     const target = keyMap[dataKey];
     if (!target) return;
     setSeriesVisibility(prev => ({ ...prev, [target]: !prev[target] }));
+  };
+
+  const currentViewState = useMemo<GestaoViewState>(
+    () => ({
+      dateFrom: filters.dateFrom,
+      dateTo: filters.dateTo,
+      comparisonMode: comparisonModeApplied,
+      comparisonDateFrom: comparisonModeApplied
+        ? comparisonFilters?.dateFrom || ""
+        : "",
+      comparisonDateTo: comparisonModeApplied
+        ? comparisonFilters?.dateTo || ""
+        : "",
+      filterState,
+      flagFilters,
+      sortBy,
+      sortDir,
+      incluirSemComissao,
+      granularity,
+      seriesVisibility,
+      activeViewId,
+    }),
+    [
+      activeViewId,
+      comparisonFilters,
+      comparisonModeApplied,
+      filterState,
+      filters.dateFrom,
+      filters.dateTo,
+      flagFilters,
+      granularity,
+      incluirSemComissao,
+      seriesVisibility,
+      sortBy,
+      sortDir,
+    ]
+  );
+
+  const presetViews = useMemo(
+    () => buildPresetViews({ ...currentViewState, activeViewId: null }),
+    [currentViewState]
+  );
+
+  const allSavedViews = useMemo(
+    () => [...presetViews, ...customViews],
+    [customViews, presetViews]
+  );
+
+  const lastViewName = useMemo(
+    () => allSavedViews.find(view => view.id === lastViewId)?.name ?? null,
+    [allSavedViews, lastViewId]
+  );
+
+  useEffect(() => {
+    persistSavedViews(customViews);
+  }, [customViews]);
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      !currentViewState.dateFrom ||
+      !currentViewState.dateTo
+    ) {
+      return;
+    }
+    const nextSearch = serializeGestaoViewStateToSearch(currentViewState);
+    const currentSearch = window.location.search.replace(/^\?/, "");
+    if (currentSearch === nextSearch) return;
+    const nextUrl = nextSearch
+      ? `${window.location.pathname}?${nextSearch}`
+      : window.location.pathname;
+    window.history.replaceState(window.history.state, "", nextUrl);
+  }, [currentViewState]);
+
+  const syncForViewState = async (viewState: {
+    dateFrom: string;
+    dateTo: string;
+    comparisonMode: boolean;
+    comparisonDateFrom: string;
+    comparisonDateTo: string;
+  }) => {
+    await syncMutation.mutateAsync({
+      dateFrom: viewState.dateFrom,
+      dateTo: viewState.dateTo,
+      additionalRanges:
+        viewState.comparisonMode &&
+        viewState.comparisonDateFrom &&
+        viewState.comparisonDateTo
+          ? [
+              {
+                dateFrom: viewState.comparisonDateFrom,
+                dateTo: viewState.comparisonDateTo,
+              },
+            ]
+          : undefined,
+    });
+  };
+
+  const applySavedView = async (view: GestaoSavedView) => {
+    applyViewState({
+      dateFrom: view.state.dateFrom,
+      dateTo: view.state.dateTo,
+      comparisonMode: view.state.comparisonMode,
+      comparisonDateFrom: view.state.comparisonDateFrom,
+      comparisonDateTo: view.state.comparisonDateTo,
+      filterState: view.state.filterState,
+      flagFilters: view.state.flagFilters,
+      sortBy: view.state.sortBy,
+      sortDir: view.state.sortDir,
+      incluirSemComissao: view.state.incluirSemComissao,
+    });
+    setGranularity(view.state.granularity);
+    setSeriesVisibility(view.state.seriesVisibility);
+    setActiveViewId(view.id);
+    setLastViewId(view.id);
+    persistLastViewId(view.id);
+    setHasFetched(true);
+
+    try {
+      await syncForViewState(view.state);
+      toast.success(`Vista "${view.name}" aplicada.`);
+    } catch (error) {
+      console.error("[GestaoLog] Erro ao aplicar vista salva", error);
+      toast.error("Falha ao sincronizar a vista selecionada");
+    }
+  };
+
+  const handleSaveView = (name: string) => {
+    const nextView = createCustomSavedView(name, {
+      ...currentViewState,
+      activeViewId: null,
+    });
+    setCustomViews(prev => [nextView, ...prev]);
+    setActiveViewId(nextView.id);
+    setLastViewId(nextView.id);
+    persistLastViewId(nextView.id);
+    toast.success(`Vista "${name}" salva.`);
+  };
+
+  const handleRenameView = (id: string, name: string) => {
+    setCustomViews(prev =>
+      prev.map(view =>
+        view.id === id
+          ? { ...view, name, updatedAt: new Date().toISOString() }
+          : view
+      )
+    );
+    toast.success("Vista atualizada.");
+  };
+
+  const handleDuplicateView = (id: string) => {
+    const source = customViews.find(view => view.id === id);
+    if (!source) return;
+    const duplicated = createCustomSavedView(
+      `${source.name} copy`,
+      source.state
+    );
+    setCustomViews(prev => [duplicated, ...prev]);
+    toast.success("Vista duplicada.");
+  };
+
+  const handleDeleteView = (id: string) => {
+    setCustomViews(prev => prev.filter(view => view.id !== id));
+    if (activeViewId === id) {
+      setActiveViewId(null);
+      setLastViewId(null);
+      persistLastViewId(null);
+    }
+    toast.success("Vista removida.");
+  };
+
+  const handleResetView = () => {
+    clearFilters();
+    setGranularity("day");
+    setSeriesVisibility(GESTAO_VIEW_DEFAULTS.seriesVisibility);
+    setActiveViewId(null);
+    setLastViewId(null);
+    persistLastViewId(null);
+  };
+
+  const handleRestoreLastView = async () => {
+    const lastView = allSavedViews.find(view => view.id === lastViewId);
+    if (!lastView) {
+      toast.error("Nenhum último recorte salvo disponível.");
+      return;
+    }
+    await applySavedView(lastView);
   };
 
   const [metaInput, setMetaInput] = useState("");
@@ -631,6 +863,21 @@ export default function Gestao() {
     resumoQuery,
   ]);
 
+  const executiveMetrics = useMemo(
+    () =>
+      mergeExecutiveMetricsWithComparison(
+        resumoQuery.data?.executiveMetrics ?? [],
+        comparisonModeApplied ? comparisonQuery.data?.executiveMetrics : null
+      ),
+    [
+      comparisonModeApplied,
+      comparisonQuery.data?.executiveMetrics,
+      resumoQuery.data?.executiveMetrics,
+    ]
+  );
+
+  const comparisonResumo = comparisonModeApplied ? comparisonQuery.data : null;
+
   if (!authed) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white px-4">
@@ -683,7 +930,10 @@ export default function Gestao() {
         isApplying={isApplying}
         onApply={handleApplyFilters}
         onExport={handleExport}
-        onClear={clearFilters}
+        onClear={() => {
+          clearFilters();
+          setActiveViewId(null);
+        }}
         isExporting={exportQuery.isFetching}
         comparisonMode={comparisonMode}
         onComparisonModeChange={setComparisonMode}
@@ -698,106 +948,113 @@ export default function Gestao() {
         selectedProducts={draftFilterState.produto}
         onToggleSeller={value => toggleDraftFilter("vendedorNome", value)}
         onToggleProduct={value => toggleDraftFilter("produto", value)}
+        freshness={resumoQuery.data?.freshness ?? null}
+        dataQuality={resumoQuery.data?.dataQuality ?? null}
+        businessStatus={resumoQuery.data?.businessStatus ?? null}
+        presetViews={presetViews}
+        customViews={customViews}
+        activeViewId={activeViewId}
+        onApplySavedView={view => {
+          void applySavedView(view);
+        }}
+        onSaveView={handleSaveView}
+        onRenameView={handleRenameView}
+        onDuplicateView={handleDuplicateView}
+        onDeleteView={handleDeleteView}
+        onResetView={handleResetView}
+        onRestoreLastView={() => {
+          void handleRestoreLastView();
+        }}
+        lastViewName={lastViewName}
       />
 
-      <ActiveFilters filterState={filterState} onRemove={applyFilter} />
+      <div className="space-y-6 pt-2">
+        <ActiveFilters filterState={filterState} onRemove={applyFilter} />
 
-      {(isApplying || syncMutation.isPending || syncStatusQuery.isFetching) && (
-        <Card className="bg-slate-950 border-slate-800">
-          <CardContent className="flex items-center gap-3 text-slate-200 py-3">
-            <Spinner className="h-4 w-4" />
-            <div className="text-sm">
-              Sincronizando dados com Zoho para o período selecionado. Aguarde
-              para ver os indicadores atualizados.
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {!isApplying && !syncMutation.isPending && lastSyncSummary && (
-        <Card className="bg-slate-950 border-slate-800">
-          <CardContent className="flex flex-wrap items-center gap-4 py-3 text-sm text-slate-200">
-            <div className="font-semibold">Última sincronização</div>
-            <div>Buscados: {lastSyncSummary.fetched}</div>
-            <div>Inseridos: {lastSyncSummary.upserted}</div>
-            <div>Iguais: {lastSyncSummary.unchanged}</div>
-            <div>Pulados: {lastSyncSummary.skipped}</div>
-            {lastSyncSummary.warnings > 0 && (
-              <div className="text-amber-300">
-                Avisos: {lastSyncSummary.warnings}
-              </div>
-            )}
-            {syncStatusQuery.data?.status !== "done" && (
-              <div className="text-slate-400">Aguardando conclusão...</div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {syncStatusQuery.data?.perMonth &&
-        syncStatusQuery.data?.perMonth.length > 0 && (
+        {(isApplying ||
+          syncMutation.isPending ||
+          syncStatusQuery.isFetching) && (
           <Card className="bg-slate-950 border-slate-800">
-            <CardHeader>
-              <CardTitle>Progresso por mês</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              {syncStatusQuery.data.perMonth
-                .slice()
-                .sort((a, b) => a.mesInicio.localeCompare(b.mesInicio))
-                .map(m => (
-                  <div
-                    key={`${m.mesInicio}-${m.mesFim}`}
-                    className="flex items-center justify-between rounded border border-slate-800 bg-slate-900 px-3 py-2"
-                  >
-                    <div className="flex flex-col">
-                      <span className="font-medium">
-                        {m.mesInicio} → {m.mesFim}
-                      </span>
-                      <span className="text-xs text-slate-400">
-                        {m.status === "done" ? "Concluído" : "Erro"} ·{" "}
-                        {m.fetched} buscados · {m.upserted} inseridos
-                      </span>
-                    </div>
-                    <div
-                      className={`text-xs px-2 py-1 rounded ${m.status === "done" ? "bg-emerald-900 text-emerald-200" : "bg-amber-900 text-amber-200"}`}
-                    >
-                      {m.status === "done" ? "100%" : "Com aviso"}
-                    </div>
-                  </div>
-                ))}
+            <CardContent className="flex items-center gap-3 text-slate-200 py-3">
+              <Spinner className="h-4 w-4" />
+              <div className="text-sm">
+                Sincronizando dados com Zoho para o período selecionado. Aguarde
+                para ver os indicadores atualizados.
+              </div>
             </CardContent>
           </Card>
         )}
 
-      {isFetchingData && (
-        <div className="flex items-center gap-3 text-slate-300">
-          <Spinner className="h-5 w-5" />
-          <span>Buscando dados no Zoho e preparando gráficos...</span>
-        </div>
-      )}
+        {isFetchingData && (
+          <div className="flex items-center gap-3 text-slate-300">
+            <Spinner className="h-5 w-5" />
+            <span>
+              Buscando dados no Zoho e preparando a leitura executiva...
+            </span>
+          </div>
+        )}
 
-      {!hasFetched && (
-        <Card className="bg-slate-950 border-slate-800">
-          <CardHeader>
-            <CardTitle>Dados ainda não carregados</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-slate-300">
-            Escolha o período e clique em “Aplicar filtros” para buscar os
-            indicadores.
-          </CardContent>
-        </Card>
-      )}
+        {!hasFetched && (
+          <Card className="bg-slate-950 border-slate-800">
+            <CardHeader>
+              <CardTitle>Dados ainda não carregados</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-slate-300">
+              Escolha o período e clique em “Aplicar filtros” para buscar os
+              indicadores.
+            </CardContent>
+          </Card>
+        )}
 
-      {hasFetched && resumoQuery.data && !isFetchingData && (
-        <>
-          <ExecutiveSummary
-            data={resumoQuery.data}
-            comparisonData={comparisonModeApplied ? comparisonQuery.data : null}
-          />
+        {hasFetched && resumoQuery.data && !isFetchingData && (
+          <>
+            <ExecutiveCockpit
+              businessStatus={resumoQuery.data.businessStatus}
+              metrics={executiveMetrics}
+              comparisonEnabled={comparisonModeApplied}
+            />
 
-          <TooltipProvider delayDuration={100}>
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 bg-slate-950/60 border border-slate-800 rounded-lg p-3">
+            <section className="space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold text-white">
+                  Drivers & Risks
+                </h2>
+                <p className="text-sm text-slate-400">
+                  Explicações acionáveis para a diretoria entender o que mudou,
+                  por que mudou e onde agir agora.
+                </p>
+              </div>
+              <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+                <ExecutiveSummary
+                  items={resumoQuery.data.executiveNarrative}
+                  onApplyFilter={applyFilter}
+                />
+                <WatchlistPanel
+                  items={resumoQuery.data.watchlist}
+                  onApplyFilter={applyFilter}
+                />
+              </div>
+              <VariationDrivers
+                current={resumoQuery.data}
+                comparison={comparisonResumo}
+                onSellerClick={handleSellerClick}
+                onProductClick={handleProductClick}
+                onOperationClick={handleOperationClick}
+              />
+            </section>
+
+            <section className="space-y-3">
+              <div>
+                <h2 className="text-lg font-semibold text-white">
+                  Contexto Executivo
+                </h2>
+                <p className="text-sm text-slate-400">
+                  Indicadores complementares para calibrar meta, ritmo, volume e
+                  qualidade do recorte.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-3 md:grid-cols-3 xl:grid-cols-6">
                 <MetricCard
                   title="Comissão"
                   value={formatCurrency(resumoQuery.data.cards.comissao)}
@@ -823,7 +1080,7 @@ export default function Gestao() {
                 <MetricCard
                   title="Comissão Média %"
                   value={formatPercent(resumoQuery.data.cards.takeRate)}
-                  hint={`Limpa (sem pendências): ${formatPercent(resumoQuery.data.cards.takeRateLimpo ?? 0)}`}
+                  hint={`Limpa: ${formatPercent(resumoQuery.data.cards.takeRateLimpo ?? 0)}`}
                   tooltip="Percentual médio de comissão sobre o líquido."
                   delta={comparisonMetricDeltas.takeRate}
                   deltaLabel={
@@ -859,7 +1116,7 @@ export default function Gestao() {
                   value={formatPercent(
                     resumoQuery.data.cards.pctComissaoCalculada
                   )}
-                  tooltip="Percentual de contratos com comissão calculada via percentual (dado ausente no Zoho)."
+                  tooltip="Percentual de contratos com comissão calculada via percentual."
                   delta={comparisonMetricDeltas.pctComissaoCalculada}
                   deltaLabel={
                     comparisonModeApplied ? "vs período comparado" : undefined
@@ -867,7 +1124,8 @@ export default function Gestao() {
                   compact
                 />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <MetricCard
                   title="Meta Comissão"
                   tooltip="Meta de comissão para o mês (pode editar)."
@@ -880,7 +1138,7 @@ export default function Gestao() {
                         onChange={(e: ChangeEvent<HTMLInputElement>) =>
                           setMetaInput(e.target.value)
                         }
-                        className="bg-slate-900 border-slate-700 h-10 w-32"
+                        className="h-10 w-32 border-slate-700 bg-slate-900"
                       />
                       <Button
                         size="sm"
@@ -937,125 +1195,216 @@ export default function Gestao() {
                   compact
                 />
               </div>
-            </div>
-          </TooltipProvider>
+            </section>
 
-          <AlertsCard
-            alerts={resumoQuery.data.alerts}
-            filterState={filterState}
-            onFilter={applyFilter}
-            onRefresh={() => resumoQuery.refetch()}
-          />
+            <Separator className="bg-slate-800" />
 
-          <Separator className="bg-slate-800" />
+            <section className="space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold text-white">
+                  Diagnostics
+                </h2>
+                <p className="text-sm text-slate-400">
+                  Exploração guiada do desempenho por tempo, pipeline, mix,
+                  vendedoras e oportunidades de alavanca.
+                </p>
+              </div>
 
-          <HealthPipelineSection
-            timeseriesData={timeseriesData}
-            stageData={stageData}
-            seriesVisibility={seriesVisibility}
-            onLegendToggle={handleLegendToggle}
-            necessarioPorDia={resumoQuery.data.cards.necessarioPorDia}
-            granularity={granularity}
-            onGranularityChange={setGranularity}
-            onStageClick={handleStageClick}
-            onClearFilters={clearFilters}
-          />
+              <HealthPipelineSection
+                timeseriesData={timeseriesData}
+                stageData={stageData}
+                seriesVisibility={seriesVisibility}
+                onLegendToggle={handleLegendToggle}
+                necessarioPorDia={resumoQuery.data.cards.necessarioPorDia}
+                granularity={granularity}
+                onGranularityChange={setGranularity}
+                onStageClick={handleStageClick}
+                onClearFilters={clearFilters}
+              />
 
-          <SalesHeatmap
-            data={resumoQuery.data.timeseries}
-            dateFrom={filters.dateFrom}
-            dateTo={filters.dateTo}
-          />
+              <SalesHeatmap
+                data={resumoQuery.data.timeseries}
+                dateFrom={filters.dateFrom}
+                dateTo={filters.dateTo}
+              />
 
-          <LeversSection
-            bySeller={resumoQuery.data.bySeller}
-            byProduct={resumoQuery.data.byProduct}
-            byProductOperation={resumoQuery.data.byProductOperation}
-            filterState={filterState}
-            onSellerClick={handleSellerClick}
-            onProductOperationClick={handleProductOperationClick}
-            onProductClick={handleProductClick}
-          />
+              <LeversSection
+                bySeller={resumoQuery.data.bySeller}
+                byProduct={resumoQuery.data.byProduct}
+                byProductOperation={resumoQuery.data.byProductOperation}
+                filterState={filterState}
+                onSellerClick={handleSellerClick}
+                onProductOperationClick={handleProductOperationClick}
+                onProductClick={handleProductClick}
+              />
 
-          <SellerPerformanceTable
-            rows={resumoQuery.data.bySeller}
-            incluirSemComissao={incluirSemComissao}
-            filterState={filterState}
-            onSellerClick={handleSellerClick}
-            sellerDeltas={sellerDeltas}
-            rankEvolution={rankEvolution}
-          />
+              <SellerPerformanceTable
+                rows={resumoQuery.data.bySeller}
+                incluirSemComissao={incluirSemComissao}
+                filterState={filterState}
+                onSellerClick={handleSellerClick}
+                sellerDeltas={sellerDeltas}
+                rankEvolution={rankEvolution}
+              />
 
-          <MixSection
-            productData={productData}
-            operationData={operationData}
-            seriesVisibility={seriesVisibility}
-            onLegendToggle={handleLegendToggle}
-            onProductClick={handleProductClick}
-            onOperationClick={handleOperationClick}
-            onClearFilters={clearFilters}
-          />
+              <MixSection
+                productData={productData}
+                operationData={operationData}
+                seriesVisibility={seriesVisibility}
+                onLegendToggle={handleLegendToggle}
+                onProductClick={handleProductClick}
+                onOperationClick={handleOperationClick}
+                onClearFilters={clearFilters}
+              />
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <ClickableList
-              title="Por Etapa"
-              rows={resumoQuery.data.byStage.map(b => ({
-                label: b.etapa,
-                value: formatCurrency(b.comissao),
-                extra: `${b.count} | ${formatPercent(b.takeRate)}`,
-                active: filterState.etapaPipeline.includes(b.etapa),
-                onClick: () =>
-                  applyFilter({
-                    etapaPipeline: filterState.etapaPipeline.includes(b.etapa)
-                      ? filterState.etapaPipeline
-                      : [b.etapa],
-                  }),
-              }))}
-            />
-            <ClickableList
-              title="Por Vendedor"
-              rows={sellersSorted.map(b => ({
-                label: b.vendedor,
-                value: formatCurrency(b.comissao),
-                extra: `${b.count} | ${formatPercent(b.takeRate)}`,
-                active: filterState.vendedorNome.includes(b.vendedor),
-                onClick: () =>
-                  applyFilter({
-                    vendedorNome: filterState.vendedorNome.includes(b.vendedor)
-                      ? filterState.vendedorNome
-                      : [b.vendedor],
-                  }),
-              }))}
-            />
-            <ProductRankingList
-              title="Por Produto"
-              rows={productsSorted}
-              operationsByProduct={productOperationMap}
-              activeProducts={filterState.produto}
-              activeOperations={filterState.tipoOperacao}
-              onProductClick={handleProductClick}
-              onOperationClick={handleProductOperationClick}
-            />
-          </div>
+              <div className="grid gap-4 md:grid-cols-3">
+                <ClickableList
+                  title="Por Etapa"
+                  rows={resumoQuery.data.byStage.map(b => ({
+                    label: b.etapa,
+                    value: formatCurrency(b.comissao),
+                    extra: `${b.count} | ${formatPercent(b.takeRate)}`,
+                    active: filterState.etapaPipeline.includes(b.etapa),
+                    onClick: () =>
+                      applyFilter({
+                        etapaPipeline: filterState.etapaPipeline.includes(
+                          b.etapa
+                        )
+                          ? filterState.etapaPipeline
+                          : [b.etapa],
+                      }),
+                  }))}
+                />
+                <ClickableList
+                  title="Por Vendedor"
+                  rows={sellersSorted.map(b => ({
+                    label: b.vendedor,
+                    value: formatCurrency(b.comissao),
+                    extra: `${b.count} | ${formatPercent(b.takeRate)}`,
+                    active: filterState.vendedorNome.includes(b.vendedor),
+                    onClick: () =>
+                      applyFilter({
+                        vendedorNome: filterState.vendedorNome.includes(
+                          b.vendedor
+                        )
+                          ? filterState.vendedorNome
+                          : [b.vendedor],
+                      }),
+                  }))}
+                />
+                <ProductRankingList
+                  title="Por Produto"
+                  rows={productsSorted}
+                  operationsByProduct={productOperationMap}
+                  activeProducts={filterState.produto}
+                  activeOperations={filterState.tipoOperacao}
+                  onProductClick={handleProductClick}
+                  onOperationClick={handleProductOperationClick}
+                />
+              </div>
+            </section>
 
-          <DrilldownTable
-            rows={drilldownQuery.data?.data ?? []}
-            sortBy={sortBy}
-            sortDir={sortDir}
-            onSort={handleSort}
-            flagFilters={flagFilters}
-            toggleFlag={toggleFlag}
-            flagCounts={flagCounts}
-            page={page}
-            onPrevPage={() => setPage(p => Math.max(1, p - 1))}
-            onNextPage={() => setPage(p => p + 1)}
-            onExport={handleExport}
-            takeRateBaseline={resumoQuery.data?.cards.takeRate}
-            isEmpty={(drilldownQuery.data?.data?.length ?? 0) === 0}
-            isExporting={exportQuery.isFetching}
-          />
-        </>
-      )}
+            <Separator className="bg-slate-800" />
+
+            <section className="space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold text-white">
+                  Audit & Drilldown
+                </h2>
+                <p className="text-sm text-slate-400">
+                  Confiabilidade, sinais automáticos, progresso de sincronização
+                  e rastreabilidade detalhada do recorte.
+                </p>
+              </div>
+
+              <AlertsCard
+                alerts={resumoQuery.data.alerts}
+                filterState={filterState}
+                onFilter={applyFilter}
+                onRefresh={handleRefresh}
+              />
+
+              {!isApplying && !syncMutation.isPending && lastSyncSummary && (
+                <Card className="bg-slate-950 border-slate-800">
+                  <CardContent className="flex flex-wrap items-center gap-4 py-3 text-sm text-slate-200">
+                    <div className="font-semibold">Última sincronização</div>
+                    <div>Buscados: {lastSyncSummary.fetched}</div>
+                    <div>Inseridos: {lastSyncSummary.upserted}</div>
+                    <div>Iguais: {lastSyncSummary.unchanged}</div>
+                    <div>Pulados: {lastSyncSummary.skipped}</div>
+                    {lastSyncSummary.warnings > 0 && (
+                      <div className="text-amber-300">
+                        Avisos: {lastSyncSummary.warnings}
+                      </div>
+                    )}
+                    {syncStatusQuery.data?.status !== "done" && (
+                      <div className="text-slate-400">
+                        Aguardando conclusão...
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {syncStatusQuery.data?.perMonth &&
+                syncStatusQuery.data?.perMonth.length > 0 && (
+                  <Card className="bg-slate-950 border-slate-800">
+                    <CardHeader>
+                      <CardTitle>Progresso por mês</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      {syncStatusQuery.data.perMonth
+                        .slice()
+                        .sort((a, b) => a.mesInicio.localeCompare(b.mesInicio))
+                        .map(m => (
+                          <div
+                            key={`${m.mesInicio}-${m.mesFim}`}
+                            className="flex items-center justify-between rounded border border-slate-800 bg-slate-900 px-3 py-2"
+                          >
+                            <div className="flex flex-col">
+                              <span className="font-medium">
+                                {m.mesInicio} → {m.mesFim}
+                              </span>
+                              <span className="text-xs text-slate-400">
+                                {m.status === "done" ? "Concluído" : "Erro"} ·{" "}
+                                {m.fetched} buscados · {m.upserted} inseridos
+                              </span>
+                            </div>
+                            <div
+                              className={`rounded px-2 py-1 text-xs ${
+                                m.status === "done"
+                                  ? "bg-emerald-900 text-emerald-200"
+                                  : "bg-amber-900 text-amber-200"
+                              }`}
+                            >
+                              {m.status === "done" ? "100%" : "Com aviso"}
+                            </div>
+                          </div>
+                        ))}
+                    </CardContent>
+                  </Card>
+                )}
+
+              <DrilldownTable
+                rows={drilldownQuery.data?.data ?? []}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                onSort={handleSort}
+                flagFilters={flagFilters}
+                toggleFlag={toggleFlag}
+                flagCounts={flagCounts}
+                page={page}
+                onPrevPage={() => setPage(p => Math.max(1, p - 1))}
+                onNextPage={() => setPage(p => p + 1)}
+                onExport={handleExport}
+                takeRateBaseline={resumoQuery.data?.cards.takeRate}
+                isEmpty={(drilldownQuery.data?.data?.length ?? 0) === 0}
+                isExporting={exportQuery.isFetching}
+              />
+            </section>
+          </>
+        )}
+      </div>
     </div>
   );
 }

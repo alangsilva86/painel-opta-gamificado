@@ -1,136 +1,109 @@
-import { AlertTriangle, CheckCircle2, Siren, TrendingUp } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Siren } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCurrency, formatPercent } from "../utils";
-import type { GestaoResumoData } from "../types";
+import type { GestaoExecutiveNarrativeItem, GestaoFilterState } from "../types";
 
-type InsightSeverity = "info" | "warning" | "critical";
-
-type Insight = {
-  id: string;
-  severity: InsightSeverity;
-  text: string;
+type ExecutiveSummaryProps = {
+  items: GestaoExecutiveNarrativeItem[];
+  onApplyFilter: (partial: Partial<GestaoFilterState>) => void;
 };
 
-function getSeverityIcon(severity: InsightSeverity) {
-  if (severity === "critical")
-    return <Siren size={16} className="text-red-300" />;
-  if (severity === "warning")
+function getSeverityIcon(severity: GestaoExecutiveNarrativeItem["severity"]) {
+  if (severity === "critical") {
+    return <Siren size={16} className="text-rose-300" />;
+  }
+  if (severity === "warning") {
     return <AlertTriangle size={16} className="text-amber-300" />;
+  }
   return <CheckCircle2 size={16} className="text-emerald-300" />;
 }
 
-export function generateInsights(
-  data: GestaoResumoData,
-  prev?: GestaoResumoData | null
-): Insight[] {
-  const insights: Insight[] = [];
-
-  const bestSeller = [...data.bySeller].sort(
-    (a, b) => b.comissao - a.comissao
-  )[0];
-  if (bestSeller) {
-    const prevSeller = prev?.bySeller.find(
-      seller => seller.vendedor === bestSeller.vendedor
-    );
-    const sellerDelta =
-      prevSeller && prevSeller.comissao > 0
-        ? ` (${prevSeller ? `${bestSeller.comissao >= prevSeller.comissao ? "+" : ""}${formatPercent((bestSeller.comissao - prevSeller.comissao) / prevSeller.comissao)}` : ""} vs anterior)`
-        : "";
-    insights.push({
-      id: "best-seller",
-      severity: "info",
-      text: `${bestSeller.vendedor} lidera com ${formatCurrency(bestSeller.comissao)}${sellerDelta}.`,
-    });
+function getSeverityClass(severity: GestaoExecutiveNarrativeItem["severity"]) {
+  if (severity === "critical") {
+    return "border-rose-500/20 bg-rose-500/[0.05]";
   }
-
-  const topProduct = [...data.byProduct].sort(
-    (a, b) => b.comissao - a.comissao
-  )[0];
-  if (topProduct && data.cards.comissao > 0) {
-    insights.push({
-      id: "top-product",
-      severity: "info",
-      text: `${topProduct.produto} concentra ${formatPercent(topProduct.comissao / data.cards.comissao)} da comissão.`,
-    });
+  if (severity === "warning") {
+    return "border-amber-500/20 bg-amber-500/[0.05]";
   }
-
-  if (
-    prev?.cards.takeRate &&
-    data.cards.takeRate < prev.cards.takeRate * 0.92
-  ) {
-    insights.push({
-      id: "take-rate-down",
-      severity: "warning",
-      text: `Taxa de comissão caiu para ${formatPercent(data.cards.takeRate)} frente a ${formatPercent(prev.cards.takeRate)} no período comparado.`,
-    });
-  }
-
-  const pace = data.cards.paceComissao ?? 0;
-  const needed = data.cards.necessarioPorDia ?? 0;
-  if (needed > 0) {
-    insights.push({
-      id: "pace",
-      severity: pace >= needed ? "info" : "warning",
-      text:
-        pace >= needed
-          ? `Ritmo atual ${formatCurrency(pace)}/dia, acima do necessário (${formatCurrency(needed)}/dia).`
-          : `Ritmo atual ${formatCurrency(pace)}/dia, abaixo do necessário (${formatCurrency(needed)}/dia).`,
-    });
-  }
-
-  if ((data.cards.metaComissao ?? 0) > 0) {
-    const pctMeta = data.cards.comissao / Math.max(1, data.cards.metaComissao);
-    const falta = Math.max(
-      0,
-      (data.cards.metaComissao ?? 0) - data.cards.comissao
-    );
-    insights.push({
-      id: "meta-comissao",
-      severity: pctMeta >= 1 ? "info" : pctMeta >= 0.8 ? "warning" : "critical",
-      text:
-        falta === 0
-          ? `Meta de comissão atingida com ${formatPercent(pctMeta)} de execução.`
-          : `${formatPercent(pctMeta)} da meta atingida; faltam ${formatCurrency(falta)}.`,
-    });
-  }
-
-  const firstAlert = data.alerts[0];
-  if (firstAlert) {
-    insights.push({
-      id: `alert-${firstAlert.type}`,
-      severity: firstAlert.severity,
-      text: firstAlert.detail,
-    });
-  }
-
-  return insights.slice(0, 5);
+  return "border-emerald-500/20 bg-emerald-500/[0.05]";
 }
 
 export function ExecutiveSummary({
-  data,
-  comparisonData,
-}: {
-  data: GestaoResumoData;
-  comparisonData?: GestaoResumoData | null;
-}) {
-  const insights = generateInsights(data, comparisonData);
-
+  items,
+  onApplyFilter,
+}: ExecutiveSummaryProps) {
   return (
-    <Card className="bg-slate-950 border-slate-800">
+    <Card className="border-slate-800 bg-slate-950">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <TrendingUp size={18} />
-          Resumo Executivo
-        </CardTitle>
+        <CardTitle className="text-white">Narrativa Executiva</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {insights.map(insight => (
+      <CardContent className="space-y-4">
+        {items.length === 0 && (
+          <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-4 text-sm text-slate-300">
+            Sem narrativa estruturada disponível para este recorte.
+          </div>
+        )}
+
+        {items.map(item => (
           <div
-            key={insight.id}
-            className="flex items-start gap-3 rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-3 text-sm text-slate-200"
+            key={item.id}
+            className={`rounded-2xl border px-4 py-4 ${getSeverityClass(item.severity)}`}
           >
-            {getSeverityIcon(insight.severity)}
-            <p>{insight.text}</p>
+            <div className="grid gap-4 xl:grid-cols-[0.9fr_1fr_1fr_0.9fr]">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                  {getSeverityIcon(item.severity)}
+                  {item.headline}
+                </div>
+                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                  O que mudou
+                </div>
+                <p className="text-sm leading-6 text-slate-200">
+                  {item.whatChanged}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                  Por que mudou
+                </div>
+                <p className="text-sm leading-6 text-slate-300">{item.why}</p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                  O que fazer agora
+                </div>
+                <p className="text-sm leading-6 text-slate-300">
+                  {item.action}
+                </p>
+              </div>
+
+              <div className="flex flex-col justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/70 p-3">
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                    Ação rápida
+                  </div>
+                  <p className="mt-2 text-sm text-slate-300">
+                    Abra o recorte recomendado para confirmar a hipótese.
+                  </p>
+                </div>
+                {item.filters ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-slate-700 bg-slate-900 text-slate-100"
+                    onClick={() => onApplyFilter(item.filters ?? {})}
+                  >
+                    Aplicar recorte
+                  </Button>
+                ) : (
+                  <div className="text-xs text-slate-500">
+                    Sem recorte específico. Use os drivers abaixo.
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         ))}
       </CardContent>

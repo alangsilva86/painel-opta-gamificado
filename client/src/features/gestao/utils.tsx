@@ -7,7 +7,7 @@ import {
   startOfISOWeek,
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import type { GestaoTimeseriesPoint } from "./types";
+import type { GestaoExecutiveMetric, GestaoTimeseriesPoint } from "./types";
 
 export function startOfMonthISO(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
@@ -165,3 +165,24 @@ export const tooltipBox = (title: string | undefined, rows: TooltipRow[]) => (
     ))}
   </div>
 );
+
+export function mergeExecutiveMetricsWithComparison(
+  current: GestaoExecutiveMetric[],
+  comparison?: GestaoExecutiveMetric[] | null
+) {
+  if (!comparison) return current;
+
+  const comparisonMap = new Map(comparison.map(metric => [metric.id, metric]));
+  return current.map(metric => {
+    const previousMetric = comparisonMap.get(metric.id);
+    if (!previousMetric || Math.abs(previousMetric.value) < 0.0001) {
+      return metric;
+    }
+
+    return {
+      ...metric,
+      deltaVsComparison:
+        (metric.value - previousMetric.value) / previousMetric.value,
+    };
+  });
+}

@@ -18,6 +18,7 @@ import {
   buildMergedRangesForIntervals,
   syncContratosGestaoRanges,
 } from "./syncService";
+import { buildExecutiveLayer } from "./executive";
 
 const FILTERS_SCHEMA = z.object({
   dateFrom: z.string().optional(),
@@ -207,6 +208,11 @@ export const gestaoRouter = router({
       });
     const where = buildWhere(input);
     const rows = await db.select().from(contratos).where(where);
+    const latestSyncRow = await db
+      .select({ createdAt: gestaoSyncLogs.createdAt })
+      .from(gestaoSyncLogs)
+      .orderBy(desc(gestaoSyncLogs.createdAt))
+      .limit(1);
 
     const total = rows.length;
     const sumLiquido = rows.reduce((acc, r) => acc + r.liquidoLiberadoCent, 0);
@@ -233,6 +239,8 @@ export const gestaoRouter = router({
     const ticketMedio = total > 0 ? sumLiquido / total : 0;
     const pctComissaoCalculada =
       total > 0 ? rows.filter(r => r.comissaoCalculada).length / total : 0;
+    const pctLiquidoFallback =
+      total > 0 ? rows.filter(r => r.liquidoFallback).length / total : 0;
     const contratosSemComissao = rows.filter(
       r => r.comissaoTotalCent === 0
     ).length;
@@ -562,6 +570,37 @@ export const gestaoRouter = router({
       }
     }
 
+    const executiveLayer = buildExecutiveLayer({
+      cards: {
+        contratos: total,
+        liquido: centsToNumber(sumLiquido),
+        comissao: centsToNumber(sumComissao),
+        takeRate,
+        takeRateLimpo,
+        ticketMedio: centsToNumber(ticketMedio),
+        pctComissaoCalculada,
+        contratosSemComissao,
+        metaComissao: centsToNumber(metaComissaoCent),
+        paceComissao: centsToNumber(paceComissao),
+        necessarioPorDia: centsToNumber(necessarioPorDia),
+        diasDecorridos,
+        totalDias,
+      },
+      timeseries,
+      byStage,
+      bySeller,
+      byProduct,
+      byOperationType,
+      alerts,
+      latestSyncAt: latestSyncRow[0]?.createdAt ?? null,
+      quality: {
+        pctLiquidoFallback,
+        pctComissaoCalculada,
+        pctSemComissao: total > 0 ? contratosSemComissao / total : 0,
+        totalRegistros: total,
+      },
+    });
+
     return {
       cards: {
         contratos: total,
@@ -586,6 +625,7 @@ export const gestaoRouter = router({
       byProductOperation,
       byOperationType,
       alerts,
+      ...executiveLayer,
     };
   }),
 
