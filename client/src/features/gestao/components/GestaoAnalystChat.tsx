@@ -1,9 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
@@ -139,191 +145,251 @@ export function GestaoAnalystChat({
   };
 
   return (
-    <section className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground section-heading">
-          Analista IA da Gestão
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Faça perguntas sobre o recorte atual e aplique recomendações sem sair
-          do painel.
-        </p>
-      </div>
+    <Sheet>
+      <SheetTrigger asChild>
+        <Button
+          type="button"
+          size="lg"
+          className="fixed right-5 bottom-5 z-40 h-14 rounded-full border border-primary/20 bg-primary px-4 text-primary-foreground shadow-[0_16px_48px_rgba(15,23,42,0.32)] transition-transform hover:scale-[1.02] sm:right-6 sm:bottom-6"
+        >
+          <span className="flex items-center gap-3">
+            <span className="rounded-full bg-primary-foreground/15 p-2">
+              <MessageSquareText className="h-4 w-4" />
+            </span>
+            <span className="flex flex-col items-start leading-none">
+              <span className="text-xs font-medium uppercase tracking-[0.18em] text-primary-foreground/80">
+                Analista IA
+              </span>
+              <span className="text-sm font-semibold">
+                Abrir chat da Gestão
+              </span>
+            </span>
+          </span>
+        </Button>
+      </SheetTrigger>
 
-      <Card className="border-border bg-card">
-        <CardHeader className="gap-3 border-b border-border/80 pb-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="space-y-1">
-              <CardTitle className="flex items-center gap-2 text-base">
+      <SheetContent
+        side="right"
+        className="w-[min(100vw,46rem)] gap-0 border-border p-0 sm:max-w-2xl"
+      >
+        <SheetHeader className="gap-3 border-b border-border/80 bg-card/95 px-5 py-5">
+          <div className="flex items-start justify-between gap-4 pr-8">
+            <div className="space-y-2">
+              <SheetTitle className="flex items-center gap-2 text-base">
                 <Bot className="h-4 w-4 text-primary" />
-                Chat analítico executivo
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Respostas didáticas, orientadas à decisão e ancoradas no recorte
-                aplicado.
-              </p>
+                Analista IA da Gestão
+              </SheetTitle>
+              <SheetDescription className="max-w-xl text-sm leading-6">
+                Converse com o recorte atual, peça explicações executivas e
+                aplique recomendações sem sair do painel.
+              </SheetDescription>
             </div>
-            <Badge variant="outline" className="border-primary/30 bg-primary/10">
+            <Badge
+              variant="outline"
+              className="border-primary/25 bg-primary/10 text-foreground"
+            >
               PT-BR • BI Executivo
             </Badge>
           </div>
-        </CardHeader>
+        </SheetHeader>
 
-        <CardContent className="grid gap-6 pt-6 xl:grid-cols-[minmax(0,1.6fr)_320px]">
-          <div className="space-y-4">
-            <ScrollArea className="h-[32rem] rounded-xl border border-border/70 bg-background/40 p-4">
-              <div className="space-y-4">
-                {messages.length === 0 ? (
-                  <div className="flex h-full min-h-[20rem] flex-col items-center justify-center gap-3 text-center">
-                    <div className="rounded-full border border-primary/20 bg-primary/10 p-3 text-primary">
-                      <MessageSquareText className="h-5 w-5" />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-foreground">
-                        O analista está pronto para ler este recorte.
-                      </p>
-                      <p className="max-w-xl text-sm text-muted-foreground">
-                        Pergunte sobre meta, take rate, riscos, concentração,
-                        mix, qualidade do dado ou peça o melhor recorte para
-                        investigar um ponto específico.
-                      </p>
-                    </div>
+        <div className="flex min-h-0 flex-1 flex-col bg-background">
+          <div className="grid gap-3 border-b border-border/70 bg-card/40 px-5 py-4 lg:grid-cols-[1.15fr_0.85fr]">
+            <div className="rounded-2xl border border-border bg-background/80 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Contexto atual
+              </div>
+              <p className="mt-2 text-sm leading-6 text-foreground">
+                {contextLabel}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Badge variant="outline">{summary.businessStatus.headline}</Badge>
+                <Badge variant="outline">{summary.freshness.label}</Badge>
+                <Badge variant="outline">{summary.dataQuality.label}</Badge>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-background/80 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Atalhos
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {promptSuggestions.map(prompt => (
+                  <Button
+                    key={prompt}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-auto whitespace-normal rounded-full px-3 py-2 text-left text-xs"
+                    onClick={() => {
+                      void sendQuestion(prompt);
+                    }}
+                  >
+                    {prompt}
+                  </Button>
+                ))}
+              </div>
+              <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                O agente explica o recorte, aponta risco e pode aplicar filtros,
+                granularidade, comparação e vistas salvas.
+              </p>
+            </div>
+          </div>
+
+          <ScrollArea className="min-h-0 flex-1 px-5 py-5">
+            <div className="space-y-4">
+              {messages.length === 0 ? (
+                <div className="flex min-h-[18rem] flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-border bg-card/35 px-6 text-center">
+                  <div className="rounded-full border border-primary/20 bg-primary/10 p-3 text-primary">
+                    <MessageSquareText className="h-5 w-5" />
                   </div>
-                ) : (
-                  messages.map(message => {
-                    if (message.role === "system") {
-                      return (
-                        <div
-                          key={message.id}
-                          className="rounded-lg border border-dashed border-border bg-secondary/40 px-3 py-2 text-xs text-muted-foreground"
-                        >
-                          {message.content}
-                        </div>
-                      );
-                    }
-
-                    const isAssistant = message.role === "assistant";
-                    const riskTone = message.response
-                      ? riskToneMap[message.response.riskLevel]
-                      : null;
-
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">
+                      O analista está pronto para ler este recorte.
+                    </p>
+                    <p className="max-w-xl text-sm text-muted-foreground">
+                      Pergunte sobre meta, take rate, risco, concentração, mix,
+                      qualidade do dado ou peça o melhor ângulo para investigar
+                      um problema.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                messages.map(message => {
+                  if (message.role === "system") {
                     return (
                       <div
                         key={message.id}
-                        className={cn(
-                          "max-w-[92%] rounded-2xl border px-4 py-3 shadow-sm",
-                          isAssistant
-                            ? "border-border bg-card"
-                            : "ml-auto border-primary/20 bg-primary/10"
-                        )}
+                        className="rounded-lg border border-dashed border-border bg-secondary/40 px-3 py-2 text-xs text-muted-foreground"
                       >
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                              {isAssistant ? "Analista" : "Gestor"}
-                            </div>
-                            {message.response && riskTone ? (
-                              <Badge
-                                variant="outline"
-                                className={cn("gap-1", riskTone.badgeClass)}
-                              >
-                                <ShieldAlert className="h-3.5 w-3.5" />
-                                Risco{" "}
-                                {message.response.riskLevel === "low"
-                                  ? "baixo"
-                                  : message.response.riskLevel === "medium"
-                                    ? "moderado"
-                                    : "alto"}
-                              </Badge>
-                            ) : null}
-                          </div>
-
-                          <p className="text-sm leading-6 text-foreground">
-                            {message.content}
-                          </p>
-
-                          {message.response?.evidence.length ? (
-                            <div className="space-y-2">
-                              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                                Evidências
-                              </div>
-                              <div className="grid gap-2 md:grid-cols-2">
-                                {message.response.evidence.map(item => (
-                                  <div
-                                    key={item}
-                                    className="rounded-xl border border-border/80 bg-background/60 px-3 py-2 text-xs text-foreground/85"
-                                  >
-                                    {item}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ) : null}
-
-                          {message.response?.recommendedActions.length ? (
-                            <div className="space-y-2">
-                              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                                Ações sugeridas
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {message.response.recommendedActions.map(action => (
-                                  <Button
-                                    key={`${message.id}-${action.label}`}
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-auto min-h-9 border-primary/20 bg-primary/5 px-3 py-2 text-left text-xs"
-                                    onClick={() => {
-                                      void handleActionClick(action);
-                                    }}
-                                  >
-                                    <span className="flex items-center gap-2">
-                                      <ChevronRight className="h-3.5 w-3.5 text-primary" />
-                                      {action.label}
-                                    </span>
-                                  </Button>
-                                ))}
-                              </div>
-                            </div>
-                          ) : null}
-
-                          {message.response?.followUpPrompts.length ? (
-                            <div className="space-y-2">
-                              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                                Próximas perguntas
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {message.response.followUpPrompts.map(prompt => (
-                                  <Button
-                                    key={`${message.id}-${prompt}`}
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-auto rounded-full border border-border px-3 py-1.5 text-xs"
-                                    onClick={() => {
-                                      void sendQuestion(prompt);
-                                    }}
-                                  >
-                                    {prompt}
-                                  </Button>
-                                ))}
-                              </div>
-                            </div>
-                          ) : null}
-                        </div>
+                        {message.content}
                       </div>
                     );
-                  })
-                )}
-              </div>
-            </ScrollArea>
+                  }
 
-            <div className="space-y-3 rounded-2xl border border-border bg-background/40 p-4">
+                  const isAssistant = message.role === "assistant";
+                  const riskTone = message.response
+                    ? riskToneMap[message.response.riskLevel]
+                    : null;
+
+                  return (
+                    <div
+                      key={message.id}
+                      className={cn(
+                        "max-w-[94%] rounded-2xl border px-4 py-3 shadow-sm",
+                        isAssistant
+                          ? "border-border bg-card"
+                          : "ml-auto border-primary/20 bg-primary/10"
+                      )}
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                            {isAssistant ? "Analista" : "Gestor"}
+                          </div>
+                          {message.response && riskTone ? (
+                            <Badge
+                              variant="outline"
+                              className={cn("gap-1", riskTone.badgeClass)}
+                            >
+                              <ShieldAlert className="h-3.5 w-3.5" />
+                              Risco{" "}
+                              {message.response.riskLevel === "low"
+                                ? "baixo"
+                                : message.response.riskLevel === "medium"
+                                  ? "moderado"
+                                  : "alto"}
+                            </Badge>
+                          ) : null}
+                        </div>
+
+                        <p className="text-sm leading-6 text-foreground">
+                          {message.content}
+                        </p>
+
+                        {message.response?.evidence.length ? (
+                          <div className="space-y-2">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                              Evidências
+                            </div>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              {message.response.evidence.map(item => (
+                                <div
+                                  key={item}
+                                  className="rounded-xl border border-border/80 bg-background/60 px-3 py-2 text-xs text-foreground/85"
+                                >
+                                  {item}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {message.response?.recommendedActions.length ? (
+                          <div className="space-y-2">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                              Ações sugeridas
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {message.response.recommendedActions.map(action => (
+                                <Button
+                                  key={`${message.id}-${action.label}`}
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-auto min-h-9 border-primary/20 bg-primary/5 px-3 py-2 text-left text-xs"
+                                  onClick={() => {
+                                    void handleActionClick(action);
+                                  }}
+                                >
+                                  <span className="flex items-center gap-2">
+                                    <ChevronRight className="h-3.5 w-3.5 text-primary" />
+                                    {action.label}
+                                  </span>
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {message.response?.followUpPrompts.length ? (
+                          <div className="space-y-2">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                              Próximas perguntas
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {message.response.followUpPrompts.map(prompt => (
+                                <Button
+                                  key={`${message.id}-${prompt}`}
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-auto rounded-full border border-border px-3 py-1.5 text-xs"
+                                  onClick={() => {
+                                    void sendQuestion(prompt);
+                                  }}
+                                >
+                                  {prompt}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </ScrollArea>
+
+          <div className="border-t border-border bg-card/70 px-5 py-4">
+            <div className="space-y-3 rounded-2xl border border-border bg-background/50 p-4">
               <Textarea
                 value={draft}
                 onChange={event => setDraft(event.target.value)}
                 placeholder="Ex.: Por que o take rate caiu neste período?"
-                className="min-h-28 resize-none border-border bg-card"
+                className="min-h-24 resize-none border-border bg-card"
                 onKeyDown={event => {
                   if (event.key === "Enter" && !event.shiftKey) {
                     event.preventDefault();
@@ -358,68 +424,8 @@ export function GestaoAnalystChat({
               </div>
             </div>
           </div>
-
-          <aside className="space-y-4">
-            <div className="rounded-2xl border border-border bg-background/50 p-4">
-              <div className="space-y-2">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Contexto atual
-                </div>
-                <p className="text-sm leading-6 text-foreground">{contextLabel}</p>
-              </div>
-              <Separator className="my-4 bg-border/80" />
-              <div className="grid gap-2">
-                <Badge variant="outline" className="justify-start">
-                  {summary.businessStatus.headline}
-                </Badge>
-                <Badge variant="outline" className="justify-start">
-                  {summary.freshness.label}
-                </Badge>
-                <Badge variant="outline" className="justify-start">
-                  {summary.dataQuality.label}
-                </Badge>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-background/50 p-4">
-              <div className="space-y-2">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Perguntas sugeridas
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {promptSuggestions.map(prompt => (
-                    <Button
-                      key={prompt}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-auto whitespace-normal px-3 py-2 text-left text-xs"
-                      onClick={() => {
-                        void sendQuestion(prompt);
-                      }}
-                    >
-                      {prompt}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-background/50 p-4">
-              <div className="space-y-2">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  O que ele pode fazer
-                </div>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>Explicar o recorte com linguagem executiva e didática.</li>
-                  <li>Apontar risco, evidências numéricas e próximos passos.</li>
-                  <li>Aplicar filtros, comparação, granularidade e vistas salvas.</li>
-                </ul>
-              </div>
-            </div>
-          </aside>
-        </CardContent>
-      </Card>
-    </section>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }

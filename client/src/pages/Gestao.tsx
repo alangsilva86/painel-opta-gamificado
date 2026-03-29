@@ -683,13 +683,6 @@ export default function Gestao() {
               comparisonEnabled={comparisonModeApplied}
             />
 
-            <GestaoAnalystChat
-              viewState={chatViewState}
-              summary={resumoQuery.data}
-              availableViews={allSavedViews}
-              onAction={handleAnalystAction}
-            />
-
             <PeriodKpisSection
               cards={resumoQuery.data.cards}
               comparisonMetricDeltas={comparisonMetricDeltas}
@@ -934,6 +927,15 @@ export default function Gestao() {
           </>
         )}
       </div>
+
+      {hasFetched && resumoQuery.data ? (
+        <GestaoAnalystChat
+          viewState={chatViewState}
+          summary={resumoQuery.data}
+          availableViews={allSavedViews}
+          onAction={handleAnalystAction}
+        />
+      ) : null}
     </div>
   );
 }
