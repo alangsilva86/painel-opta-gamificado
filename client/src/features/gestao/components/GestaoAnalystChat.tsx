@@ -310,15 +310,24 @@ export function GestaoAnalystChat({
                           : "rounded-tr-sm bg-primary/10 border border-primary/15"
                       )}
                     >
-                      {/* Risco badge — só no assistente quando relevante */}
-                      {isAssistant && message.response && riskTone && (
-                        <Badge
-                          variant="outline"
-                          className={cn("gap-1 text-xs", riskTone.badgeClass)}
-                        >
-                          <ShieldAlert className="h-3 w-3" />
-                          Risco {riskLabel[message.response.riskLevel]}
-                        </Badge>
+                      {/* Cabeçalho da resposta: risco + summary em linha */}
+                      {isAssistant && message.response && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {riskTone && (
+                            <Badge
+                              variant="outline"
+                              className={cn("gap-1 text-xs", riskTone.badgeClass)}
+                            >
+                              <ShieldAlert className="h-3 w-3" />
+                              Risco {riskLabel[message.response.riskLevel]}
+                            </Badge>
+                          )}
+                          {message.response.summary && (
+                            <span className="text-xs text-muted-foreground">
+                              {message.response.summary}
+                            </span>
+                          )}
+                        </div>
                       )}
 
                       <p className="text-sm leading-[1.65] text-foreground">

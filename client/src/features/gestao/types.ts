@@ -108,6 +108,7 @@ export type GestaoAnalystAction =
 
 export type GestaoAnalystResponse = {
   answer: string;
+  summary?: string;
   evidence: string[];
   riskLevel: "low" | "medium" | "high";
   recommendedActions: GestaoAnalystAction[];

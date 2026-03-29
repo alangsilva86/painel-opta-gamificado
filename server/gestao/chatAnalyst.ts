@@ -88,6 +88,7 @@ const RAW_ACTION_SCHEMA = z.discriminatedUnion("type", [
 
 const RAW_RESPONSE_SCHEMA = z.object({
   answer: z.string().min(1),
+  summary: z.string().max(100).optional().default(""),
   evidence: z.array(z.string()).max(5).default([]),
   riskLevel: z.enum(["low", "medium", "high"]).default("medium"),
   recommendedActions: z.array(RAW_ACTION_SCHEMA).max(4).default([]),
@@ -197,6 +198,111 @@ function buildComparisonSummary(
   };
 }
 
+function buildAnalystSignals(
+  snapshot: GestaoResumoSnapshot,
+  comparisonSnapshot?: GestaoResumoSnapshot | null
+) {
+  const { cards, bySeller, byProduct, dataQuality } = snapshot;
+
+  // --- Pace vs Meta ---
+  const metaExists = cards.metaComissao > 0;
+  const paceExpected =
+    metaExists && cards.totalDias > 0
+      ? (cards.metaComissao * cards.diasDecorridos) / cards.totalDias
+      : null;
+  const paceRatio =
+    paceExpected && paceExpected > 0
+      ? cards.paceComissao / paceExpected
+      : null;
+  const paceStatus =
+    paceRatio === null
+      ? "sem_meta"
+      : paceRatio >= 0.9
+        ? "on_track"
+        : paceRatio >= 0.7
+          ? "behind"
+          : "critical";
+  const paceGap =
+    metaExists && paceExpected !== null
+      ? cards.paceComissao - paceExpected
+      : null;
+
+  // --- Seller concentration ---
+  const totalComissao = cards.comissao;
+  const topSeller = bySeller[0] ?? null;
+  const topSellerComissao = topSeller?.comissao ?? 0;
+  const topSellerPct =
+    totalComissao > 0 ? topSellerComissao / totalComissao : 0;
+  const concentrationRisk =
+    topSellerPct > 0.5 ? "high" : topSellerPct > 0.3 ? "medium" : "low";
+
+  // --- Sellers at risk (below 50% of their individual goal) ---
+  const sellersAtRisk = bySeller
+    .filter(s => s.pctMeta !== undefined && s.pctMeta < 0.5)
+    .map(s => ({
+      vendedor: s.vendedor,
+      pctMeta: formatPercent(s.pctMeta ?? 0),
+      comissao: formatCurrency(s.comissao),
+    }));
+
+  // --- Top product concentration ---
+  const topProduct = byProduct[0] ?? null;
+  const topProductPct =
+    totalComissao > 0 && topProduct
+      ? topProduct.comissao / totalComissao
+      : 0;
+
+  // --- Data quality signals ---
+  const qualityAlerts: string[] = [];
+  if (dataQuality.pctSemComissao > 0.2)
+    qualityAlerts.push(
+      `${formatPercent(dataQuality.pctSemComissao)} dos contratos sem comissão (takeRate subavaliado)`
+    );
+  if (dataQuality.pctLiquidoFallback > 0.1)
+    qualityAlerts.push(
+      `${formatPercent(dataQuality.pctLiquidoFallback)} usando valor líquido estimado (fallback)`
+    );
+  if (dataQuality.totalRegistros < 5)
+    qualityAlerts.push("Amostra muito pequena — conclusões com baixa confiança");
+
+  // --- Comparison delta ---
+  const comparisonDelta =
+    comparisonSnapshot && comparisonSnapshot.cards.comissao > 0
+      ? (cards.comissao - comparisonSnapshot.cards.comissao) /
+        comparisonSnapshot.cards.comissao
+      : null;
+
+  return {
+    paceStatus,
+    paceRatioFormatted: paceRatio !== null ? formatPercent(paceRatio) : null,
+    paceGapFormatted: paceGap !== null ? formatCurrency(Math.abs(paceGap)) : null,
+    paceGapDirection:
+      paceGap === null ? null : paceGap >= 0 ? "acima" : "abaixo",
+    metaExists,
+    sellerConcentration: {
+      topSeller: topSeller?.vendedor ?? null,
+      topSellerPct: formatPercent(topSellerPct),
+      concentrationRisk,
+    },
+    topProductConcentration: {
+      topProduct: topProduct?.produto ?? null,
+      topProductPct: formatPercent(topProductPct),
+    },
+    sellersAtRisk,
+    sellersAtRiskCount: sellersAtRisk.length,
+    qualityAlerts,
+    hasQualityAlerts: qualityAlerts.length > 0,
+    comparisonDeltaFormatted:
+      comparisonDelta !== null ? formatPercent(comparisonDelta) : null,
+    comparisonDeltaDirection:
+      comparisonDelta === null
+        ? null
+        : comparisonDelta >= 0
+          ? "crescimento"
+          : "queda",
+  };
+}
+
 export function buildGestaoAnalystGrounding({
   input,
   snapshot,
@@ -291,6 +397,7 @@ export function buildGestaoAnalystGrounding({
         comissao: formatCurrency(row.comissao),
         takeRate: formatPercent(row.takeRate),
       })),
+    analystSignals: buildAnalystSignals(snapshot, comparisonSnapshot),
     comparisonSummary: buildComparisonSummary(snapshot, comparisonSnapshot),
     availableActions: {
       filters: {
@@ -411,6 +518,7 @@ export function sanitizeGestaoAnalystResponse(
 
   return {
     answer: response.answer.trim(),
+    summary: (response.summary ?? "").trim(),
     evidence: response.evidence
       .map(item => item.trim())
       .filter(Boolean)
@@ -439,16 +547,54 @@ function extractContentText(content: Message["content"]) {
 }
 
 function buildSystemPrompt() {
-  return [
-    "Você é um analista de BI executivo sênior, em PT-BR, orientado à decisão.",
-    "Você responde somente com base no grounding fornecido.",
-    "Nunca invente números, nunca cite dados fora do recorte atual.",
-    "Sempre explique o contexto analisado no answer de forma curta e executiva.",
-    "Você pode recomendar apenas ações de navegação permitidas.",
-    "Ações permitidas: apply_filter, clear_filter, set_comparison_preset, set_granularity, toggle_sem_comissao, apply_saved_view.",
-    "Nunca recomende sync, exportação, alteração de meta ou mudança de dados.",
-    "Prefira no máximo 4 ações e 3 perguntas de follow-up.",
-  ].join(" ");
+  return `# Identidade e Missão
+Você é um analista de BI executivo sênior especializado em performance comercial de correspondentes bancários. Responde exclusivamente em PT-BR. Sua função é transformar dados brutos de produção em diagnósticos acionáveis para o gestor da carteira.
+
+# Fronteira de Conhecimento
+- Você SOMENTE analisa dados presentes no GROUNDING ESTRUTURADO fornecido no contexto da conversa.
+- Jamais invente números, datas ou nomes. Se um dado não está no grounding, diga "não disponível no recorte atual".
+- Nunca cite dados de períodos fora do recorte do grounding.
+
+# Metodologia de Análise (siga nesta ordem)
+1. ORIENT — Identifique o contexto: período, filtros ativos, granularidade, se há comparação ativa.
+2. DIAGNOSE — Examine os sinais pré-computados (analyst_signals), businessStatus, watchlist e métricas executivas. Priorize anomalias e desvios de meta antes de tendências positivas.
+3. EXPLAIN — Explique a causa mais provável do padrão observado usando evidências do grounding. Conecte o que (número) ao porquê (concentração, sazonalidade, qualidade de dados, mix de produto).
+4. RECOMMEND — Sugira as ações de navegação que melhor iluminariam o diagnóstico. Prefira ações que segmentam ou comparam sobre ações que apenas limpam filtros.
+
+# Critérios de Qualidade da Evidência
+- evidence: cite valores formatados do grounding (ex: "Comissão R$ 12.450 = 87% da meta"). Máximo 5 itens. Cada item deve ser uma frase concisa com dado + contexto.
+- Não repita no evidence o que já está no answer.
+- Se dataQuality indica problemas (pctSemComissao alto, pctLiquidoFallback > 10%), inclua isso como evidência de risco.
+
+# Avaliação de Risco
+- riskLevel "high": pace crítico (< 70% do esperado), concentração > 50% num único vendedor ou produto, ou pctSemComissao > 30%.
+- riskLevel "medium": pace entre 70–90%, concentração 30–50%, ou alertas ativos de qualidade de dados.
+- riskLevel "low": pace > 90% da meta proporcional, sem alertas críticos, distribuição saudável.
+
+# Regras de Ações Recomendadas
+- apply_filter: use para segmentar a análise (ex: isolar vendedor específico, produto, etapa). O label deve descrever o insight, não o filtro (ex: "Ver contratos de João Silva" não "Filtrar vendedorNome").
+- clear_filter: use apenas quando o filtro ativo está obscurecendo a visão geral.
+- set_comparison_preset: use quando detectar tendência ou quando o gestor pergunta sobre evolução. Sempre explique qual período será comparado.
+- set_granularity: mude para "day" se investigando anomalia pontual, "week" para tendências, "month" para visão estratégica.
+- toggle_sem_comissao: use quando pctSemComissao > 15% e isso afeta o takeRate observado.
+- apply_saved_view: use apenas se a vista salva for semanticamente relevante para a pergunta.
+- NUNCA recomende exportação, sync, alteração de metas ou modificação de dados.
+- Máximo 4 ações. Prefira qualidade à quantidade.
+
+# Perguntas de Follow-up
+- followUpPrompts: 3 perguntas que aprofundam o diagnóstico atual ou abrem investigações paralelas relevantes.
+- Formule como o gestor perguntaria, não como analista (ex: "Quem está puxando o crescimento?" não "Analisar distribuição por vendedor?").
+
+# Formato de Resposta (JSON estrito)
+{
+  "answer": "Resposta executiva principal. 2–4 parágrafos curtos. Tom direto e objetivo. Sem listas no answer — use frases. Comece pelo diagnóstico mais importante.",
+  "summary": "1 frase resumindo o status do período em até 12 palavras. Ex: 'Meta 87% — pace saudável, concentração em 2 vendedoras.'",
+  "evidence": ["Dado 1 com contexto", "Dado 2 com contexto"],
+  "riskLevel": "low | medium | high",
+  "recommendedActions": [{ "type": "...", "label": "Label descritivo do insight", ... }],
+  "followUpPrompts": ["Pergunta 1?", "Pergunta 2?", "Pergunta 3?"],
+  "contextLabel": "Descrição curta do recorte analisado"
+}`;
 }
 
 function buildConversationHistory(messages: GestaoAnalystInput["messages"]) {
@@ -467,6 +613,7 @@ function buildNoDataResponse(
     answer:
       `No recorte ${contextLabel} ainda não há contratos materializados para análise.` +
       " A primeira ação é ampliar o período, remover filtros restritivos ou rodar uma sincronização pelo fluxo normal da Gestão.",
+    summary: "Sem dados no recorte — ampliar período ou remover filtros.",
     evidence: [
       `Contratos no recorte: ${snapshot.cards.contratos}`,
       `Comissão no recorte: ${formatCurrency(snapshot.cards.comissao)}`,
@@ -503,23 +650,52 @@ export async function generateGestaoAnalystResponse({
         role: "system",
         content: buildSystemPrompt(),
       },
+      // Grounding anchored as a stable seed turn — keeps conversation history clean
+      {
+        role: "user",
+        content:
+          "## GROUNDING ESTRUTURADO DO RECORTE ATUAL\n\n" +
+          "Este é o contexto de dados para toda a conversa. Baseie suas respostas exclusivamente neste grounding. Responda sempre em JSON.\n\n" +
+          JSON.stringify(grounding, null, 2),
+      },
+      {
+        role: "assistant",
+        content:
+          `Grounding recebido. Recorte: ${grounding.contextLabel}. ` +
+          `Status: ${grounding.businessStatus?.status ?? "desconhecido"}. ` +
+          `Sinais principais: pace ${grounding.analystSignals.paceStatus}, ` +
+          `concentração de vendedor ${grounding.analystSignals.sellerConcentration.concentrationRisk}` +
+          (grounding.analystSignals.hasQualityAlerts
+            ? `, alertas de qualidade ativos`
+            : "") +
+          `. Pronto para analisar.`,
+      },
       ...buildConversationHistory(input.messages),
       {
         role: "user",
-        content: [
-          `Pergunta do gestor: ${input.question}`,
-          "Grounding estruturado do recorte atual:",
-          JSON.stringify(grounding),
-          "Responda em JSON com os campos answer, evidence, riskLevel, recommendedActions, followUpPrompts e contextLabel.",
-        ].join("\n\n"),
+        content: input.question,
       },
     ],
     responseFormat: { type: "json_object" },
-    maxTokens: 1200,
+    maxTokens: 2000,
   });
 
-  const content = extractContentText(llmResponse.choices[0]?.message.content ?? "");
-  const parsed = RAW_RESPONSE_SCHEMA.parse(JSON.parse(content));
+  const rawContent = extractContentText(
+    llmResponse.choices[0]?.message.content ?? ""
+  );
+
+  let parsed: z.infer<typeof RAW_RESPONSE_SCHEMA>;
+  try {
+    parsed = RAW_RESPONSE_SCHEMA.parse(JSON.parse(rawContent));
+  } catch (parseError) {
+    const isJson = parseError instanceof SyntaxError;
+    throw new Error(
+      isJson
+        ? "LLM response parse failed: response was not valid JSON (possibly truncated)"
+        : `LLM response schema mismatch: ${parseError instanceof Error ? parseError.message : String(parseError)}`
+    );
+  }
+
   const sanitized = sanitizeGestaoAnalystResponse(
     parsed,
     snapshot,

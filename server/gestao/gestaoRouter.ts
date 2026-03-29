@@ -152,17 +152,32 @@ export const gestaoRouter = router({
           comparisonSnapshot,
         });
       } catch (error) {
-        console.error("[GestaoLog] Falha no agente analítico", error);
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error("[GestaoLog] Falha no agente analítico:", msg);
+
+        const userMessage = (() => {
+          if (msg.includes("OPENAI_API_KEY is not configured"))
+            return "O analista de IA está indisponível: OPENAI_API_KEY não configurada no servidor.";
+          if (msg.includes("LLM invoke failed: 401"))
+            return "Chave de API inválida ou sem permissão (401). Verifique OPENAI_API_KEY.";
+          if (msg.includes("LLM invoke failed: 400"))
+            return "Endpoint ou modelo inválido (400). Verifique OPENAI_API_URL e OPENAI_MODEL.";
+          if (msg.includes("LLM invoke failed: 404"))
+            return "Endpoint não encontrado (404). Verifique OPENAI_API_URL.";
+          if (msg.includes("LLM invoke failed: 429"))
+            return "Limite de requisições da API atingido (429). Aguarde e tente novamente.";
+          if (msg.includes("LLM invoke failed:"))
+            return "O servidor de modelos retornou um erro inesperado. Consulte os logs do servidor.";
+          if (msg.includes("LLM response parse failed"))
+            return "O modelo retornou uma resposta incompleta. Tente uma pergunta mais curta.";
+          if (msg.includes("LLM response schema mismatch"))
+            return "O modelo retornou um formato inesperado. Reformule a pergunta e tente novamente.";
+          return "O analista de IA não conseguiu responder agora. Tente novamente em instantes.";
+        })();
+
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message:
-            error instanceof Error &&
-            error.message.includes("OPENAI_API_KEY is not configured")
-              ? "O analista de IA está indisponível porque a chave do modelo não foi configurada."
-              : error instanceof Error &&
-                  error.message.includes("LLM invoke failed: 400")
-                ? "O analista de IA falhou na configuração do endpoint/modelo. Verifique OPENAI_API_URL e OPENAI_MODEL."
-              : "O analista de IA não conseguiu responder agora. Tente novamente em instantes.",
+          message: userMessage,
         });
       }
     }),

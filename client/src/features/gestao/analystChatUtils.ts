@@ -5,9 +5,14 @@ import type {
 } from "./types";
 
 export const GESTAO_ANALYST_INITIAL_PROMPTS = [
+  "Qual o diagnóstico geral do período atual?",
   "Por que estamos atrás da meta neste recorte?",
   "Qual o principal risco para fechar o período?",
-  "Mostre o melhor recorte para investigar take rate.",
+  "Quem está puxando a produção e quem está para trás?",
+  "Como está o take rate e o que está afetando?",
+  "Quais produtos têm melhor performance agora?",
+  "Mostre o melhor recorte para investigar anomalias.",
+  "Compare com o período anterior — o que mudou?",
 ];
 
 function summarizeSelection(label: string, values: string[]) {
