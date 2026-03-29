@@ -127,7 +127,38 @@
   h4,
   h5,
   h6 {
-    @apply font-semibold;
+    @apply font-semibold tracking-tight;
+  }
+
+  /* Smooth scrolling everywhere */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Slim, themed scrollbar for Webkit */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-border;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/40;
+  }
+
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(1 0 0 / 12%) transparent;
+  }
+
+  /* Improved focus ring: use ring color, skip on mouse interactions */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
   }
 }
 
@@ -139,6 +170,39 @@
   /* Section header pattern: thin left accent + label */
   .section-heading {
     @apply relative pl-3 before:absolute before:left-0 before:top-0.5 before:h-[1.1em] before:w-0.5 before:rounded-full before:bg-primary/60;
+  }
+
+  /* Consistent page header area */
+  .page-header {
+    @apply border-b border-border bg-card;
+  }
+
+  /* Semantic surface layers (card-on-card) */
+  .surface-raised {
+    @apply rounded-xl border border-border/60 bg-card/60;
+  }
+  .surface-inset {
+    @apply rounded-xl border border-border/40 bg-background/60;
+  }
+
+  /* Label above a metric (uppercase micro-label) */
+  .metric-label {
+    @apply text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground;
+  }
+
+  /* Pill / badge-style status indicator */
+  .status-pill {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium;
+  }
+
+  /* Full-bleed gradient banner strip */
+  .banner-strip {
+    @apply -mx-6 -mt-6 mb-4 flex items-center justify-between px-4 py-2 text-xs font-bold;
+  }
+
+  /* Smooth card hover lift */
+  .card-hover {
+    @apply transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-lg;
   }
 }
 

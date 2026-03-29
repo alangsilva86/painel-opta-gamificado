@@ -19,19 +19,19 @@ type AlertsCardProps = {
 };
 
 const severityColors = {
-  info: "border-blue-700 bg-blue-950 text-blue-100",
-  warning: "border-amber-700 bg-amber-950 text-amber-100",
-  critical: "border-red-700 bg-red-950 text-red-100",
+  info: "border-blue-500/30 bg-blue-500/10 text-blue-200",
+  warning: "border-amber-500/30 bg-amber-500/10 text-amber-200",
+  critical: "border-red-500/30 bg-red-500/10 text-red-200",
 };
 
 export function AlertsCard({ alerts, filterState, onFilter, onRefresh }: AlertsCardProps) {
   if (!alerts || alerts.length === 0) {
     return (
-      <Card className="bg-slate-950 border-slate-800">
+      <Card>
         <CardHeader>
           <CardTitle>Alertas</CardTitle>
         </CardHeader>
-        <CardContent className="text-sm text-slate-300">
+        <CardContent className="text-sm text-muted-foreground">
           Tudo estável. Revise mix e pipeline para oportunidades.
         </CardContent>
       </Card>

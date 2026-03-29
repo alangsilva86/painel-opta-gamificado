@@ -4,6 +4,8 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { VendedoraCard } from "@/components/VendedoraCard";
 import TierBadge from "@/components/TierBadge";
+import { KpiCard } from "@/components/KpiCard";
+import { AnimatedProgressBar } from "@/components/AnimatedProgressBar";
 import { useCelebration } from "@/hooks/useCelebration";
 import {
   Target,
@@ -26,7 +28,12 @@ import { Badge } from "@/components/ui/badge";
 import { EscadaAcelerador } from "@/components/EscadaAcelerador";
 import { GraficosAnalise } from "@/components/GraficosAnalise";
 import { useAudio } from "@/contexts/AudioContext";
-import { cn } from "@/lib/utils";
+import {
+  cn,
+  formatCurrency,
+  getProgressBarColor,
+  getProgressColor,
+} from "@/lib/utils";
 import { getTierDefinition, getTierVisual } from "@/lib/tierVisuals";
 
 function getMotivationalMessage(percentualMeta: number) {
@@ -209,15 +216,6 @@ export default function Dashboard() {
     }
   }, [data, playSale, celebrate, celebrateLevelUp]);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
-
   const getAceleradorLabel = (acelerador: number) => {
     if (acelerador >= 0.5) return "+50% Acelerador Global";
     if (acelerador >= 0.25) return "+25% Acelerador Global";
@@ -286,10 +284,10 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <RefreshCw className="animate-spin mx-auto mb-4" size={48} />
-          <p className="text-muted-foreground">Carregando dashboard...</p>
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <RefreshCw className="h-10 w-10 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Carregando dashboard…</p>
         </div>
       </div>
     );
@@ -297,8 +295,8 @@ export default function Dashboard() {
 
   if (!data) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Erro ao carregar dados</p>
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-sm text-muted-foreground">Erro ao carregar dados</p>
       </div>
     );
   }
@@ -352,18 +350,6 @@ export default function Dashboard() {
     metaSemanalGlobal > 0
       ? (realizadoSemanaGlobal / metaSemanalGlobal) * 100
       : 0;
-
-  const getProgressTone = (pct: number) => {
-    if (pct >= 100) return "bg-green-500";
-    if (pct >= 75) return "bg-amber-400";
-    return "bg-primary";
-  };
-
-  const getProgressTextColor = (pct: number) => {
-    if (pct >= 100) return "text-green-500";
-    if (pct >= 75) return "text-amber-500";
-    return "text-muted-foreground";
-  };
 
   const leaderboardVariants = {
     hidden: {},
@@ -466,171 +452,82 @@ export default function Dashboard() {
 
       <div className="container py-8">
         {/* KPIs Globais */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-8">
-          {/* Realizado Global */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Realizado Global
-                </CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {formatCurrency(data.metaGlobal.realizado)}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Meta: {formatCurrency(data.metaGlobal.metaValor)}
-                </p>
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-secondary">
-                  <motion.div
-                    className={`h-full ${getProgressTone(data.metaGlobal.percentualMeta)}`}
-                    initial={{ width: 0 }}
-                    animate={{
-                      width: `${Math.min(data.metaGlobal.percentualMeta, 100)}%`,
-                    }}
-                    transition={{ duration: 0.8, ease: "easeOut" }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+        <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <KpiCard
+            title="Realizado Global"
+            value={formatCurrency(data.metaGlobal.realizado)}
+            subtitle={`Meta: ${formatCurrency(data.metaGlobal.metaValor)}`}
+            icon={DollarSign}
+            progress={{
+              value: data.metaGlobal.percentualMeta,
+              colorClass: getProgressBarColor(data.metaGlobal.percentualMeta),
+            }}
+            motionDelay={0.1}
+          />
 
-          {/* % da Meta Global */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">% da Meta</CardTitle>
-                <Target className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {data.metaGlobal.percentualMeta.toFixed(1)}%
-                </div>
-                {faltaAcelerador && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Faltam {formatCurrency(faltaAcelerador.falta)} para{" "}
-                    {faltaAcelerador.target}
-                  </p>
-                )}
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-secondary">
-                  <motion.div
-                    className={`h-full ${getProgressTone(data.metaGlobal.percentualMeta)}`}
-                    initial={{ width: 0 }}
-                    animate={{
-                      width: `${Math.min(data.metaGlobal.percentualMeta, 100)}%`,
-                    }}
-                    transition={{ duration: 0.8, ease: "easeOut" }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+          <KpiCard
+            title="% da Meta"
+            value={`${data.metaGlobal.percentualMeta.toFixed(1)}%`}
+            subtitle={
+              faltaAcelerador
+                ? `Faltam ${formatCurrency(faltaAcelerador.falta)} para ${faltaAcelerador.target}`
+                : undefined
+            }
+            icon={Target}
+            progress={{
+              value: data.metaGlobal.percentualMeta,
+              colorClass: getProgressBarColor(data.metaGlobal.percentualMeta),
+            }}
+            motionDelay={0.2}
+          />
 
-          {/* Super Meta Global */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25 }}
-          >
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Super Meta
-                </CardTitle>
-                <Shield className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {data.metaGlobal.superMetaValor > 0
-                    ? `${data.metaGlobal.percentualSuperMeta.toFixed(1)}%`
-                    : "--"}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Super Meta:{" "}
-                  {data.metaGlobal.superMetaValor > 0
-                    ? formatCurrency(data.metaGlobal.superMetaValor)
-                    : "Não definida"}
-                </p>
-              </CardContent>
-            </Card>
-          </motion.div>
+          <KpiCard
+            title="Super Meta"
+            value={
+              data.metaGlobal.superMetaValor > 0
+                ? `${data.metaGlobal.percentualSuperMeta.toFixed(1)}%`
+                : "--"
+            }
+            subtitle={`Super Meta: ${data.metaGlobal.superMetaValor > 0 ? formatCurrency(data.metaGlobal.superMetaValor) : "Não definida"}`}
+            icon={Shield}
+            motionDelay={0.25}
+          />
 
-          {/* Acelerador Global */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Acelerador Global
-                </CardTitle>
-                <Zap className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div
-                  className={`text-2xl font-bold ${getAceleradorColor(
-                    data.metaGlobal.acelerador
-                  )}`}
-                >
-                  {data.metaGlobal.acelerador > 0
-                    ? `+${(data.metaGlobal.acelerador * 100).toFixed(0)}%`
-                    : "0%"}
-                </div>
-                {data.metaGlobal.acelerador > 0 ? (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {getAceleradorLabel(data.metaGlobal.acelerador)}
-                  </p>
-                ) : faltaAcelerador ? (
-                  <p className="mt-1 text-sm font-semibold text-yellow-300">
-                    Faltam {formatCurrency(faltaAcelerador.falta)}
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {getAceleradorLabel(data.metaGlobal.acelerador)}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
+          <KpiCard
+            title="Acelerador Global"
+            value={
+              data.metaGlobal.acelerador > 0
+                ? `+${(data.metaGlobal.acelerador * 100).toFixed(0)}%`
+                : "0%"
+            }
+            valueClassName={getAceleradorColor(data.metaGlobal.acelerador)}
+            subtitle={
+              data.metaGlobal.acelerador > 0
+                ? getAceleradorLabel(data.metaGlobal.acelerador)
+                : faltaAcelerador
+                  ? `Faltam ${formatCurrency(faltaAcelerador.falta)}`
+                  : getAceleradorLabel(data.metaGlobal.acelerador)
+            }
+            icon={Zap}
+            motionDelay={0.3}
+          />
 
-          {/* Total de Contratos */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
+          <KpiCard
+            title="Contratos"
+            value={data.totalContratos}
+            icon={TrendingUp}
+            motionDelay={0.4}
           >
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Contratos</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{data.totalContratos}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {data.vendedoras.length} vendedoras ativas
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Sem incentivo: {data.contratosSemComissao} (
-                  {data.percentualContratosSemComissao.toFixed(1)}%)
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Com incentivo: {data.contratosComComissao}
-                </p>
-              </CardContent>
-            </Card>
-          </motion.div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {data.vendedoras.length} vendedoras ativas
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Sem incentivo: {data.contratosSemComissao} ({data.percentualContratosSemComissao.toFixed(1)}%)
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Com incentivo: {data.contratosComComissao}
+            </p>
+          </KpiCard>
         </div>
 
         <div className="mb-6 space-y-3">
@@ -663,9 +560,7 @@ export default function Dashboard() {
                     <SunMedium size={14} />
                     Ritmo Diário
                   </div>
-                  <span
-                    className={`font-semibold ${getProgressTextColor(pctDiaGlobal)}`}
-                  >
+                  <span className={cn("font-semibold", getProgressColor(pctDiaGlobal))}>
                     {pctDiaGlobal.toFixed(0)}%
                   </span>
                 </div>
@@ -675,14 +570,11 @@ export default function Dashboard() {
                     Meta {formatCurrency(metaDiariaGlobal)}
                   </span>
                 </div>
-                <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                  <motion.div
-                    className={`h-full ${getProgressTone(pctDiaGlobal)}`}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(pctDiaGlobal, 140)}%` }}
-                    transition={{ duration: 0.8, ease: "easeOut" }}
-                  />
-                </div>
+                <AnimatedProgressBar
+                  value={pctDiaGlobal}
+                  colorClass={getProgressBarColor(pctDiaGlobal)}
+                  height="md"
+                />
                 <p className="text-xs text-muted-foreground">
                   {metaDiariaGlobal > 0
                     ? pctDiaGlobal >= 100
@@ -699,9 +591,7 @@ export default function Dashboard() {
                     <CalendarRange size={14} />
                     Ritmo Semanal
                   </div>
-                  <span
-                    className={`font-semibold ${getProgressTextColor(pctSemanaGlobal)}`}
-                  >
+                  <span className={cn("font-semibold", getProgressColor(pctSemanaGlobal))}>
                     {pctSemanaGlobal.toFixed(0)}%
                   </span>
                 </div>
@@ -711,14 +601,11 @@ export default function Dashboard() {
                     Meta {formatCurrency(metaSemanalGlobal)}
                   </span>
                 </div>
-                <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                  <motion.div
-                    className={`h-full ${getProgressTone(pctSemanaGlobal)}`}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(pctSemanaGlobal, 140)}%` }}
-                    transition={{ duration: 0.8, ease: "easeOut" }}
-                  />
-                </div>
+                <AnimatedProgressBar
+                  value={pctSemanaGlobal}
+                  colorClass={getProgressBarColor(pctSemanaGlobal)}
+                  height="md"
+                />
                 <p className="text-xs text-muted-foreground">
                   {metaSemanalGlobal > 0
                     ? pctSemanaGlobal >= 100
@@ -828,28 +715,17 @@ export default function Dashboard() {
                       <div className="mt-1 text-sm text-muted-foreground">
                         {formatCurrency(vendedora.realizado)}
                       </div>
-                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-background/70">
-                        <motion.div
-                          className={cn(
-                            "h-full",
-                            getTierVisual(vendedora.tier).softBgClass,
-                            {
-                              "bg-yellow-400": index === 0,
-                              "bg-slate-300": index === 1,
-                              "bg-orange-400": index === 2,
-                            }
-                          )}
-                          initial={{ width: 0 }}
-                          animate={{
-                            width: `${Math.min(vendedora.percentualMeta, 100)}%`,
-                          }}
-                          transition={{
-                            duration: 0.8,
-                            ease: "easeOut",
-                            delay: index * 0.05,
-                          }}
-                        />
-                      </div>
+                      <AnimatedProgressBar
+                        value={vendedora.percentualMeta}
+                        colorClass={cn(
+                          getTierVisual(vendedora.tier).softBgClass,
+                          index === 0 && "bg-yellow-400",
+                          index === 1 && "bg-slate-300",
+                          index === 2 && "bg-orange-400"
+                        )}
+                        className="mt-2 bg-background/70"
+                        delay={index * 0.05}
+                      />
                     </div>
                     <TierBadge tier={vendedora.tier} size="sm" />
                   </motion.div>

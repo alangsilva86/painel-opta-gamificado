@@ -214,6 +214,11 @@ const resolveApiUrl = () =>
     ? `${ENV.openaiApiUrl.replace(/\/$/, "")}/v1/chat/completions`
     : "https://api.openai.com/v1/chat/completions";
 
+const resolveModel = () =>
+  ENV.openaiModel && ENV.openaiModel.trim().length > 0
+    ? ENV.openaiModel.trim()
+    : "gpt-4o-mini";
+
 const assertApiKey = () => {
   if (!ENV.openaiApiKey) {
     throw new Error("OPENAI_API_KEY is not configured");
@@ -273,6 +278,8 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     tools,
     toolChoice,
     tool_choice,
+    maxTokens,
+    max_tokens,
     outputSchema,
     output_schema,
     responseFormat,
@@ -280,7 +287,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } = params;
 
   const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
+    model: resolveModel(),
     messages: messages.map(normalizeMessage),
   };
 
@@ -296,10 +303,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
-  }
+  payload.max_tokens = maxTokens ?? max_tokens ?? 4096;
 
   const normalizedResponseFormat = normalizeResponseFormat({
     responseFormat,

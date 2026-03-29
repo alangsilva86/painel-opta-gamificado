@@ -62,22 +62,15 @@ export function MetricGlossaryDrawer() {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          className="border-slate-800 bg-slate-950 text-slate-100"
-        >
+        <Button type="button" variant="outline">
           <BookOpenText size={14} />
           Glossário
         </Button>
       </SheetTrigger>
-      <SheetContent
-        side="right"
-        className="border-slate-800 bg-slate-950 text-white sm:max-w-xl"
-      >
+      <SheetContent side="right" className="sm:max-w-xl">
         <SheetHeader>
           <SheetTitle>Glossário Executivo</SheetTitle>
-          <SheetDescription className="text-slate-400">
+          <SheetDescription>
             Definições curtas para alinhar leitura, fórmula e uso de cada
             indicador.
           </SheetDescription>
@@ -86,27 +79,21 @@ export function MetricGlossaryDrawer() {
           {GLOSSARY.map(item => (
             <div
               key={item.label}
-              className="rounded-xl border border-slate-800 bg-slate-900/80 p-4"
+              className="rounded-xl border border-border bg-muted/40 p-4"
             >
-              <h3 className="text-sm font-semibold text-white">{item.label}</h3>
-              <div className="mt-3 space-y-3 text-sm text-slate-300">
+              <h3 className="text-sm font-semibold">{item.label}</h3>
+              <div className="mt-3 space-y-3 text-sm text-muted-foreground">
                 <div>
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                    Fórmula
-                  </div>
-                  <p className="mt-1">{item.formula}</p>
+                  <div className="metric-label">Fórmula</div>
+                  <p className="mt-1 text-foreground">{item.formula}</p>
                 </div>
                 <div>
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                    Interpretação
-                  </div>
-                  <p className="mt-1">{item.interpretation}</p>
+                  <div className="metric-label">Interpretação</div>
+                  <p className="mt-1 text-foreground">{item.interpretation}</p>
                 </div>
                 <div>
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                    Quando usar
-                  </div>
-                  <p className="mt-1">{item.whenToUse}</p>
+                  <div className="metric-label">Quando usar</div>
+                  <p className="mt-1 text-foreground">{item.whenToUse}</p>
                 </div>
               </div>
             </div>

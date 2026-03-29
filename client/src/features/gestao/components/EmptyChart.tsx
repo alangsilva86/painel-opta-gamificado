@@ -7,7 +7,7 @@ type EmptyChartProps = {
 
 export function EmptyChart({ message, onClearFilters }: EmptyChartProps) {
   return (
-    <div className="flex h-full items-center justify-center text-sm text-slate-300">
+    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
       <div className="text-center space-y-1">
         <div>{message}</div>
         <Button variant="ghost" size="sm" onClick={onClearFilters}>

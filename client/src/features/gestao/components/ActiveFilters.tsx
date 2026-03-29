@@ -11,12 +11,12 @@ export function ActiveFilters({ filterState, onRemove }: ActiveFiltersProps) {
   if (!hasFilters) return null;
 
   return (
-    <div className="flex flex-wrap gap-2 text-sm text-slate-200">
+    <div className="flex flex-wrap gap-2 text-sm">
       {filterState.etapaPipeline.map((v) => (
         <Badge
           key={`etapa-${v}`}
           variant="outline"
-          className="border-slate-700 cursor-pointer"
+          className="cursor-pointer"
           onClick={() => onRemove({ etapaPipeline: filterState.etapaPipeline.filter((i) => i !== v) })}
         >
           Etapa: {v} ✕
@@ -26,7 +26,7 @@ export function ActiveFilters({ filterState, onRemove }: ActiveFiltersProps) {
         <Badge
           key={`vendedor-${v}`}
           variant="outline"
-          className="border-slate-700 cursor-pointer"
+          className="cursor-pointer"
           onClick={() => onRemove({ vendedorNome: filterState.vendedorNome.filter((i) => i !== v) })}
         >
           Vendedor: {v} ✕
@@ -36,7 +36,7 @@ export function ActiveFilters({ filterState, onRemove }: ActiveFiltersProps) {
         <Badge
           key={`produto-${v}`}
           variant="outline"
-          className="border-slate-700 cursor-pointer"
+          className="cursor-pointer"
           onClick={() => onRemove({ produto: filterState.produto.filter((i) => i !== v) })}
         >
           Produto: {v} ✕
@@ -46,7 +46,7 @@ export function ActiveFilters({ filterState, onRemove }: ActiveFiltersProps) {
         <Badge
           key={`tipo-${v}`}
           variant="outline"
-          className="border-slate-700 cursor-pointer"
+          className="cursor-pointer"
           onClick={() => onRemove({ tipoOperacao: filterState.tipoOperacao.filter((i) => i !== v) })}
         >
           Tipo: {v} ✕

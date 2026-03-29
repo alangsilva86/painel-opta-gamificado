@@ -9,6 +9,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { ProgressRing } from "./ProgressRing";
 import TierBadge from "./TierBadge";
+import { AnimatedProgressBar } from "./AnimatedProgressBar";
 import {
   Trophy,
   TrendingUp,
@@ -24,7 +25,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency, getProgressBarColor } from "@/lib/utils";
 import {
   getTierByThreshold,
   getTierDefinition,
@@ -114,32 +115,19 @@ function AnimatedContractCount({ value }: { value: number }) {
   return <motion.span>{displayValue}</motion.span>;
 }
 
+function getRankColor(rank: number | undefined): string {
+  if (!rank) return "";
+  if (rank === 1) return "text-yellow-400";
+  if (rank === 2) return "text-gray-300";
+  if (rank === 3) return "text-orange-400";
+  return "text-muted-foreground";
+}
+
 export function VendedoraCard({
   vendedora,
   rank,
   onClick,
 }: VendedoraCardProps) {
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value);
-  };
-
-  const getRankColor = () => {
-    if (!rank) return "";
-    if (rank === 1) return "text-yellow-400";
-    if (rank === 2) return "text-gray-300";
-    if (rank === 3) return "text-orange-400";
-    return "text-muted-foreground";
-  };
-
-  const getBarColor = (pct: number) => {
-    if (pct >= 100) return "bg-green-500";
-    if (pct >= 75) return "bg-amber-400";
-    return "bg-primary";
-  };
-
   const renderRitmoLinha = (
     label: string,
     icon: ReactNode,
@@ -164,14 +152,11 @@ export function VendedoraCard({
           <span>{formatCurrency(realizado)}</span>
           <span>Meta {formatCurrency(metaPlanejada)}</span>
         </div>
-        <div className="h-2 bg-secondary rounded-full overflow-hidden">
-          <motion.div
-            className={`h-full ${getBarColor(pct)}`}
-            initial={{ width: 0 }}
-            animate={{ width: `${Math.min(pct, 140)}%` }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-          />
-        </div>
+        <AnimatedProgressBar
+          value={pct}
+          colorClass={getProgressBarColor(pct)}
+          height="md"
+        />
         {metaPlanejada > 0 && falta > 0 && (
           <p className="text-[11px] text-muted-foreground">
             Faltam {formatCurrency(falta)} para fechar {label.toLowerCase()}.
@@ -270,7 +255,7 @@ export function VendedoraCard({
             <Tooltip>
               <TooltipTrigger asChild>
                 <div
-                  className={`flex items-center gap-1 ${getRankColor()} font-bold text-lg`}
+                  className={cn("flex items-center gap-1 font-bold text-lg", getRankColor(rank))}
                 >
                   <Trophy size={20} />
                   <span>#{rank}</span>
@@ -283,12 +268,7 @@ export function VendedoraCard({
 
         <CardContent className="p-6">
           {vendedora.percentualMeta >= 100 && (
-            <div
-              className={cn(
-                "-mx-6 -mt-6 mb-4 flex items-center justify-between px-4 py-2 text-xs font-bold",
-                bannerClass
-              )}
-            >
+            <div className={cn("banner-strip", bannerClass)}>
               <span>META ALCANÇADA 🏆</span>
               <span>{vendedora.percentualMeta.toFixed(0)}%</span>
             </div>
@@ -461,22 +441,11 @@ export function VendedoraCard({
                     {vendedora.percentualMeta.toFixed(1)}%
                   </span>
                 </div>
-                <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                  <motion.div
-                    className={`h-full ${
-                      vendedora.percentualMeta >= 100
-                        ? "bg-green-500"
-                        : vendedora.percentualMeta >= 75
-                          ? "bg-yellow-500"
-                          : "bg-primary"
-                    }`}
-                    initial={{ width: 0 }}
-                    animate={{
-                      width: `${Math.min(vendedora.percentualMeta, 100)}%`,
-                    }}
-                    transition={{ duration: 1, ease: "easeOut" }}
-                  />
-                </div>
+                <AnimatedProgressBar
+                  value={vendedora.percentualMeta}
+                  colorClass={getProgressBarColor(vendedora.percentualMeta)}
+                  height="md"
+                />
               </div>
 
               <div className="mt-4 space-y-3">

@@ -62,48 +62,32 @@ export function SavedViewsManager({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          className="border-slate-800 bg-slate-950 text-slate-100"
-        >
+        <Button type="button" variant="outline">
           <Bookmark size={14} />
           {activeLabel}
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="w-[420px] border-slate-800 bg-slate-950 p-4 text-white"
-      >
+      <PopoverContent align="start" className="w-[420px] p-4">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm font-semibold text-white">
-                Vistas salvas
-              </div>
-              <div className="text-xs text-slate-400">
+              <div className="text-sm font-semibold">Vistas salvas</div>
+              <div className="text-xs text-muted-foreground">
                 Reaplique recortes executivos sem reconstruir filtros.
               </div>
             </div>
-            <Badge
-              variant="outline"
-              className="border-slate-700 text-slate-300"
-            >
-              {activeLabel}
-            </Badge>
+            <Badge variant="outline">{activeLabel}</Badge>
           </div>
 
           <div className="space-y-2">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-              Presets
-            </div>
+            <div className="metric-label">Presets</div>
             <div className="grid gap-2 sm:grid-cols-3">
               {presetViews.map(view => (
                 <Button
                   key={view.id}
                   type="button"
                   variant={activeViewId === view.id ? "secondary" : "outline"}
-                  className="justify-start border-slate-800 bg-slate-900 text-slate-100"
+                  className="justify-start"
                   onClick={() => onApply(view)}
                 >
                   {view.name}
@@ -113,18 +97,16 @@ export function SavedViewsManager({
           </div>
 
           <div className="space-y-2">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-              Personalizadas
-            </div>
+            <div className="metric-label">Personalizadas</div>
             {customViews.length === 0 && (
-              <div className="rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-3 text-sm text-slate-400">
+              <div className="rounded-lg border border-border bg-muted/40 px-3 py-3 text-sm text-muted-foreground">
                 Nenhuma vista personalizada salva ainda.
               </div>
             )}
             {customViews.map(view => (
               <div
                 key={view.id}
-                className="rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-3"
+                className="rounded-lg border border-border bg-muted/30 px-3 py-3"
               >
                 <div className="flex items-center justify-between gap-3">
                   <button
@@ -132,10 +114,10 @@ export function SavedViewsManager({
                     className="min-w-0 text-left"
                     onClick={() => onApply(view)}
                   >
-                    <div className="truncate text-sm font-medium text-white">
+                    <div className="truncate text-sm font-medium">
                       {view.name}
                     </div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-muted-foreground">
                       Atualizada{" "}
                       {new Date(view.updatedAt).toLocaleString("pt-BR")}
                     </div>
@@ -144,7 +126,7 @@ export function SavedViewsManager({
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="size-8 text-slate-300"
+                      className="size-8"
                       onClick={() => {
                         setEditingId(view.id);
                         setDraftName(view.name);
@@ -155,7 +137,7 @@ export function SavedViewsManager({
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="size-8 text-slate-300"
+                      className="size-8"
                       onClick={() => onDuplicate(view.id)}
                     >
                       <Copy size={14} />
@@ -163,7 +145,7 @@ export function SavedViewsManager({
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="size-8 text-rose-300"
+                      className="size-8 text-destructive hover:text-destructive"
                       onClick={() => onDelete(view.id)}
                     >
                       <Trash2 size={14} />
@@ -174,8 +156,8 @@ export function SavedViewsManager({
             ))}
           </div>
 
-          <div className="space-y-2 rounded-xl border border-slate-800 bg-slate-900/80 p-3">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+          <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3">
+            <div className="metric-label">
               {editingId ? "Renomear vista" : "Salvar vista atual"}
             </div>
             <div className="flex gap-2">
@@ -183,7 +165,6 @@ export function SavedViewsManager({
                 value={draftName}
                 onChange={event => setDraftName(event.target.value)}
                 placeholder="Ex.: Comitê semanal"
-                className="border-slate-800 bg-slate-950 text-white"
               />
               <Button type="button" onClick={handleSubmit}>
                 <Save size={14} />
@@ -197,7 +178,6 @@ export function SavedViewsManager({
               <Button
                 type="button"
                 variant="outline"
-                className="border-slate-800 bg-slate-950 text-slate-100"
                 onClick={onRestoreLast}
               >
                 <RotateCcw size={14} />
@@ -207,7 +187,7 @@ export function SavedViewsManager({
             <Button
               type="button"
               variant="ghost"
-              className="text-slate-300"
+              className="text-muted-foreground"
               onClick={onReset}
             >
               Voltar ao padrão

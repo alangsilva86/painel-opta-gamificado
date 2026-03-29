@@ -159,6 +159,9 @@ export const gestaoRouter = router({
             error instanceof Error &&
             error.message.includes("OPENAI_API_KEY is not configured")
               ? "O analista de IA está indisponível porque a chave do modelo não foi configurada."
+              : error instanceof Error &&
+                  error.message.includes("LLM invoke failed: 400")
+                ? "O analista de IA falhou na configuração do endpoint/modelo. Verifique OPENAI_API_URL e OPENAI_MODEL."
               : "O analista de IA não conseguiu responder agora. Tente novamente em instantes.",
         });
       }
