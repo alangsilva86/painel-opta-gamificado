@@ -39,7 +39,7 @@ import { getTierDefinition, getTierVisual } from "@/lib/tierVisuals";
 function getMotivationalMessage(percentualMeta: number) {
   if (percentualMeta >= 150) return "SUPER META BATIDA! 🔥🔥🔥";
   if (percentualMeta >= 100) return "Meta batida! 🏆 Bora para a Super Meta!";
-  if (percentualMeta >= 75) return "Acelerador quase lá! ⚡";
+  if (percentualMeta >= 75) return "Reta final da meta global! ⚡";
   return "Vamos começar! 💪";
 }
 
@@ -268,11 +268,7 @@ export default function Dashboard() {
     const { metaGlobal } = data;
 
     if (!metaGlobal.metaGlobalBatida) {
-      if (metaGlobal.percentualMeta >= 75) {
-        return { target: "100%", falta: metaGlobal.faltaMeta };
-      }
-      const falta = metaGlobal.metaValor * 0.75 - metaGlobal.realizado;
-      return { target: "75%", falta };
+      return { target: "Meta Global", falta: metaGlobal.faltaMeta };
     }
 
     if (!metaGlobal.superMetaGlobalBatida && metaGlobal.superMetaValor > 0) {
@@ -535,7 +531,7 @@ export default function Dashboard() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Zap size={18} />
-                Escada de Aceleradores (≥75% habilita)
+                Escada Global: Meta e Super Meta
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -546,8 +542,8 @@ export default function Dashboard() {
               {faltaAcelerador && (
                 <p className="text-xs text-muted-foreground">
                   Falta {formatCurrency(faltaAcelerador.falta)} para{" "}
-                  {faltaAcelerador.target}. Acelerador só impacta vendedoras com
-                  75%+ da meta individual.
+                  {faltaAcelerador.target}. O acelerador global só impacta
+                  vendedoras com 75%+ da meta individual.
                 </p>
               )}
             </CardContent>
@@ -640,7 +636,8 @@ export default function Dashboard() {
                 <div className="flex items-center justify-center gap-3">
                   <Zap className="text-green-400" size={24} />
                   <span className="text-lg font-bold text-green-400">
-                    Acelerador Global Ativo! Todas as vendedoras (75%+) ganham{" "}
+                    Acelerador Global Ativo! Vendedoras com 75%+ da meta
+                    individual ganham{" "}
                     {getAceleradorLabel(data.metaGlobal.acelerador)}
                   </span>
                   <Zap className="text-green-400" size={24} />

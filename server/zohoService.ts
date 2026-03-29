@@ -1,4 +1,7 @@
-import { parseMoneyToNumber, parsePercentToPercent } from "@shared/zohoParsing";
+import {
+  calcularBaseComissionavelVendedora,
+  resolveZohoCommissionBreakdown,
+} from "@shared/commercialRules";
 
 interface ZohoTokenResponse {
   access_token: string;
@@ -45,14 +48,6 @@ export interface ZohoContrato {
 interface ZohoDataResponse {
   data: ZohoContratoRaw[];
   record_cursor?: string;
-}
-
-function firstNumber(...values: Array<unknown>): number {
-  for (const v of values) {
-    const n = parseMoneyToNumber(v);
-    if (n !== 0) return n;
-  }
-  return 0;
 }
 
 class ZohoService {
@@ -217,31 +212,21 @@ class ZohoService {
     if (!dataPagamentoBr) return null;
     const dataPagamento = this.converterData(dataPagamentoBr) || dataPagamentoBr;
 
-    const valorLiquido = firstNumber(
-      raw.Valor_liquido_liberado,
-      raw.amount
-    );
+    const commissionBreakdown = resolveZohoCommissionBreakdown({
+      valorLiquido: raw.Valor_liquido_liberado,
+      valorLiquidoFallback: raw.amount,
+      amountComission: raw.amountComission,
+      valorComissao: raw.Valor_comissao,
+      comissao: raw.Comissao,
+      comissaoBonus: raw.Comissao_Bonus,
+      comissionPercent: raw.comissionPercent,
+      comissionPercentBonus: raw.comissionPercentBonus,
+    });
 
-    // Calcula comissão:
-    // 1) Se existir amountComission (Zoho), usa.
-    // 2) Senão, tenta Valor_comissao/Comissao.
-    // 3) Se ainda zero, calcula por percentual * valor líquido.
-    const comissaoPercent = parsePercentToPercent(raw.comissionPercent);
-    const comissaoPercentBonus = parsePercentToPercent(raw.comissionPercentBonus);
-    const comissaoPercentTotal = comissaoPercent + comissaoPercentBonus;
-    const comissaoCalculadaPorPercentual = valorLiquido * (comissaoPercentTotal / 100);
-
-    const comissaoPrincipal = firstNumber(
-      raw.amountComission,
-      raw.Valor_comissao,
-      raw.Comissao,
-      comissaoCalculadaPorPercentual
-    );
-    const comissaoBonus = parseMoneyToNumber(raw.Comissao_Bonus);
-    let valorComissaoOpta = comissaoPrincipal + comissaoBonus;
-    
-    // Cálculo oficial: Base Comissionável = Valor_comissao_opta * 0.55 * 0.06
-    const baseComissionavelVendedores = valorComissaoOpta * 0.55 * 0.06;
+    const valorLiquido = commissionBreakdown.liquidoLiberado;
+    const valorComissaoOpta = commissionBreakdown.comissaoTotal;
+    const baseComissionavelVendedores =
+      calcularBaseComissionavelVendedora(valorComissaoOpta);
 
     return {
       ID: raw.ID,

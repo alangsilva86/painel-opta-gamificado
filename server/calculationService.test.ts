@@ -76,6 +76,11 @@ describe("calculationService", () => {
     expect(metaGlobal.metaGlobalBatida).toBe(true);
     expect(metaGlobal.superMetaGlobalBatida).toBe(true);
     expect(metaGlobal.acelerador).toBeCloseTo(0.5);
+    expect(metaGlobal.escada.map((step) => step.label)).toEqual([
+      "Meta Global",
+      "Super Meta",
+    ]);
+    expect(metaGlobal.escada.some((step) => step.percentual === 75)).toBe(false);
   });
 
   it("montarEscada calcula alvos e faltas por nível", () => {

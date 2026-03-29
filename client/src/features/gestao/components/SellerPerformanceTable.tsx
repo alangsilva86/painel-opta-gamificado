@@ -107,7 +107,7 @@ export function SellerPerformanceTable({
   return (
     <Card className="bg-slate-950 border-slate-800">
       <CardHeader className="pb-2">
-        <CardTitle>Produção & Comissão por Vendedora</CardTitle>
+        <CardTitle>Produção Monetizada & Comissão por Vendedora</CardTitle>
       </CardHeader>
       <CardContent className="overflow-x-auto">
         <Table>
@@ -129,7 +129,7 @@ export function SellerPerformanceTable({
                 Comissão Opta
                 {sortLabel("comissao") ? ` (${sortLabel("comissao")})` : ""}
               </TableHead>
-              <TableHead>Comissão Vendedora</TableHead>
+              <TableHead>Base Vendedora</TableHead>
               <TableHead>Comissão média</TableHead>
               <TableHead
                 className="cursor-pointer select-none"

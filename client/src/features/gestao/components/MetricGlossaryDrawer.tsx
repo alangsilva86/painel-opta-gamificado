@@ -14,9 +14,17 @@ const GLOSSARY = [
     label: "Comissão total",
     formula: "Soma de toda a comissão total do recorte filtrado.",
     interpretation:
-      "Mostra o valor monetizado no período, independentemente do volume líquido.",
+      "Mostra a produção monetizada do período, separada do pipeline operacional.",
     whenToUse:
       "Use para acompanhar meta executiva, fechamento mensal e comparação de performance.",
+  },
+  {
+    label: "Base vendedora",
+    formula: "Comissão total × 0,55 × 0,06 para produtos elegíveis.",
+    interpretation:
+      "Representa a base usada na remuneração da vendedora, não a comissão Opta cheia.",
+    whenToUse:
+      "Use para explicar remuneração individual e diferenças entre comissão Opta e incentivo da vendedora.",
   },
   {
     label: "Pace vs necessário/dia",
@@ -36,7 +44,8 @@ const GLOSSARY = [
   {
     label: "Share sem comissão",
     formula: "Contratos sem comissão / contratos totais.",
-    interpretation: "Mostra o quanto do volume ainda não virou receita.",
+    interpretation:
+      "Mostra o quanto do pipeline operacional ainda não virou produção monetizada.",
     whenToUse:
       "Use para avaliar fila pendente, gargalos operacionais e risco de submonetização.",
   },

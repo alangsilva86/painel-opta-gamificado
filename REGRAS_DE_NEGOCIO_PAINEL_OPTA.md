@@ -4,7 +4,8 @@
 
 ```
 Base Comissionavel = Valor_comissao_opta * 0.55 * 0.06
-Comissao Final = Base Comissionavel * (Multiplicador do Tier + Acelerador Global)
+Comissao Base = Base Comissionavel * Multiplicador do Tier
+Comissao Final = Comissao Base * (1 + Acelerador Global)
 ```
 
 ## Tiers e Multiplicadores
@@ -31,6 +32,13 @@ Comissao Final = Base Comissionavel * (Multiplicador do Tier + Acelerador Global
 
 - Produtos como "Emprestimo Garantia Veiculo" nao contam para comissao/realizado das vendedoras.
 - Contratos em estagios invalidos nao entram no painel (filtrados por `contractUtils.ts`).
+- Pipeline operacional e producao monetizada sao visoes complementares e nao devem ser tratadas como o mesmo KPI.
+
+## Gestao Materializada
+
+- A tela de Gestao usa a tabela `contratos` normalizada para recortes, comparacoes e drilldown.
+- A meta executiva do recorte e a soma proporcional das metas mensais cobertas pelo intervalo filtrado.
+- O vinculo de meta por vendedora prioriza `vendedorId`, com fallback por nome apenas para legado.
 
 ## Metas Diarias e Semanais
 

@@ -130,7 +130,7 @@ export default function TVMode() {
             <div className="flex items-center justify-center gap-4 text-3xl font-bold text-green-400">
               <Zap size={40} />
               <span>
-                Acelerador Global Ativo! Vendedoras 75%+ ganham +
+                Acelerador Global Ativo! Vendedoras com 75%+ da meta individual ganham +
                 {(data.metaGlobal.acelerador * 100).toFixed(0)}%
               </span>
               <Zap size={40} />

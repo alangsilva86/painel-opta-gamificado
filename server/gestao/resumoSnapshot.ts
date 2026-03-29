@@ -1,6 +1,10 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, desc, gte, inArray, lte } from "drizzle-orm";
 import { z } from "zod";
+import {
+  COMISSAO_VENDEDORA_FACTOR,
+  isProdutoIgnoradoNoPainelVendedoras,
+} from "@shared/commercialRules";
 import {
   contratos,
   gestaoMetas,
@@ -8,7 +12,6 @@ import {
   metasVendedor,
   vendedoras,
 } from "../../drizzle/schema";
-import { isProdutoIgnoradoNoPainelVendedoras } from "../calculationService";
 import { getDb } from "../db";
 import { buildExecutiveLayer } from "./executive";
 
@@ -25,16 +28,71 @@ export const FILTERS_SCHEMA = z.object({
 
 export type GestaoResumoFilters = z.infer<typeof FILTERS_SCHEMA>;
 
+type MonthCoverage = {
+  monthKey: string;
+  coveredDays: number;
+  totalDaysInMonth: number;
+  weight: number;
+};
+
+function parseDateOnlyUtc(value: string, endOfDay = false) {
+  const [year, month, day] = value.split("-").map(Number);
+  const hours = endOfDay ? 23 : 0;
+  const minutes = endOfDay ? 59 : 0;
+  const seconds = endOfDay ? 59 : 0;
+  const ms = endOfDay ? 999 : 0;
+  return new Date(Date.UTC(year, (month || 1) - 1, day || 1, hours, minutes, seconds, ms));
+}
+
+function toUtcDateOnly(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function formatMonthKey(year: number, monthIndexZeroBased: number) {
+  return `${year}-${String(monthIndexZeroBased + 1).padStart(2, "0")}`;
+}
+
+export function getMonthCoverage(
+  dateFrom: string,
+  dateTo: string
+): MonthCoverage[] {
+  const start = parseDateOnlyUtc(dateFrom);
+  const end = parseDateOnlyUtc(dateTo);
+  const ranges: MonthCoverage[] = [];
+  const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+  const endMonth = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
+
+  while (cursor.getTime() <= endMonth.getTime()) {
+    const year = cursor.getUTCFullYear();
+    const month = cursor.getUTCMonth();
+    const monthStart = new Date(Date.UTC(year, month, 1));
+    const monthEnd = new Date(Date.UTC(year, month + 1, 0));
+    const overlapStart = start.getTime() > monthStart.getTime() ? start : monthStart;
+    const overlapEnd = end.getTime() < monthEnd.getTime() ? end : monthEnd;
+    const totalDaysInMonth = monthEnd.getUTCDate();
+    const coveredDays = diffDaysInclusive(overlapStart, overlapEnd);
+
+    ranges.push({
+      monthKey: formatMonthKey(year, month),
+      coveredDays,
+      totalDaysInMonth,
+      weight: coveredDays / totalDaysInMonth,
+    });
+
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+
+  return ranges;
+}
+
 export function buildWhere(filters: GestaoResumoFilters) {
   const clauses: any[] = [];
   if (filters.dateFrom) {
-    const start = new Date(filters.dateFrom);
-    start.setHours(0, 0, 0, 0);
+    const start = parseDateOnlyUtc(filters.dateFrom);
     clauses.push(gte(contratos.dataPagamento, start));
   }
   if (filters.dateTo) {
-    const end = new Date(filters.dateTo);
-    end.setHours(23, 59, 59, 999);
+    const end = parseDateOnlyUtc(filters.dateTo, true);
     clauses.push(lte(contratos.dataPagamento, end));
   }
   if (filters.etapaPipeline?.length) {
@@ -94,7 +152,24 @@ function normalizeSellerName(value: string) {
   return value.trim().toLowerCase();
 }
 
-const COMISSAO_VENDEDORA_FACTOR = 0.55 * 0.06;
+export function sumProratedTargets(
+  coverage: MonthCoverage[],
+  valuesByMonth: Map<string, number>
+) {
+  let total = 0;
+  const missingMonths: string[] = [];
+
+  coverage.forEach(range => {
+    const value = valuesByMonth.get(range.monthKey);
+    if (typeof value !== "number") {
+      missingMonths.push(range.monthKey);
+      return;
+    }
+    total += value * range.weight;
+  });
+
+  return { total, missingMonths };
+}
 
 export function calcularComissaoVendedoraCent(contrato: {
   comissaoTotalCent: number;
@@ -151,51 +226,93 @@ export async function buildGestaoResumoSnapshot(input: GestaoResumoFilters) {
     total > 0 ? rows.filter(row => row.liquidoFallback).length / total : 0;
   const contratosSemComissao = semComissaoRows.length;
 
-  let metaComissaoCent = 0;
-  const monthKey = input.dateFrom?.slice(0, 7);
-  const metasVendedorMap = new Map<string, number>();
-  const vendedorIdByName = new Map<string, string>();
-  if (monthKey) {
-    const metaRow = await db
-      .select()
-      .from(gestaoMetas)
-      .where(eq(gestaoMetas.mes, monthKey))
-      .limit(1);
-    if (metaRow.length > 0) {
-      const parsedMeta = Number.parseFloat(metaRow[0].metaValor || "0");
-      metaComissaoCent = Number.isNaN(parsedMeta)
-        ? 0
-        : Math.round(parsedMeta * 100);
-    }
-    const metasVendedorRows = await db
-      .select()
-      .from(metasVendedor)
-      .where(eq(metasVendedor.mes, monthKey));
-    metasVendedorRows.forEach(meta => {
-      const parsed = Number.parseFloat(meta.metaValor || "0");
-      metasVendedorMap.set(meta.vendedoraId, Number.isNaN(parsed) ? 0 : parsed);
-    });
-  }
+  const sortedRowsByDate = [...rows].sort(
+    (a, b) => a.dataPagamento.getTime() - b.dataPagamento.getTime()
+  );
+  const now = toUtcDateOnly(new Date());
+  const inferredStart = sortedRowsByDate[0]
+    ? toUtcDateOnly(sortedRowsByDate[0].dataPagamento)
+    : now;
+  const inferredEnd = sortedRowsByDate[sortedRowsByDate.length - 1]
+    ? toUtcDateOnly(sortedRowsByDate[sortedRowsByDate.length - 1].dataPagamento)
+    : inferredStart;
+  const requestedStart = input.dateFrom
+    ? parseDateOnlyUtc(input.dateFrom)
+    : inferredStart;
+  const requestedEnd = input.dateTo ? parseDateOnlyUtc(input.dateTo) : inferredEnd;
+  const effectiveStart =
+    requestedStart.getTime() <= requestedEnd.getTime()
+      ? requestedStart
+      : requestedEnd;
+  const effectiveEnd =
+    requestedStart.getTime() <= requestedEnd.getTime()
+      ? requestedEnd
+      : requestedStart;
+  const monthCoverage = getMonthCoverage(
+    formatDateKey(effectiveStart),
+    formatDateKey(effectiveEnd)
+  );
+  const coveredMonths = monthCoverage.map(item => item.monthKey);
+  const metaReferenceMonth = monthCoverage[0]?.monthKey ?? null;
 
+  const metasGestaoRows = coveredMonths.length
+    ? await db
+        .select()
+        .from(gestaoMetas)
+        .where(inArray(gestaoMetas.mes, coveredMonths))
+    : [];
+  const metasVendedorRows = coveredMonths.length
+    ? await db
+        .select()
+        .from(metasVendedor)
+        .where(inArray(metasVendedor.mes, coveredMonths))
+    : [];
   const vendedorasRows = await db
     .select({ id: vendedoras.id, nome: vendedoras.nome })
     .from(vendedoras);
+
+  const vendedorIdByName = new Map<string, string>();
+  const vendedorNameById = new Map<string, string>();
   vendedorasRows.forEach(vendedora => {
-    vendedorIdByName.set(normalizeSellerName(vendedora.nome), vendedora.id);
+    const normalizedName = normalizeSellerName(vendedora.nome);
+    vendedorIdByName.set(normalizedName, vendedora.id);
+    vendedorNameById.set(vendedora.id, vendedora.nome);
   });
 
-  const startDate = input.dateFrom ? new Date(input.dateFrom) : rows[0]?.dataPagamento;
-  const endDate = input.dateTo
-    ? new Date(input.dateTo)
-    : rows[rows.length - 1]?.dataPagamento;
-  const now = new Date();
-  const effectiveStart = startDate || now;
-  const effectiveEnd = endDate || now;
+  const metaComissaoByMonth = new Map<string, number>();
+  metasGestaoRows.forEach(meta => {
+    const parsedMeta = Number.parseFloat(meta.metaValor || "0");
+    metaComissaoByMonth.set(meta.mes, Number.isNaN(parsedMeta) ? 0 : parsedMeta);
+  });
+
+  const metasVendedorMap = new Map<string, Map<string, number>>();
+  metasVendedorRows.forEach(meta => {
+    const parsed = Number.parseFloat(meta.metaValor || "0");
+    const sellerMap =
+      metasVendedorMap.get(meta.vendedoraId) ?? new Map<string, number>();
+    sellerMap.set(meta.mes, Number.isNaN(parsed) ? 0 : parsed);
+    metasVendedorMap.set(meta.vendedoraId, sellerMap);
+  });
+
+  const {
+    total: metaComissaoTotal,
+    missingMonths: missingMetaMonths,
+  } = sumProratedTargets(monthCoverage, metaComissaoByMonth);
+  const metaComissaoCent = Math.round(metaComissaoTotal * 100);
+  const metaComissaoMensal = metaReferenceMonth
+    ? metaComissaoByMonth.get(metaReferenceMonth) ?? 0
+    : 0;
+  const metaEditavel = monthCoverage.length === 1;
+  const pctMeta = metaComissaoCent > 0 ? sumComissao / metaComissaoCent : 0;
+
   const totalDias = Math.max(1, diffDaysInclusive(effectiveStart, effectiveEnd));
-  const diasDecorridos = Math.max(
-    0,
-    diffDaysInclusive(effectiveStart, now < effectiveEnd ? now : effectiveEnd)
-  );
+  const diasDecorridos =
+    now.getTime() < effectiveStart.getTime()
+      ? 0
+      : diffDaysInclusive(
+          effectiveStart,
+          now.getTime() < effectiveEnd.getTime() ? now : effectiveEnd
+        );
 
   const paceComissao = diasDecorridos > 0 ? sumComissao / diasDecorridos : 0;
   const diasRestantes = Math.max(0, totalDias - diasDecorridos);
@@ -326,22 +443,68 @@ export async function buildGestaoResumoSnapshot(input: GestaoResumoFilters) {
     })
   );
 
-  const bySeller = Array.from(groupBy(rows, row => row.vendedorNome).entries()).map(
-    ([vendedor, list]) => {
-      const aggregated = aggregateGroup(list);
-      const vendedorId = vendedorIdByName.get(normalizeSellerName(vendedor));
-      const meta = vendedorId ? (metasVendedorMap.get(vendedorId) ?? 0) : 0;
-      const pctMeta = meta > 0 ? aggregated.liquido / meta : 0;
-
-      return {
-        vendedor,
-        ...aggregated,
-        meta,
-        pctMeta,
-        pctTotal: sumComissao > 0 ? aggregated.comissao / centsToNumber(sumComissao) : 0,
-      };
+  const sellerGroups = new Map<
+    string,
+    {
+      vendedor: string;
+      resolvedVendedoraId: string;
+      rows: ContratoRow[];
     }
-  );
+  >();
+  rows.forEach(row => {
+    const normalizedName = normalizeSellerName(row.vendedorNome);
+    const fallbackVendedoraId = vendedorIdByName.get(normalizedName) ?? "";
+    const resolvedVendedoraId = row.vendedorId || fallbackVendedoraId;
+    const key = resolvedVendedoraId || `name:${normalizedName}`;
+    const displayName =
+      (resolvedVendedoraId && vendedorNameById.get(resolvedVendedoraId)) ||
+      row.vendedorNome;
+    const existing = sellerGroups.get(key);
+
+    if (existing) {
+      existing.rows.push(row);
+      if (existing.vendedor === "Sem info" && displayName !== "Sem info") {
+        existing.vendedor = displayName;
+      }
+      return;
+    }
+
+    sellerGroups.set(key, {
+      vendedor: displayName,
+      resolvedVendedoraId,
+      rows: [row],
+    });
+  });
+
+  const sellerCoverageGaps: Array<{
+    vendedor: string;
+    missingMonths: string[];
+  }> = [];
+
+  const bySeller = Array.from(sellerGroups.values()).map(group => {
+    const aggregated = aggregateGroup(group.rows);
+    const sellerTargetMap =
+      metasVendedorMap.get(group.resolvedVendedoraId) ?? new Map<string, number>();
+    const {
+      total: metaTotal,
+      missingMonths,
+    } = sumProratedTargets(monthCoverage, sellerTargetMap);
+    if (group.resolvedVendedoraId && missingMonths.length > 0) {
+      sellerCoverageGaps.push({
+        vendedor: group.vendedor,
+        missingMonths,
+      });
+    }
+
+    return {
+      vendedor: group.vendedor,
+      ...aggregated,
+      meta: metaTotal,
+      pctMeta: metaTotal > 0 ? aggregated.liquido / metaTotal : 0,
+      pctTotal:
+        sumComissao > 0 ? aggregated.comissao / centsToNumber(sumComissao) : 0,
+    };
+  });
 
   const byTyper = Array.from(groupBy(rows, row => row.digitadorNome).entries()).map(
     ([digitador, list]) => ({
@@ -387,10 +550,39 @@ export async function buildGestaoResumoSnapshot(input: GestaoResumoFilters) {
     generatedAt?: Date;
   }> = [];
 
+  if (missingMetaMonths.length > 0) {
+    alerts.push({
+      type: "metaCoverageIncomplete",
+      title: "Meta executiva incompleta no recorte",
+      severity: "warning",
+      detail: `Sem meta configurada para ${missingMetaMonths.join(
+        ", "
+      )}. O KPI considera apenas os meses cobertos.`,
+      generatedAt: new Date(),
+    });
+  }
+
+  if (sellerCoverageGaps.length > 0) {
+    const uniqueGaps = sellerCoverageGaps.slice(0, 3).map(item => {
+      const monthsLabel = item.missingMonths.join(", ");
+      return `${item.vendedor} (${monthsLabel})`;
+    });
+    alerts.push({
+      type: "sellerMetaCoverageIncomplete",
+      title: "Metas de vendedoras com cobertura incompleta",
+      severity: "info",
+      detail:
+        sellerCoverageGaps.length === 1
+          ? `Faltam metas para ${uniqueGaps[0]}.`
+          : `Faltam metas para ${sellerCoverageGaps.length} vendedoras. Exemplos: ${uniqueGaps.join(
+              "; "
+            )}.`,
+      generatedAt: new Date(),
+    });
+  }
+
   if (rows.length > 0) {
-    const sortedByDate = [...rows].sort(
-      (a, b) => a.dataPagamento.getTime() - b.dataPagamento.getTime()
-    );
+    const sortedByDate = sortedRowsByDate;
     const lastDate = sortedByDate[sortedByDate.length - 1].dataPagamento;
     const toTs = lastDate.getTime();
     const fromLast7 = toTs - 7 * 24 * 3600 * 1000;
@@ -496,10 +688,15 @@ export async function buildGestaoResumoSnapshot(input: GestaoResumoFilters) {
     pctComissaoCalculada,
     contratosSemComissao,
     metaComissao: centsToNumber(metaComissaoCent),
+    pctMeta,
     paceComissao: centsToNumber(paceComissao),
     necessarioPorDia: centsToNumber(necessarioPorDia),
     diasDecorridos,
     totalDias,
+    metaComissaoMensal,
+    metaMesReferencia: metaReferenceMonth,
+    metaEditavel,
+    metaCoberturaIncompleta: missingMetaMonths.length > 0,
   };
 
   const executiveLayer = buildExecutiveLayer({

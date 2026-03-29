@@ -134,7 +134,9 @@ export function HealthPipelineSection({
       <Card className="bg-card border-border">
         <CardHeader className="pb-2">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <CardTitle className="text-sm font-semibold">Comissão × Líquido ao longo do tempo</CardTitle>
+            <CardTitle className="text-sm font-semibold">
+              Produção Monetizada: Comissão × Líquido
+            </CardTitle>
             <Tabs
               value={granularity}
               onValueChange={value =>
@@ -225,13 +227,15 @@ export function HealthPipelineSection({
 
       <Card className="bg-card border-border">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold">Distribuição por Etapa do Pipeline</CardTitle>
+          <CardTitle className="text-sm font-semibold">
+            Pipeline Operacional por Etapa
+          </CardTitle>
         </CardHeader>
         <CardContent className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             {stageData.length === 0 ? (
               <EmptyChart
-                message="Sem dados de pipeline para este recorte."
+                message="Sem dados de pipeline operacional para este recorte."
                 onClearFilters={onClearFilters}
               />
             ) : (

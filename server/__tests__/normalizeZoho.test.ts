@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { normalizeContratoZoho, parseMoneyToCents, parsePercent } from "../gestao/normalizeZoho";
+import {
+  hashContratoZoho,
+  normalizeContratoZoho,
+  parseMoneyToCents,
+  parsePercent,
+} from "../gestao/normalizeZoho";
 import { ZohoContratoRaw } from "../zohoService";
 
 describe("parse helpers", () => {
@@ -63,5 +68,47 @@ describe("normalizeContratoZoho", () => {
     expect(contrato.digitadorNome).toBe("Sem info");
     expect(contrato.produto).toBe("Produto X");
     expect(contrato.etapaPipeline).toBe("Financeiro");
+  });
+
+  it("uses Comissao as monetary fallback and percentual bonus when needed", () => {
+    const result = normalizeContratoZoho({
+      ...baseRaw,
+      Valor_liquido_liberado: "1.000,00",
+      amount: "",
+      Valor_comissao: "",
+      amountComission: "",
+      Comissao: "70,00",
+      Comissao_Bonus: "",
+      comissionPercent: "",
+      comissionPercentBonus: "2",
+    });
+
+    expect(result).not.toBeNull();
+    const contrato = result!.contrato;
+    expect(contrato.comissaoBaseCent).toBe(7000);
+    expect(contrato.comissaoBonusCent).toBe(2000);
+    expect(contrato.comissaoTotalCent).toBe(9000);
+    expect(contrato.comissaoCalculada).toBe(true);
+  });
+
+  it("includes Comissao and percentual bonus changes in snapshot hash", () => {
+    const hashBase = hashContratoZoho({
+      ...baseRaw,
+      Comissao: "70,00",
+      comissionPercentBonus: "1.5",
+    });
+    const hashComissaoAlterada = hashContratoZoho({
+      ...baseRaw,
+      Comissao: "71,00",
+      comissionPercentBonus: "1.5",
+    });
+    const hashBonusAlterado = hashContratoZoho({
+      ...baseRaw,
+      Comissao: "70,00",
+      comissionPercentBonus: "2.0",
+    });
+
+    expect(hashBase).not.toBe(hashComissaoAlterada);
+    expect(hashBase).not.toBe(hashBonusAlterado);
   });
 });

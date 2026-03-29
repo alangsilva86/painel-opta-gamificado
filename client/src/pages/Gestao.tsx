@@ -177,7 +177,14 @@ export default function Gestao() {
     enabled: false,
   });
   const healthQuery = trpc.gestao.getHealth.useQuery(
-    { dateFrom: filters.dateFrom, dateTo: filters.dateTo },
+    {
+      dateFrom: filters.dateFrom,
+      dateTo: filters.dateTo,
+      etapaPipeline: filters.etapaPipeline,
+      vendedorNome: filters.vendedorNome,
+      produto: filters.produto,
+      tipoOperacao: filters.tipoOperacao,
+    },
     { enabled: authed && hasFetched }
   );
   const syncMutation = trpc.gestao.syncRange.useMutation({
@@ -399,20 +406,33 @@ export default function Gestao() {
   const [metaInput, setMetaInput] = useState("");
 
   useEffect(() => {
-    if (resumoQuery.data?.cards.metaComissao !== undefined) {
-      setMetaInput(resumoQuery.data.cards.metaComissao.toString());
+    if (resumoQuery.data?.cards.metaComissaoMensal !== undefined) {
+      setMetaInput(resumoQuery.data.cards.metaComissaoMensal.toString());
     }
-  }, [resumoQuery.data?.cards.metaComissao]);
+  }, [resumoQuery.data?.cards.metaComissaoMensal]);
 
   const handleMetaSave = () => {
+    if (!resumoQuery.data?.cards.metaEditavel) {
+      toast.error(
+        "Para editar a meta mensal, use um recorte que fique dentro de um único mês."
+      );
+      return;
+    }
+
     const value = Number.parseFloat(metaInput);
     if (Number.isNaN(value)) {
       toast.error("Valor inválido");
       return;
     }
 
+    const mes = resumoQuery.data?.cards.metaMesReferencia;
+    if (!mes) {
+      toast.error("Mês de referência indisponível");
+      return;
+    }
+
     setMetaMutation.mutate({
-      mes: dateFrom.slice(0, 7),
+      mes,
       valor: value,
     });
   };
@@ -702,8 +722,8 @@ export default function Gestao() {
                   Diagnóstico
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Desempenho por tempo, pipeline, mix, vendedoras e alavancas de
-                  melhoria.
+                  Produção monetizada e pipeline operacional por tempo, mix,
+                  vendedoras e alavancas de melhoria.
                 </p>
               </div>
 

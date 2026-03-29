@@ -157,34 +157,79 @@ export const contratos = mysqlTable(
   "contratos",
   {
     idContrato: varchar("id_contrato", { length: 128 }).primaryKey(),
-    numeroContrato: varchar("numero_contrato", { length: 128 }).default("").notNull(),
+    numeroContrato: varchar("numero_contrato", { length: 128 })
+      .default("")
+      .notNull(),
     dataPagamento: timestamp("data_pagamento").notNull(),
     liquidoLiberadoCent: int("liquido_liberado_cent").default(0).notNull(),
     comissaoBaseCent: int("comissao_base_cent").default(0).notNull(),
     comissaoBonusCent: int("comissao_bonus_cent").default(0).notNull(),
     comissaoTotalCent: int("comissao_total_cent").default(0).notNull(),
-    pctComissaoBase: decimal("pct_comissao_base", { precision: 10, scale: 6 }).default("0").notNull(),
-    pctComissaoBonus: decimal("pct_comissao_bonus", { precision: 10, scale: 6 }).default("0").notNull(),
-  vendedorNome: varchar("vendedor_nome", { length: 255 }).default("Sem info").notNull(),
-  digitadorNome: varchar("digitador_nome", { length: 255 }).default("Sem info").notNull(),
-  produto: varchar("produto", { length: 255 }).default("Sem info").notNull(),
-  tipoOperacao: varchar("tipo_operacao", { length: 255 }).default("Sem info").notNull(),
-  agenteId: varchar("agente_id", { length: 255 }).default("Sem info").notNull(),
-  etapaPipeline: varchar("etapa_pipeline", { length: 255 }).default("Sem info").notNull(),
-  inconsistenciaDataPagamento: boolean("inconsistencia_data_pagamento").default(false).notNull(),
-  liquidoFallback: boolean("liquido_fallback").default(false).notNull(),
-  comissaoCalculada: boolean("comissao_calculada").default(false).notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
+    pctComissaoBase: decimal("pct_comissao_base", {
+      precision: 10,
+      scale: 6,
+    })
+      .default("0")
+      .notNull(),
+    pctComissaoBonus: decimal("pct_comissao_bonus", {
+      precision: 10,
+      scale: 6,
+    })
+      .default("0")
+      .notNull(),
+    vendedorId: varchar("vendedor_id", { length: 128 }).default("").notNull(),
+    vendedorNome: varchar("vendedor_nome", { length: 255 })
+      .default("Sem info")
+      .notNull(),
+    digitadorId: varchar("digitador_id", { length: 128 }).default("").notNull(),
+    digitadorNome: varchar("digitador_nome", { length: 255 })
+      .default("Sem info")
+      .notNull(),
+    produtoId: varchar("produto_id", { length: 128 }).default("").notNull(),
+    produto: varchar("produto", { length: 255 }).default("Sem info").notNull(),
+    tipoOperacaoId: varchar("tipo_operacao_id", { length: 128 })
+      .default("")
+      .notNull(),
+    tipoOperacao: varchar("tipo_operacao", { length: 255 })
+      .default("Sem info")
+      .notNull(),
+    agenteLookupId: varchar("agente_lookup_id", { length: 128 })
+      .default("")
+      .notNull(),
+    agenteId: varchar("agente_id", { length: 255 })
+      .default("Sem info")
+      .notNull(),
+    etapaPipeline: varchar("etapa_pipeline", { length: 255 })
+      .default("Sem info")
+      .notNull(),
+    inconsistenciaDataPagamento: boolean("inconsistencia_data_pagamento")
+      .default(false)
+      .notNull(),
+    liquidoFallback: boolean("liquido_fallback").default(false).notNull(),
+    comissaoCalculada: boolean("comissao_calculada").default(false).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
   },
-  (table) => ({
-    idxDataPagamento: index("idx_contratos_data_pagamento").on(table.dataPagamento),
+  table => ({
+    idxDataPagamento: index("idx_contratos_data_pagamento").on(
+      table.dataPagamento
+    ),
     idxVendedor: index("idx_contratos_vendedor_nome").on(table.vendedorNome),
+    idxVendedorId: index("idx_contratos_vendedor_id").on(table.vendedorId),
     idxEtapa: index("idx_contratos_etapa_pipeline").on(table.etapaPipeline),
     idxProduto: index("idx_contratos_produto").on(table.produto),
-    idxTipoOperacao: index("idx_contratos_tipo_operacao").on(table.tipoOperacao),
+    idxProdutoId: index("idx_contratos_produto_id").on(table.produtoId),
+    idxTipoOperacao: index("idx_contratos_tipo_operacao").on(
+      table.tipoOperacao
+    ),
     idxAgente: index("idx_contratos_agente").on(table.agenteId),
-    idxDataEtapa: index("idx_contratos_data_etapa").on(table.dataPagamento, table.etapaPipeline),
-    idxDataVendedor: index("idx_contratos_data_vendedor").on(table.dataPagamento, table.vendedorNome),
+    idxDataEtapa: index("idx_contratos_data_etapa").on(
+      table.dataPagamento,
+      table.etapaPipeline
+    ),
+    idxDataVendedor: index("idx_contratos_data_vendedor").on(
+      table.dataPagamento,
+      table.vendedorNome
+    ),
   })
 );
 

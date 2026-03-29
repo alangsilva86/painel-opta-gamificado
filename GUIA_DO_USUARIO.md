@@ -17,7 +17,7 @@ O Painel de Vendas Gamificado Opta é uma aplicação web em tempo real que cons
   - Total de Contratos
 - **Cards de vendedoras** com:
   - Anéis de progresso animados
-  - Badges de tier (Bronze 0.5x até Lendário 3.5x)
+  - Badges de tier (Bronze 0x até Lendário 3.5x)
   - Fitas de "META ALCANÇADA" para quem passou de 100%
   - Troféus de ranking (#1, #2, #3)
   - Estatísticas detalhadas
@@ -69,25 +69,27 @@ O sistema possui 8 tiers baseados no percentual da meta alcançado:
 
 | Tier | % da Meta | Multiplicador | Cor |
 |------|-----------|---------------|-----|
-| Sem comissão | 0-74.99% | 0.00x | Cinza |
-| Bronze | 75-99.99% | 0.50x | Laranja |
-| Prata | 100-124.99% | 1.00x | Prata |
-| Ouro | 125-149.99% | 1.50x | Dourado |
-| Platina | 150-174.99% | 2.00x | Ciano |
-| Diamante | 175-199.99% | 2.50x | Azul |
-| Mestre | 200-249.99% | 3.00x | Roxo |
+| Bronze | 1-74.99% | 0.00x | Cinza |
+| Prata | 75-99.99% | 0.50x | Laranja |
+| Ouro | 100-124.99% | 1.00x | Dourado |
+| Platina | 125-149.99% | 1.50x | Ciano |
+| Brilhante | 150-174.99% | 2.00x | Azul |
+| Diamante | 175-199.99% | 2.50x | Azul petróleo |
+| Mestre | 200-249.99% | 3.00x | Laranja |
 | Lendário | ≥250% | 3.50x | Rosa |
 
 ### Acelerador Global
 
 Bônus adicional quando a equipe atinge metas coletivas:
 
-- **≥75% da meta global**: +0.25 (25% extra)
-- **≥100% da meta global**: +0.50 (50% extra)
+- **100% da meta global**: +0.25 (25% extra)
+- **100% da super meta global**: +0.50 (50% extra)
+- O bônus não é cumulativo: a super meta substitui o +25%
+- O acelerador só vale para vendedoras com **≥75% da meta individual**
 
 **Fórmula da comissão final:**
 ```
-Comissão Final = Comissão Base × (Multiplicador Individual + Acelerador Global)
+Comissão Final = Comissão Base × (1 + Acelerador Global)
 ```
 
 ### Badges e Conquistas
@@ -102,7 +104,7 @@ Comissão Final = Comissão Base × (Multiplicador Individual + Acelerador Globa
 
 O sistema dispara celebrações visuais (confete) automaticamente quando:
 - **Meta global atinge 100%**: Confete verde
-- **Meta global atinge 150%**: Confete dourado intenso
+- **Super meta atinge 100%**: Confete dourado intenso
 - **Vendedora sobe de tier**: Confete roxo
 
 ## 🔧 Configuração Técnica
@@ -129,6 +131,8 @@ O painel consome dados diretamente da API do Zoho Creator. Para configurar:
    - `Data_de_Pagamento`
    - `Valor_liquido_liberado`
    - `Valor_comissao`
+   - `Comissao` (fallback monetário)
+   - `Comissao_Bonus` ou `comissionPercentBonus`
    - `Vendedor` (lookup)
    - `Produto` (lookup)
    - `Corban` (lookup)
@@ -154,12 +158,13 @@ Para desativar o modo demo e usar dados reais, basta configurar as credenciais d
 
 2. **Comissão Vendedora**:
    ```
-   Comissão Base = Base × 0.06
+   Base Vendedora = Base × 0.06
    ```
 
 3. **Comissão Final**:
    ```
-   Comissão Final = Comissão Base × (Multiplicador + Acelerador Global)
+   Comissão Base Tierizada = Base Vendedora × Multiplicador
+   Comissão Final = Comissão Base Tierizada × (1 + Acelerador Global)
    ```
 
 ### Exemplo Prático
@@ -170,17 +175,18 @@ Para desativar o modo demo e usar dados reais, basta configurar as credenciais d
 
 **Vendedora:**
 - Meta mensal: R$ 100.000
-- Realizado: R$ 130.000 (130% da meta → Tier Ouro 1.5x)
+- Realizado: R$ 130.000 (130% da meta → Tier Platina 1.5x)
 
 **Equipe:**
 - Meta global: R$ 600.000
-- Realizado: R$ 650.000 (108% → Acelerador +0.50)
+- Realizado: R$ 650.000 (108% → Acelerador +0.25)
 
 **Cálculo:**
 ```
 Base = 1.600 × 0.55 = R$ 880
-Comissão Base = 880 × 0.06 = R$ 52,80
-Comissão Final = 52,80 × (1.5 + 0.5) = R$ 105,60
+Base Vendedora = 880 × 0.06 = R$ 52,80
+Comissão Base Tierizada = 52,80 × 1.5 = R$ 79,20
+Comissão Final = 79,20 × 1,25 = R$ 99,00
 ```
 
 ## 🗄️ Banco de Dados
@@ -219,7 +225,7 @@ O painel usa um tema dark com cores personalizáveis em `client/src/index.css`:
 
 ### Parâmetros de Comissionamento
 
-Os percentuais podem ser ajustados em `server/calculationService.ts`:
+Os percentuais compartilhados ficam em `shared/commercialRules.ts`:
 
 ```typescript
 const PARAMETROS = {
@@ -230,12 +236,12 @@ const PARAMETROS = {
 
 ### Tiers
 
-A tabela de tiers pode ser modificada em `server/calculationService.ts`:
+A tabela de tiers pode ser modificada em `shared/tiers.ts`:
 
 ```typescript
 const TIERS = [
-  { min: 0, max: 74.99, multiplicador: 0.0, nome: "Sem comissão" },
-  { min: 75, max: 99.99, multiplicador: 0.5, nome: "Bronze" },
+  { min: 1, max: 74.99, multiplicador: 0.0, nome: "Bronze" },
+  { min: 75, max: 99.99, multiplicador: 0.5, nome: "Prata" },
   // ... adicione ou modifique conforme necessário
 ];
 ```

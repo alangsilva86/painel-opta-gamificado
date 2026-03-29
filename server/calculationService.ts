@@ -6,6 +6,13 @@
  * NÃO do valor líquido (amount)
  */
 
+import {
+  calcularAceleradorGlobal,
+  contratoTemEstagioValidoNome,
+  determinarTier,
+  GLOBAL_ACCELERATOR_ELIGIBILITY_PCT,
+  isProdutoIgnoradoNoPainelVendedoras,
+} from "@shared/commercialRules";
 import { ESCADA_NIVEIS, TIERS } from "@shared/tiers";
 import { ZohoContrato } from "./zohoService";
 
@@ -95,28 +102,6 @@ export interface PipelineAnalise {
  * Tiers e escada compartilhados em @shared/tiers
  * REGRA CRÍTICA: Bronze (1-75%) NÃO recebe comissão, mesmo com acelerador global
  */
-// Produtos que não contam para comissão nem para produção no painel das vendedoras
-const PRODUTOS_SEM_COMISSAO_VENDEDORAS = new Set(["emprestimo garantia veiculo"]);
-const PRODUTOS_SEM_COMISSAO_KEYWORDS = ["emprestimo garantia veiculo", "egv"];
-
-function normalizarTextoBasico(valor: string) {
-  return valor
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
-
-function isProdutoSemComissaoParaVendedoras(produto: string) {
-  const normalizado = normalizarTextoBasico(produto);
-  if (PRODUTOS_SEM_COMISSAO_VENDEDORAS.has(normalizado)) return true;
-  return PRODUTOS_SEM_COMISSAO_KEYWORDS.some((kw) => normalizado.includes(kw));
-}
-
-export function isProdutoIgnoradoNoPainelVendedoras(produto: string) {
-  return isProdutoSemComissaoParaVendedoras(produto);
-}
-
 export function isContratoIgnoradoPainelVendedoras(contrato: { produto: string; ignoradoPainelVendedoras?: boolean }) {
   return contrato.ignoradoPainelVendedoras ?? isProdutoIgnoradoNoPainelVendedoras(contrato.produto);
 }
@@ -183,14 +168,6 @@ export function processarContratos(contratosZoho: ZohoContrato[]): ContratoProce
       ignoradoPainelVendedoras,
     };
   });
-}
-
-/**
- * Determina o tier baseado no percentual da meta
- */
-export function determinarTier(percentualMeta: number): (typeof TIERS)[number] {
-  const tier = TIERS.find((t) => percentualMeta >= t.min && percentualMeta <= t.max);
-  return tier || TIERS[0]; // Default: Bronze
 }
 
 /**
@@ -282,21 +259,17 @@ export function calcularMetaGlobal(
   const metaGlobalBatida = percentualMeta >= 100;
   const superMetaGlobalBatida = percentualSuperMeta >= 100;
 
-  // NOVA REGRA: Aceleradores NÃO cumulativos (super meta substitui meta)
-  let acelerador = 0;
-  if (superMetaGlobalBatida) {
-    acelerador = 0.5;
-  } else if (metaGlobalBatida) {
-    acelerador = 0.25;
-  }
+  const acelerador = calcularAceleradorGlobal({
+    percentualMeta,
+    percentualSuperMeta,
+  });
 
   const escadaLabels: Record<number, string> = {
-    75: "75% (ativação)",
     100: "Meta Global",
   };
 
   const escada = montarEscada(metaGlobalValor, realizado, escadaLabels).filter(
-    (step) => step.percentual <= 100
+    (step) => step.percentual === 100
   );
 
   if (superMetaGlobalValor > 0) {
@@ -335,7 +308,7 @@ export function aplicarAceleradorGlobal(
 ): VendedoraStats[] {
   return vendedoras.map((v) => {
     // REGRA CRÍTICA: Bronze (< 75%) não recebe acelerador
-    if (v.percentualMeta < 75) {
+    if (v.percentualMeta < GLOBAL_ACCELERATOR_ELIGIBILITY_PCT) {
       v.comissaoPrevista = 0;
       v.aceleradorAplicado = 0;
     } else {
@@ -466,7 +439,7 @@ export function calcularAnaliseProdutos(contratos: ContratoProcessado[]) {
 }
 
 /**
- * Calcula pipeline por estágio (contratos sem comissão ainda)
+ * Calcula distribuição operacional por estágio no recorte selecionado
  */
 export function calcularPipelinePorEstagio(
   contratos: ContratoProcessado[]
@@ -477,8 +450,7 @@ export function calcularPipelinePorEstagio(
     if (isContratoIgnoradoPainelVendedoras(c)) {
       return;
     }
-    // Passa a considerar todos os contratos para visibilidade de pipeline
-    if (c.valorLiquido > 0) {
+    if (c.valorLiquido > 0 && contratoTemEstagioValidoNome(c.estagio)) {
       const stats = estagiosMap.get(c.estagio) || { valorLiquido: 0, quantidade: 0 };
       stats.valorLiquido += c.valorLiquido;
       stats.quantidade += 1;

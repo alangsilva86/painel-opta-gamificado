@@ -1,6 +1,6 @@
 # 🎮 Painel de Vendas Gamificado Opta
 
-Um painel de vendas moderno e gamificado que consome dados em tempo real do Zoho Creator, apresentando visualizações interativas, sistema de tiers, metas diárias/semanais e análise de produtos e pipeline.
+Um painel de vendas moderno e gamificado que consome dados do Zoho Creator, com dashboard em tempo real e uma camada materializada de Gestão para análise executiva, comparações e drilldown.
 
 ## ✨ Características Principais
 
@@ -20,7 +20,8 @@ Um painel de vendas moderno e gamificado que consome dados em tempo real do Zoho
 
 ### 📈 Análise de Dados
 - **Gráficos de Produtos**: Produtos mais vendidos e mais rentáveis com tabelas detalhadas
-- **Pipeline por Estágio**: Visualização de contratos em diferentes estágios
+- **Pipeline por Estágio**: Visão operacional separada da produção monetizada
+- **Gestão Materializada**: Snapshot normalizado para recortes, comparações, alertas e exportação
 - **Modo TV**: Fullscreen para exibição em monitores com carrossel automático
 
 ### 🏆 Gamificação
@@ -121,35 +122,47 @@ painel-opta-gamificado/
 
 ## 🔄 Fluxo de Dados
 
-```
+```text
+Dashboard / TV (tempo real)
 Zoho Creator API
        ↓
-zohoService (buscar contratos)
+zohoService
        ↓
-calculationService (calcular comissão, tiers)
+calculationService
        ↓
-dashboardRouter (endpoints tRPC)
+dashboardRouter
        ↓
-Frontend (React components)
+Frontend
+
+Gestão (camada materializada)
+Zoho Creator API
        ↓
-Dashboard (visualização em tempo real)
+normalizeZoho + snapshot
+       ↓
+tabela contratos
+       ↓
+resumoSnapshot / gestaoRouter
+       ↓
+Frontend
 ```
 
 ## 📊 Cálculo de Comissão
 
 ```
-Base Comissionável = Valor_comissao × 0.55 × 0.06
+Base Vendedora = Valor_comissao (ou fallback Comissao) × 0.55 × 0.06
 
-Comissão Final = Base Comissionável × Multiplicador_Tier
+Comissão Base = Base Vendedora × Multiplicador_Tier
+
+Comissão Final = Comissão Base × (1 + Acelerador Global)
 
 Tiers:
-- Bronze (1-75%): 0,00x (sem comissão)
-- Prata (75-99%): 0,50x
-- Ouro (100-124%): 1,00x
-- Platina (125-149%): 1,50x
-- Brilhante (150-174%): 2,00x
-- Diamante (175-199%): 2,50x
-- Mestre (200-249%): 3,00x
+- Bronze (1-74,99%): 0,00x (sem comissão)
+- Prata (75-99,99%): 0,50x
+- Ouro (100-124,99%): 1,00x
+- Platina (125-149,99%): 1,50x
+- Brilhante (150-174,99%): 2,00x
+- Diamante (175-199,99%): 2,50x
+- Mestre (200-249,99%): 3,00x
 - Lendário (≥250%): 3,50x
 ```
 
@@ -157,16 +170,22 @@ Tiers:
 
 ### Meta Global
 - Define o alvo mensal para toda a equipe
-- Quando atingida: +25% de acelerador em todas as comissões
+- Quando atingida: +25% de acelerador para vendedoras com pelo menos 75% da meta individual
 
 ### Super Meta
 - Define um alvo superior (geralmente 150% da Meta Global)
-- Quando atingida: +50% de acelerador em todas as comissões
+- Quando atingida: +50% de acelerador para vendedoras com pelo menos 75% da meta individual
+- Não é cumulativa com a Meta Global: substitui o +25%
 
 ### Metas Diárias/Semanais
 - Calculadas automaticamente dividindo meta mensal por dias úteis
 - Podem ser editadas manualmente
 - Ajudam a acompanhar progresso intra-mês
+
+### Gestão
+- A tela `/gestao` usa dados normalizados em banco para comparações, alertas e exportações
+- A meta executiva do recorte é proporcional aos dias cobertos em cada mês filtrado
+- Após migrar a tabela `contratos`, ressincronize o mês atual e o anterior para preencher os novos IDs dimensionais
 
 ## 📱 Responsividade
 

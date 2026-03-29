@@ -102,7 +102,17 @@ export function PeriodKpisSection({
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           title="Meta Comissão"
-          tooltip="Meta de comissão para o mês (pode editar)."
+          value={formatCurrency(cards.metaComissao)}
+          hint={
+            cards.metaComissao > 0
+              ? `${formatPercent(cards.pctMeta ?? 0)} da meta proporcional`
+              : "Sem meta configurada para o recorte"
+          }
+          tooltip="Meta proporcional ao intervalo filtrado. Se o recorte cruza meses, a meta é somada com pró-rata por dias cobertos."
+        />
+        <MetricCard
+          title="Meta Mensal de Referência"
+          tooltip="Meta mensal editável do mês inicial do recorte. Fora de um recorte mensal único, a edição fica bloqueada para evitar sobrescrever um valor agregado."
           value={
             <div className="flex items-center gap-2">
               <Input
@@ -113,11 +123,23 @@ export function PeriodKpisSection({
                   onMetaInputChange(event.target.value)
                 }
                 className="h-10 w-32 border-input bg-background"
+                disabled={!cards.metaEditavel}
               />
-              <Button size="sm" onClick={onMetaSave} disabled={isSavingMeta}>
+              <Button
+                size="sm"
+                onClick={onMetaSave}
+                disabled={isSavingMeta || !cards.metaEditavel}
+              >
                 {isSavingMeta ? "Salvando..." : "Salvar"}
               </Button>
             </div>
+          }
+          hint={
+            cards.metaMesReferencia
+              ? cards.metaEditavel
+                ? `Mês base: ${cards.metaMesReferencia}`
+                : `Recorte multi-mês. Ajuste ${cards.metaMesReferencia} em um filtro mensal.`
+              : "Mês base indisponível"
           }
         />
         <MetricCard

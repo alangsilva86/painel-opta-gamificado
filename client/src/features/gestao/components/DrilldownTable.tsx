@@ -126,7 +126,7 @@ export function DrilldownTable({
               <TableHead className="cursor-pointer select-none" onClick={() => onSort("comissao")}>
                 Comissão Opta {sortLabel("comissao")}
               </TableHead>
-              <TableHead>Comissão Vendedora</TableHead>
+              <TableHead>Base Vendedora</TableHead>
               <TableHead className="cursor-pointer select-none" onClick={() => onSort("takeRate")}>
                 Comissão Média {sortLabel("takeRate")}
               </TableHead>

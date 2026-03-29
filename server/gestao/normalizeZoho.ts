@@ -1,5 +1,11 @@
 import { createHash } from "crypto";
-import { parseMoneyToCents as parseMoneyToCentsShared, parsePercentToFraction } from "@shared/zohoParsing";
+import {
+  resolveZohoCommissionBreakdown,
+} from "@shared/commercialRules";
+import {
+  parseMoneyToCents as parseMoneyToCentsShared,
+  parsePercentToFraction,
+} from "@shared/zohoParsing";
 import { InsertContrato, InsertZohoContratoSnapshot } from "../../drizzle/schema";
 import { ZohoContratoRaw } from "../zohoService";
 
@@ -29,6 +35,18 @@ export function normalizeText(value: unknown, fallback: string = "Sem info"): st
   return fallback;
 }
 
+export function normalizeLookupId(value: unknown, fallback: string = ""): string {
+  if (value && typeof value === "object") {
+    const maybe = (value as any).ID;
+    if (typeof maybe === "string") {
+      const cleaned = maybe.trim();
+      return cleaned || fallback;
+    }
+  }
+
+  return fallback;
+}
+
 function parseZohoDate(value: unknown): Date | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -45,14 +63,6 @@ function parseZohoDate(value: unknown): Date | null {
 
   const parsed = new Date(trimmed);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function firstPositiveCents(values: Array<unknown>): number {
-  for (const value of values) {
-    const cents = parseMoneyToCents(value);
-    if (cents > 0) return cents;
-  }
-  return 0;
 }
 
 function stableStringify(payload: unknown): string {
@@ -82,15 +92,21 @@ export function hashContratoZoho(raw: ZohoContratoRaw): string {
     amount: raw.amount,
     Valor_liquido_liberado: raw.Valor_liquido_liberado,
     Valor_comissao: raw.Valor_comissao,
+    Comissao: raw.Comissao,
     Comissao_Bonus: raw.Comissao_Bonus,
     amountComission: raw.amountComission,
     comissionPercent: raw.comissionPercent,
     comissionPercentBonus: raw.comissionPercentBonus,
     sellerName: normalizeText(raw.sellerName, ""),
+    sellerId: normalizeLookupId(raw.sellerName),
     typerName: normalizeText(raw.typerName, ""),
+    typerId: normalizeLookupId(raw.typerName),
     product: normalizeText(raw.product, ""),
+    productId: normalizeLookupId(raw.product),
     operationType: normalizeText(raw.operationType, ""),
+    operationTypeId: normalizeLookupId(raw.operationType),
     agentId: normalizeText(raw.agentId, ""),
+    agentLookupId: normalizeLookupId(raw.agentId),
     blueprintStage: normalizeText(raw["Blueprint.Current_Stage"], ""),
   };
 
@@ -113,29 +129,33 @@ export function normalizeContratoZoho(raw: ZohoContratoRaw): NormalizacaoContrat
     dataPagamento1 && dataPagamento2 && dataPagamento1.getTime() !== dataPagamento2.getTime()
   );
 
-  let liquidoLiberadoCent = parseMoneyToCents(raw.Valor_liquido_liberado);
-  let liquidoFallback = false;
-  if (liquidoLiberadoCent === 0) {
-    const fallback = parseMoneyToCents(raw.amount);
-    if (fallback > 0) {
-      liquidoLiberadoCent = fallback;
-      liquidoFallback = true;
-    }
-  }
+  const commissionBreakdown = resolveZohoCommissionBreakdown({
+    valorLiquido: raw.Valor_liquido_liberado,
+    valorLiquidoFallback: raw.amount,
+    amountComission: raw.amountComission,
+    valorComissao: raw.Valor_comissao,
+    comissao: raw.Comissao,
+    comissaoBonus: raw.Comissao_Bonus,
+    comissionPercent: raw.comissionPercent,
+    comissionPercentBonus: raw.comissionPercentBonus,
+  });
 
-  const pctComissaoBase = parsePercent(raw.comissionPercent);
-  const pctComissaoBonus = parsePercent(raw.comissionPercentBonus);
+  const liquidoLiberadoCent = Math.round(
+    commissionBreakdown.liquidoLiberado * 100
+  );
+  const liquidoFallback =
+    liquidoLiberadoCent > 0 &&
+    parseMoneyToCents(raw.Valor_liquido_liberado) === 0 &&
+    parseMoneyToCents(raw.amount) > 0;
 
-  let comissaoBaseCent = firstPositiveCents([raw.Valor_comissao, raw.amountComission]);
-  const comissaoBonusCent = parseMoneyToCents(raw.Comissao_Bonus);
-  let comissaoCalculada = false;
-
-  if (comissaoBaseCent === 0 && pctComissaoBase > 0 && liquidoLiberadoCent > 0) {
-    comissaoBaseCent = Math.round(liquidoLiberadoCent * pctComissaoBase);
-    comissaoCalculada = true;
-  }
-
-  const comissaoTotalCent = comissaoBaseCent + comissaoBonusCent;
+  const comissaoBaseCent = Math.round(commissionBreakdown.comissaoBase * 100);
+  const comissaoBonusCent = Math.round(commissionBreakdown.comissaoBonus * 100);
+  const comissaoTotalCent = Math.round(
+    commissionBreakdown.comissaoTotal * 100
+  );
+  const pctComissaoBase = commissionBreakdown.pctComissaoBase;
+  const pctComissaoBonus = commissionBreakdown.pctComissaoBonus;
+  const comissaoCalculada = commissionBreakdown.comissaoCalculada;
 
   const snapshot: InsertZohoContratoSnapshot = {
     idContrato: raw.ID,
@@ -154,10 +174,15 @@ export function normalizeContratoZoho(raw: ZohoContratoRaw): NormalizacaoContrat
     comissaoTotalCent,
     pctComissaoBase: pctComissaoBase.toString(),
     pctComissaoBonus: pctComissaoBonus.toString(),
+    vendedorId: normalizeLookupId(raw.sellerName),
     vendedorNome: normalizeText(raw.sellerName),
+    digitadorId: normalizeLookupId(raw.typerName),
     digitadorNome: normalizeText(raw.typerName),
+    produtoId: normalizeLookupId(raw.product),
     produto: normalizeText(raw.product),
+    tipoOperacaoId: normalizeLookupId(raw.operationType),
     tipoOperacao: normalizeText(raw.operationType),
+    agenteLookupId: normalizeLookupId(raw.agentId),
     agenteId: normalizeText(raw.agentId),
     etapaPipeline: normalizeText(raw["Blueprint.Current_Stage"]),
     inconsistenciaDataPagamento,
