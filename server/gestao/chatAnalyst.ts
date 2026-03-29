@@ -115,6 +115,16 @@ export type GestaoAnalystInput = z.infer<typeof CHAT_ANALYST_INPUT_SCHEMA>;
 export type GestaoAnalystAction = z.infer<typeof RAW_ACTION_SCHEMA>;
 export type GestaoAnalystResponse = z.infer<typeof RAW_RESPONSE_SCHEMA>;
 
+type LooseGestaoAnalystResponse = {
+  answer?: unknown;
+  summary?: unknown;
+  evidence?: unknown;
+  riskLevel?: unknown;
+  recommendedActions?: unknown;
+  followUpPrompts?: unknown;
+  contextLabel?: unknown;
+};
+
 type GenerateGestaoAnalystResponseArgs = {
   input: GestaoAnalystInput;
   snapshot: GestaoResumoSnapshot;
@@ -564,6 +574,223 @@ function extractJsonObjectCandidate(content: string) {
   return unfenced;
 }
 
+function toCleanString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function toStringArray(value: unknown) {
+  if (Array.isArray(value)) {
+    return value
+      .map(item => (typeof item === "string" ? item.trim() : ""))
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    return [value.trim()];
+  }
+
+  return [];
+}
+
+function normalizeRiskLevel(
+  value: unknown,
+  snapshot: GestaoResumoSnapshot
+): "low" | "medium" | "high" {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "low" || normalized === "baixo") return "low";
+    if (
+      normalized === "medium" ||
+      normalized === "medio" ||
+      normalized === "médio" ||
+      normalized === "moderado"
+    ) {
+      return "medium";
+    }
+    if (
+      normalized === "high" ||
+      normalized === "alto" ||
+      normalized === "critical" ||
+      normalized === "critico" ||
+      normalized === "crítico"
+    ) {
+      return "high";
+    }
+  }
+
+  if (snapshot.businessStatus.status === "critical") return "high";
+  if (snapshot.businessStatus.status === "warning") return "medium";
+  return "low";
+}
+
+function normalizeActionType(value: unknown) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === "apply_filter" ||
+    normalized === "apply-filter" ||
+    normalized === "applyfilter"
+  ) {
+    return "apply_filter" as const;
+  }
+  if (
+    normalized === "clear_filter" ||
+    normalized === "clear-filter" ||
+    normalized === "clearfilter"
+  ) {
+    return "clear_filter" as const;
+  }
+  if (
+    normalized === "set_comparison_preset" ||
+    normalized === "set-comparison-preset" ||
+    normalized === "setcomparisonpreset"
+  ) {
+    return "set_comparison_preset" as const;
+  }
+  if (
+    normalized === "set_granularity" ||
+    normalized === "set-granularity" ||
+    normalized === "setgranularity"
+  ) {
+    return "set_granularity" as const;
+  }
+  if (
+    normalized === "toggle_sem_comissao" ||
+    normalized === "toggle-sem-comissao" ||
+    normalized === "togglesemcomissao"
+  ) {
+    return "toggle_sem_comissao" as const;
+  }
+  if (
+    normalized === "apply_saved_view" ||
+    normalized === "apply-saved-view" ||
+    normalized === "applysavedview"
+  ) {
+    return "apply_saved_view" as const;
+  }
+  return null;
+}
+
+function normalizeLooseActions(value: unknown): GestaoAnalystAction[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map(item => {
+      if (!item || typeof item !== "object") return null;
+      const record = item as Record<string, unknown>;
+      const type = normalizeActionType(record.type);
+      const label = toCleanString(record.label);
+
+      if (type === "apply_filter") {
+        const key = record.key;
+        const values = Array.isArray(record.values)
+          ? record.values.filter(v => typeof v === "string")
+          : typeof record.value === "string"
+            ? [record.value]
+            : [];
+        if (
+          key === "etapaPipeline" ||
+          key === "vendedorNome" ||
+          key === "produto" ||
+          key === "tipoOperacao"
+        ) {
+          return { type, label, key, values };
+        }
+        return null;
+      }
+
+      if (type === "clear_filter") {
+        const key = record.key;
+        if (
+          key === "etapaPipeline" ||
+          key === "vendedorNome" ||
+          key === "produto" ||
+          key === "tipoOperacao"
+        ) {
+          return { type, label, key };
+        }
+        return null;
+      }
+
+      if (type === "set_comparison_preset") {
+        const preset = record.preset;
+        if (
+          preset === "prev_month" ||
+          preset === "prev_week" ||
+          preset === "prev_year"
+        ) {
+          return { type, label, preset };
+        }
+        return null;
+      }
+
+      if (type === "set_granularity") {
+        const granularity = record.granularity;
+        if (
+          granularity === "day" ||
+          granularity === "week" ||
+          granularity === "month"
+        ) {
+          return { type, label, granularity };
+        }
+        return null;
+      }
+
+      if (type === "toggle_sem_comissao") {
+        return { type, label, value: Boolean(record.value) };
+      }
+
+      const viewId = toCleanString(record.viewId);
+      return viewId ? { type, label, viewId } : null;
+    })
+    .filter(Boolean) as GestaoAnalystAction[];
+}
+
+function buildFallbackAnalystResponse(
+  rawContent: string,
+  groundingContextLabel: string,
+  snapshot: GestaoResumoSnapshot
+): GestaoAnalystResponse {
+  const cleaned = unwrapJsonCodeFence(rawContent).trim();
+  return {
+    answer:
+      cleaned.length > 0
+        ? cleaned
+        : `Analisei o recorte ${groundingContextLabel}, mas o modelo respondeu fora do formato esperado nesta tentativa.`,
+    summary: snapshot.businessStatus.headline,
+    evidence: [
+      `Comissão atual: ${formatCurrency(snapshot.cards.comissao)}`,
+      `Contratos no recorte: ${snapshot.cards.contratos}`,
+      `Take rate: ${formatPercent(snapshot.cards.takeRate)}`,
+    ],
+    riskLevel: normalizeRiskLevel(undefined, snapshot),
+    recommendedActions: [],
+    followUpPrompts: [],
+    contextLabel: groundingContextLabel,
+  };
+}
+
+function normalizeLooseResponse(
+  value: unknown,
+  snapshot: GestaoResumoSnapshot,
+  groundingContextLabel: string
+): GestaoAnalystResponse | null {
+  if (!value || typeof value !== "object") return null;
+  const loose = value as LooseGestaoAnalystResponse;
+  const answer = toCleanString(loose.answer);
+  if (!answer) return null;
+
+  return {
+    answer,
+    summary: toCleanString(loose.summary),
+    evidence: toStringArray(loose.evidence).slice(0, 5),
+    riskLevel: normalizeRiskLevel(loose.riskLevel, snapshot),
+    recommendedActions: normalizeLooseActions(loose.recommendedActions),
+    followUpPrompts: toStringArray(loose.followUpPrompts).slice(0, 3),
+    contextLabel: toCleanString(loose.contextLabel) || groundingContextLabel,
+  };
+}
+
 function buildSystemPrompt() {
   return `# Identidade e Missão
 Você é um analista de BI executivo sênior especializado em performance comercial de correspondentes bancários. Responde exclusivamente em PT-BR. Sua função é transformar dados brutos de produção em diagnósticos acionáveis para o gestor da carteira.
@@ -704,15 +931,53 @@ export async function generateGestaoAnalystResponse({
 
   let parsed: z.infer<typeof RAW_RESPONSE_SCHEMA>;
   try {
-    parsed = RAW_RESPONSE_SCHEMA.parse(
-      JSON.parse(extractJsonObjectCandidate(rawContent))
-    );
+    const parsedJson = JSON.parse(extractJsonObjectCandidate(rawContent));
+    try {
+      parsed = RAW_RESPONSE_SCHEMA.parse(parsedJson);
+    } catch {
+      const normalized = normalizeLooseResponse(
+        parsedJson,
+        snapshot,
+        grounding.contextLabel
+      );
+      if (!normalized) {
+        throw new Error("LLM response schema mismatch: normalized answer empty");
+      }
+
+      const sanitizedLoose = sanitizeGestaoAnalystResponse(
+        normalized,
+        snapshot,
+        input.availableViews
+      );
+
+      return {
+        ...sanitizedLoose,
+        contextLabel: sanitizedLoose.contextLabel || grounding.contextLabel,
+      };
+    }
   } catch (parseError) {
     const isJson = parseError instanceof SyntaxError;
+    if (isJson) {
+      return buildFallbackAnalystResponse(
+        rawContent,
+        grounding.contextLabel,
+        snapshot
+      );
+    }
+
+    if (
+      parseError instanceof Error &&
+      parseError.message.includes("LLM response schema mismatch")
+    ) {
+      return buildFallbackAnalystResponse(
+        rawContent,
+        grounding.contextLabel,
+        snapshot
+      );
+    }
+
     throw new Error(
-      isJson
-        ? "LLM response parse failed: response was not valid JSON (possibly truncated)"
-        : `LLM response schema mismatch: ${parseError instanceof Error ? parseError.message : String(parseError)}`
+      `LLM response schema mismatch: ${parseError instanceof Error ? parseError.message : String(parseError)}`
     );
   }
 

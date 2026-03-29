@@ -351,4 +351,33 @@ describe("gestao chatAnalyst", () => {
     expect(response.followUpPrompts).toHaveLength(3);
     expect(response.contextLabel).toContain("Período 2026-03-01 a 2026-03-31");
   });
+
+  it("degrada com fallback quando o modelo responde fora do schema esperado", async () => {
+    invokeLLMMock.mockResolvedValueOnce({
+      id: "resp_2",
+      created: Date.now(),
+      model: "test-model",
+      choices: [
+        {
+          index: 0,
+          finish_reason: "stop",
+          message: {
+            role: "assistant",
+            content:
+              "A principal leitura é que o período está pressionado por take rate e contratos sem comissão.",
+          },
+        },
+      ],
+    });
+
+    const response = await generateGestaoAnalystResponse({
+      input,
+      snapshot,
+      comparisonSnapshot: snapshot,
+    });
+
+    expect(response.answer).toContain("take rate");
+    expect(response.evidence.length).toBeGreaterThan(0);
+    expect(response.contextLabel).toContain("Período 2026-03-01 a 2026-03-31");
+  });
 });
