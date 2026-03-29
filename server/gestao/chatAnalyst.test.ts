@@ -286,39 +286,43 @@ describe("gestao chatAnalyst", () => {
           finish_reason: "stop",
           message: {
             role: "assistant",
-            content: JSON.stringify({
-              answer: "Estamos abaixo da meta por take rate e baixa concentração produtiva.",
-              evidence: [
-                "Comissão atual em R$ 11.000,00",
-                "Necessário por dia em R$ 1.500,00",
-              ],
-              riskLevel: "high",
-              recommendedActions: [
-                {
-                  type: "apply_filter",
-                  key: "produto",
-                  values: ["CDC", "Inexistente"],
-                  label: "",
-                },
-                {
-                  type: "apply_saved_view",
-                  viewId: "preset-diretoria",
-                  label: "",
-                },
-                {
-                  type: "apply_saved_view",
-                  viewId: "nao-existe",
-                  label: "Ignorar",
-                },
-              ],
-              followUpPrompts: [
-                "Quem mais pressiona o gap?",
-                "Como está o pipeline?",
-                "Vale ver por operação?",
-                "Pergunta extra",
-              ],
-              contextLabel: "",
-            }),
+            content:
+              "Aqui está o diagnóstico em JSON:\n```json\n" +
+              JSON.stringify({
+                answer:
+                  "Estamos abaixo da meta por take rate e baixa concentração produtiva.",
+                evidence: [
+                  "Comissão atual em R$ 11.000,00",
+                  "Necessário por dia em R$ 1.500,00",
+                ],
+                riskLevel: "high",
+                recommendedActions: [
+                  {
+                    type: "apply_filter",
+                    key: "produto",
+                    values: ["CDC", "Inexistente"],
+                    label: "",
+                  },
+                  {
+                    type: "apply_saved_view",
+                    viewId: "preset-diretoria",
+                    label: "",
+                  },
+                  {
+                    type: "apply_saved_view",
+                    viewId: "nao-existe",
+                    label: "Ignorar",
+                  },
+                ],
+                followUpPrompts: [
+                  "Quem mais pressiona o gap?",
+                  "Como está o pipeline?",
+                  "Vale ver por operação?",
+                  "Pergunta extra",
+                ],
+                contextLabel: "",
+              }) +
+              "\n```",
           },
         },
       ],

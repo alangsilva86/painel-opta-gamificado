@@ -546,6 +546,24 @@ function extractContentText(content: Message["content"]) {
   return "";
 }
 
+function unwrapJsonCodeFence(content: string) {
+  const trimmed = content.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  return fenced?.[1]?.trim() ?? trimmed;
+}
+
+function extractJsonObjectCandidate(content: string) {
+  const unfenced = unwrapJsonCodeFence(content);
+  const firstBrace = unfenced.indexOf("{");
+  const lastBrace = unfenced.lastIndexOf("}");
+
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    return unfenced.slice(firstBrace, lastBrace + 1);
+  }
+
+  return unfenced;
+}
+
 function buildSystemPrompt() {
   return `# Identidade e Missão
 Você é um analista de BI executivo sênior especializado em performance comercial de correspondentes bancários. Responde exclusivamente em PT-BR. Sua função é transformar dados brutos de produção em diagnósticos acionáveis para o gestor da carteira.
@@ -686,7 +704,9 @@ export async function generateGestaoAnalystResponse({
 
   let parsed: z.infer<typeof RAW_RESPONSE_SCHEMA>;
   try {
-    parsed = RAW_RESPONSE_SCHEMA.parse(JSON.parse(rawContent));
+    parsed = RAW_RESPONSE_SCHEMA.parse(
+      JSON.parse(extractJsonObjectCandidate(rawContent))
+    );
   } catch (parseError) {
     const isJson = parseError instanceof SyntaxError;
     throw new Error(
