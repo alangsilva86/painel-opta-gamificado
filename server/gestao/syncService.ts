@@ -5,6 +5,15 @@ import {
   zohoContratosSnapshot,
 } from "../../drizzle/schema";
 import { getDb } from "../db";
+import {
+  buildContratoInsertValues,
+  buildContratoUpdateSet,
+  buildLegacyContratoInsertValues,
+  buildLegacyContratoUpdateSet,
+  contratosLegacy,
+  getContratosColumnState,
+  hasFullContratoDimensionSchema,
+} from "./contratosCompat";
 import { normalizeContratoZoho } from "./normalizeZoho";
 import { zohoService } from "../zohoService";
 
@@ -163,6 +172,7 @@ export async function syncContratosGestao(
   const hashMap = new Map(
     existingHashes.map(row => [row.idContrato, row.sourceHash])
   );
+  const contratosColumnState = await getContratosColumnState(db);
 
   let upserted = 0;
   let unchanged = 0;
@@ -195,36 +205,21 @@ export async function syncContratosGestao(
         },
       });
 
-    await db
-      .insert(contratos)
-      .values(contrato)
-      .onDuplicateKeyUpdate({
-        set: {
-          numeroContrato: contrato.numeroContrato,
-          dataPagamento: contrato.dataPagamento,
-          liquidoLiberadoCent: contrato.liquidoLiberadoCent,
-          comissaoBaseCent: contrato.comissaoBaseCent,
-          comissaoBonusCent: contrato.comissaoBonusCent,
-          comissaoTotalCent: contrato.comissaoTotalCent,
-          pctComissaoBase: contrato.pctComissaoBase,
-          pctComissaoBonus: contrato.pctComissaoBonus,
-          vendedorId: contrato.vendedorId,
-          vendedorNome: contrato.vendedorNome,
-          digitadorId: contrato.digitadorId,
-          digitadorNome: contrato.digitadorNome,
-          produtoId: contrato.produtoId,
-          produto: contrato.produto,
-          tipoOperacaoId: contrato.tipoOperacaoId,
-          tipoOperacao: contrato.tipoOperacao,
-          agenteLookupId: contrato.agenteLookupId,
-          agenteId: contrato.agenteId,
-          etapaPipeline: contrato.etapaPipeline,
-          inconsistenciaDataPagamento: contrato.inconsistenciaDataPagamento,
-          liquidoFallback: contrato.liquidoFallback,
-          comissaoCalculada: contrato.comissaoCalculada,
-          updatedAt: contrato.updatedAt,
-        },
-      });
+    if (hasFullContratoDimensionSchema(contratosColumnState.columns)) {
+      await db
+        .insert(contratos)
+        .values(buildContratoInsertValues(contrato, contratosColumnState.columns))
+        .onDuplicateKeyUpdate({
+          set: buildContratoUpdateSet(contrato, contratosColumnState.columns),
+        });
+    } else {
+      await db
+        .insert(contratosLegacy)
+        .values(buildLegacyContratoInsertValues(contrato))
+        .onDuplicateKeyUpdate({
+          set: buildLegacyContratoUpdateSet(contrato),
+        });
+    }
 
     upserted++;
     localWarnings.forEach(w =>

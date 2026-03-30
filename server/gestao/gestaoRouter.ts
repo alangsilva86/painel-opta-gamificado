@@ -22,6 +22,7 @@ import {
   centsToNumber,
   FILTERS_SCHEMA,
 } from "./resumoSnapshot";
+import { CONTRATOS_BASE_SELECT } from "./contratosCompat";
 import {
   CHAT_ANALYST_INPUT_SCHEMA,
   generateGestaoAnalystResponse,
@@ -313,7 +314,10 @@ export const gestaoRouter = router({
         message: "Database indisponível",
       });
     const where = buildWhere(input);
-    const data = await db.select().from(contratos).where(where);
+    const data = await db
+      .select(CONTRATOS_BASE_SELECT)
+      .from(contratos)
+      .where(where);
 
     const header = [
       "numero_contrato",
@@ -382,7 +386,10 @@ export const gestaoRouter = router({
         digitadorNome: input.digitadorNome,
       });
 
-      const all = await db.select().from(contratos).where(where);
+      const all = await db
+        .select(CONTRATOS_BASE_SELECT)
+        .from(contratos)
+        .where(where);
       const total = all.length || 1;
       const pctComissaoCalculada =
         all.filter(r => r.comissaoCalculada).length / total;

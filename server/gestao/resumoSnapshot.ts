@@ -13,6 +13,7 @@ import {
   vendedoras,
 } from "../../drizzle/schema";
 import { getDb } from "../db";
+import { CONTRATOS_BASE_SELECT } from "./contratosCompat";
 import { buildExecutiveLayer } from "./executive";
 
 export const FILTERS_SCHEMA = z.object({
@@ -190,7 +191,7 @@ export async function buildGestaoResumoSnapshot(input: GestaoResumoFilters) {
   }
 
   const where = buildWhere(input);
-  const rows = await db.select().from(contratos).where(where);
+  const rows = await db.select(CONTRATOS_BASE_SELECT).from(contratos).where(where);
   const latestSyncRow = await db
     .select({ createdAt: gestaoSyncLogs.createdAt })
     .from(gestaoSyncLogs)
@@ -454,7 +455,7 @@ export async function buildGestaoResumoSnapshot(input: GestaoResumoFilters) {
   rows.forEach(row => {
     const normalizedName = normalizeSellerName(row.vendedorNome);
     const fallbackVendedoraId = vendedorIdByName.get(normalizedName) ?? "";
-    const resolvedVendedoraId = row.vendedorId || fallbackVendedoraId;
+    const resolvedVendedoraId = fallbackVendedoraId;
     const key = resolvedVendedoraId || `name:${normalizedName}`;
     const displayName =
       (resolvedVendedoraId && vendedorNameById.get(resolvedVendedoraId)) ||
