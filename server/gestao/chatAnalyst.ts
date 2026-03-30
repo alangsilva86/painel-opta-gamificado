@@ -239,7 +239,9 @@ function buildAnalystSignals(
 
   // --- Seller concentration ---
   const totalComissao = cards.comissao;
-  const topSeller = bySeller[0] ?? null;
+  const topSeller = bySeller
+    .slice()
+    .sort((a, b) => b.comissao - a.comissao)[0] ?? null;
   const topSellerComissao = topSeller?.comissao ?? 0;
   const topSellerPct =
     totalComissao > 0 ? topSellerComissao / totalComissao : 0;
@@ -256,7 +258,9 @@ function buildAnalystSignals(
     }));
 
   // --- Top product concentration ---
-  const topProduct = byProduct[0] ?? null;
+  const topProduct = byProduct
+    .slice()
+    .sort((a, b) => b.comissao - a.comissao)[0] ?? null;
   const topProductPct =
     totalComissao > 0 && topProduct
       ? topProduct.comissao / totalComissao

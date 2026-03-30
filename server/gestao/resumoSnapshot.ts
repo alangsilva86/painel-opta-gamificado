@@ -662,18 +662,20 @@ export async function buildGestaoResumoSnapshot(input: GestaoResumoFilters) {
     const sellersSorted = bySeller
       .map(row => ({ vendedor: row.vendedor, comissao: row.comissao }))
       .sort((a, b) => b.comissao - a.comissao);
-    const top5 = sellersSorted.slice(0, 5);
-    const top5Sum = top5.reduce((acc, row) => acc + row.comissao, 0);
+    const topSeller = sellersSorted[0];
     const sumComissaoReais = sumComissao / 100;
-    const shareReal = sumComissaoReais > 0 ? top5Sum / sumComissaoReais : 0;
+    const shareReal =
+      sumComissaoReais > 0 && topSeller
+        ? topSeller.comissao / sumComissaoReais
+        : 0;
 
-    if (shareReal >= 0.7) {
+    if (topSeller && shareReal >= 0.5) {
       alerts.push({
-        type: "top5ConcentrationHigh",
-        title: "Concentração alta no Top 5",
-        severity: "info",
-        detail: `${formatPercent(shareReal)} da comissão concentrada nos Top 5 vendedores.`,
-        filters: { vendedorNome: top5.map(row => row.vendedor) },
+        type: "topSellerConcentrationHigh",
+        title: "Concentração alta em uma vendedora",
+        severity: "warning",
+        detail: `${formatPercent(shareReal)} da comissão concentrada em ${topSeller.vendedor}.`,
+        filters: { vendedorNome: [topSeller.vendedor] },
         generatedAt: new Date(),
       });
     }

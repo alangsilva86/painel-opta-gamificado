@@ -107,7 +107,7 @@ export type ExecutiveMetric = {
     | "takeRate"
     | "contratos"
     | "shareSemComissao"
-    | "concentracaoTop5";
+    | "concentracaoLider";
   label: string;
   value: number;
   formattedValue: string;
@@ -293,14 +293,13 @@ function buildDataQualityInfo(
   };
 }
 
-function getTop5Share(rows: SummarySellerRow[], totalCommission: number) {
+function getTopSellerShare(rows: SummarySellerRow[], totalCommission: number) {
   if (totalCommission <= 0) return 0;
-  const top5 = rows
+  const topSeller = rows
     .slice()
     .sort((a, b) => b.comissao - a.comissao)
-    .slice(0, 5)
-    .reduce((acc, row) => acc + row.comissao, 0);
-  return top5 / totalCommission;
+    [0];
+  return topSeller ? topSeller.comissao / totalCommission : 0;
 }
 
 function buildMetrics(input: BuildExecutiveLayerInput): ExecutiveMetric[] {
@@ -325,7 +324,10 @@ function buildMetrics(input: BuildExecutiveLayerInput): ExecutiveMetric[] {
     .sort((a, b) => b.comissao - a.comissao)
     .slice(0, 8)
     .map(row => row.comissao);
-  const top5Share = getTop5Share(bySeller, cards.comissao);
+  const topSeller = bySeller
+    .slice()
+    .sort((a, b) => b.comissao - a.comissao)[0];
+  const topSellerShare = getTopSellerShare(bySeller, cards.comissao);
   const metaProgress =
     cards.metaComissao > 0 ? cards.comissao / cards.metaComissao : undefined;
 
@@ -447,20 +449,26 @@ function buildMetrics(input: BuildExecutiveLayerInput): ExecutiveMetric[] {
       sparkline: semCommissionSparkline,
     },
     {
-      id: "concentracaoTop5",
-      label: "Concentração Top 5",
-      value: top5Share,
-      formattedValue: formatPercent(top5Share),
-      deltaVsTarget: (top5Share - 0.7) / 0.7,
-      targetValue: 0.7,
+      id: "concentracaoLider",
+      label: "Concentração na líder",
+      value: topSellerShare,
+      formattedValue: formatPercent(topSellerShare),
+      deltaVsTarget: (topSellerShare - 0.3) / 0.3,
+      targetValue: 0.3,
       status:
-        top5Share <= 0.55 ? "good" : top5Share <= 0.7 ? "warning" : "critical",
-      trend: getTrend(concentrationSparkline),
+        topSellerShare <= 0.3
+          ? "good"
+          : topSellerShare <= 0.5
+            ? "warning"
+            : "critical",
+      trend: "flat",
       isLowerBetter: true,
       helpText:
-        "Participação dos cinco maiores vendedores na comissão total do recorte.",
+        "Participação da vendedora líder na comissão total do recorte.",
       microText:
-        "Ajuda a enxergar risco de dependência excessiva em poucos nomes.",
+        topSeller
+          ? `${topSeller.vendedor} concentra ${formatPercent(topSellerShare)} da comissão.`
+          : "Ajuda a enxergar dependência excessiva em uma única vendedora.",
       sparkline: concentrationSparkline,
     },
   ];
@@ -528,8 +536,10 @@ function buildNarrative(
     .slice()
     .sort((a, b) => b.liquido - a.liquido)
     .find(product => product.takeRate < cards.takeRate * 0.85);
-  const topSeller = bySeller.slice().sort((a, b) => b.comissao - a.comissao)[0];
-  const top5Share = getTop5Share(bySeller, cards.comissao);
+  const topSeller = bySeller
+    .slice()
+    .sort((a, b) => b.comissao - a.comissao)[0];
+  const topSellerShare = getTopSellerShare(bySeller, cards.comissao);
 
   items.push({
     id: "meta-pace",
@@ -602,16 +612,28 @@ function buildNarrative(
   if (topSeller) {
     items.push({
       id: "concentration",
-      severity: top5Share > 0.7 ? "warning" : "info",
-      headline: "Concentração comercial",
-      whatChanged: `Os Top 5 concentram ${formatPercent(top5Share)} da comissão e ${topSeller.vendedor} lidera individualmente.`,
+      severity:
+        topSellerShare > 0.5
+          ? "critical"
+          : topSellerShare > 0.3
+            ? "warning"
+            : "info",
+      headline:
+        topSellerShare > 0.5
+          ? "Dependência alta da líder"
+          : "Concentração comercial na líder",
+      whatChanged: `${topSeller.vendedor} concentra ${formatPercent(
+        topSellerShare
+      )} da comissão total do recorte.`,
       why: `${topSeller.vendedor} responde por ${formatPercent(
         topSeller.pctTotal ?? 0
-      )} da comissão total com ${formatPercent(topSeller.pctMeta ?? 0)} da meta individual.`,
+      )} da comissão total com ${formatPercent(
+        topSeller.pctMeta ?? 0
+      )} da meta individual. Em um time enxuto, isso aumenta a dependência de uma única vendedora.`,
       action:
-        top5Share > 0.7
-          ? "Abra a visão por vendedora para reduzir dependência de poucos nomes e equilibrar o pipeline."
-          : "Use a liderança atual como benchmark e replique o padrão nas demais frentes.",
+        topSellerShare > 0.5
+          ? "Abra a visão por vendedora e redistribua pipeline para reduzir dependência da líder."
+          : "Use a rotina da líder como benchmark e replique o padrão nas demais vendedoras.",
       filters: { vendedorNome: [topSeller.vendedor] },
     });
   }
@@ -625,7 +647,10 @@ function buildWatchlist(
 ): WatchlistItem[] {
   const { cards, bySeller, byProduct, quality, alerts } = input;
   const items: WatchlistItem[] = [];
-  const top5Share = getTop5Share(bySeller, cards.comissao);
+  const topSeller = bySeller
+    .slice()
+    .sort((a, b) => b.comissao - a.comissao)[0];
+  const topSellerShare = getTopSellerShare(bySeller, cards.comissao);
   const worstSeller = bySeller
     .slice()
     .sort((a, b) => b.semComissaoCount - a.semComissaoCount)[0];
@@ -673,15 +698,16 @@ function buildWatchlist(
     });
   }
 
-  if (top5Share > 0.7) {
+  if (topSeller && topSellerShare > 0.5) {
     items.push({
-      id: "concentration-top5",
-      severity: "warning",
-      title: "Concentração elevada nos Top 5",
-      impactLabel: `${formatPercent(top5Share)} da comissão depende de cinco vendedoras.`,
+      id: "concentration-top-seller",
+      severity: topSellerShare > 0.65 ? "critical" : "warning",
+      title: "Concentração elevada em uma vendedora",
+      impactLabel: `${formatPercent(topSellerShare)} da comissão depende de ${topSeller.vendedor}.`,
       probableCause:
-        "A distribuição do resultado está pouco espalhada, aumentando o risco operacional de perda de ritmo.",
-      cta: "Revisar ranking e replicar alavancas dos líderes para o restante do time.",
+        "A distribuição do resultado está pouco espalhada para o tamanho do time, aumentando o risco operacional de perda de ritmo.",
+      cta: "Revisar a operação da líder e redistribuir alavancas para o restante do time.",
+      filters: { vendedorNome: [topSeller.vendedor] },
     });
   }
 

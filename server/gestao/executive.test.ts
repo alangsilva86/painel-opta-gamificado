@@ -157,9 +157,19 @@ describe("buildExecutiveLayer", () => {
     expect(
       layer.executiveMetrics.find(metric => metric.id === "paceVsMeta")?.status
     ).toBe("critical");
+    expect(
+      layer.executiveMetrics.find(metric => metric.id === "concentracaoLider")
+    ).toMatchObject({
+      label: "Concentração na líder",
+      value: 6000 / 11000,
+      status: "critical",
+    });
     expect(layer.businessStatus.status).toBe("critical");
     expect(layer.freshness.status).toBe("fresh");
     expect(layer.watchlist.some(item => item.id === "pace-behind")).toBe(true);
+    expect(
+      layer.watchlist.some(item => item.id === "concentration-top-seller")
+    ).toBe(true);
     expect(
       layer.executiveNarrative.some(item => item.id === "quality-sem-comissao")
     ).toBe(true);

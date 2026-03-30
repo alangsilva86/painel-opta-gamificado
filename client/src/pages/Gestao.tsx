@@ -9,7 +9,6 @@ import { AlertsCard } from "@/features/gestao/components/AlertsCard";
 import { executeGestaoAnalystAction } from "@/features/gestao/analystActions";
 import { ClickableList } from "@/features/gestao/components/ClickableList";
 import { DrilldownTable } from "@/features/gestao/components/DrilldownTable";
-import { ExecutiveCockpit } from "@/features/gestao/components/ExecutiveCockpit";
 import { HealthPipelineSection } from "@/features/gestao/components/HealthPipelineSection";
 import { FilterBar } from "@/features/gestao/components/FilterBar";
 import { GestaoAnalystChat } from "@/features/gestao/components/GestaoAnalystChat";
@@ -227,7 +226,6 @@ export default function Gestao() {
     availableSellers,
     comparisonMetricDeltas,
     deltas,
-    executiveMetrics,
     flagCounts,
     operationData,
     productData,
@@ -697,12 +695,6 @@ export default function Gestao() {
 
         {hasFetched && resumoQuery.data && !isFetchingData && (
           <>
-            <ExecutiveCockpit
-              businessStatus={resumoQuery.data.businessStatus}
-              metrics={executiveMetrics}
-              comparisonEnabled={comparisonModeApplied}
-            />
-
             <PeriodKpisSection
               cards={resumoQuery.data.cards}
               comparisonMetricDeltas={comparisonMetricDeltas}

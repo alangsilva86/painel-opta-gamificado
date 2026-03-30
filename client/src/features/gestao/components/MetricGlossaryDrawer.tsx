@@ -50,11 +50,12 @@ const GLOSSARY = [
       "Use para avaliar fila pendente, gargalos operacionais e risco de submonetização.",
   },
   {
-    label: "Concentração Top 5",
-    formula: "Comissão dos cinco maiores sellers / comissão total.",
-    interpretation: "Mede dependência excessiva em poucos nomes.",
+    label: "Concentração na líder",
+    formula: "Comissão da vendedora líder / comissão total.",
+    interpretation:
+      "Mede o quanto o resultado do recorte depende de uma única vendedora.",
     whenToUse:
-      "Use para gestão de risco comercial e distribuição saudável da produção.",
+      "Use para gestão de risco comercial em times enxutos e distribuição saudável da produção.",
   },
   {
     label: "Qualidade de dados",

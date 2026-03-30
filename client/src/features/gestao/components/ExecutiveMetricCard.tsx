@@ -24,7 +24,7 @@ function formatTargetValue(metric: GestaoExecutiveMetric, value: number) {
   if (
     metric.id === "takeRate" ||
     metric.id === "shareSemComissao" ||
-    metric.id === "concentracaoTop5"
+    metric.id === "concentracaoLider"
   ) {
     return formatPercent(value);
   }
