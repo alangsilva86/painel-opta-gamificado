@@ -103,8 +103,12 @@ export function VendedoraDetalheModal({
   const tierMeta100 = getTierByThreshold(100);
   const fatorMeta100 = tierMeta100.multiplicador * (1 + globalAcelerador);
 
-  const incentivoContratoMeta100 = (c: Contrato) =>
+  const potencialVendedoraContratoMeta100 = (c: Contrato) =>
     isSemIncentivo(c) ? 0 : c.baseComissionavel * fatorMeta100;
+  const potencialVendedoraMeta100Total = contratosOrdenados.reduce(
+    (total, contrato) => total + potencialVendedoraContratoMeta100(contrato),
+    0
+  );
 
   const summaryCards = [
     {
@@ -122,16 +126,16 @@ export function VendedoraDetalheModal({
       tone: "text-foreground",
     },
     {
-      label: "Incentivo Previsto",
+      label: "Seu incentivo atual",
       value: formatCurrency(vendedora.comissaoPrevista),
-      description: "Valor estimado com a produção atual.",
+      description: "Quanto você libera com a produção atual.",
       icon: DollarSign,
       tone: tierVisual.textClass,
     },
     {
-      label: "Contratos",
-      value: String(vendedora.contratos.length),
-      description: `${totalComIncentivo} com comissão informada.`,
+      label: "Potencial em 100%",
+      value: formatCurrency(potencialVendedoraMeta100Total),
+      description: "Somente vendas já comissionadas pelo financeiro.",
       icon: FileText,
       tone: "text-foreground",
     },
@@ -253,7 +257,7 @@ export function VendedoraDetalheModal({
           </div>
           <div className="status-chip border-border/70 bg-background/60 text-foreground">
             <DollarSign className={cn("h-3.5 w-3.5", tierVisual.textClass)} />
-            <span>{`Base comiss. ${formatCurrency(vendedora.baseComissionavelTotal)}`}</span>
+            <span>{`Potencial 100% ${formatCurrency(potencialVendedoraMeta100Total)}`}</span>
           </div>
         </div>
 
@@ -265,10 +269,11 @@ export function VendedoraDetalheModal({
               </h3>
               <p className="page-section-copy">
                 {contratosOrdenados.length} registros ordenados do mais recente
-                para o mais antigo. A coluna de incentivo mostra o valor por
-                venda ao bater 100% da meta individual. Quando o financeiro
-                ainda não informou a comissão, o contrato aparece como
-                aguardando financeiro.
+                para o mais antigo. A coluna de incentivo mostra apenas o que a
+                vendedora recebe por venda ao bater 100% da meta individual,
+                ajudando a identificar operações com melhor retorno pessoal.
+                Quando o financeiro ainda não informou a comissão, o contrato
+                aparece como aguardando financeiro.
               </p>
             </div>
           </div>
@@ -309,7 +314,8 @@ export function VendedoraDetalheModal({
                   <tbody>
                     {contratosOrdenados.map((contrato, index) => {
                       const semIncentivo = isSemIncentivo(contrato);
-                      const incentivo = incentivoContratoMeta100(contrato);
+                      const incentivo =
+                        potencialVendedoraContratoMeta100(contrato);
                       const statusLabel = getContratoStatusLabel(contrato);
 
                       return (
@@ -371,7 +377,7 @@ export function VendedoraDetalheModal({
               <div className="space-y-3 lg:hidden">
                 {contratosOrdenados.map((contrato, index) => {
                   const semIncentivo = isSemIncentivo(contrato);
-                  const incentivo = incentivoContratoMeta100(contrato);
+                  const incentivo = potencialVendedoraContratoMeta100(contrato);
                   const statusLabel = getContratoStatusLabel(contrato);
 
                   return (
@@ -427,9 +433,16 @@ export function VendedoraDetalheModal({
                           </div>
                         </div>
                         <div className="panel-inset rounded-xl p-3">
-                          <div className="metric-label">Base comiss.</div>
-                          <div className="mt-2 text-sm font-medium tabular-nums text-foreground">
-                            {formatCurrency(contrato.baseComissionavel)}
+                          <div className="metric-label">Status comissão</div>
+                          <div
+                            className={cn(
+                              "mt-2 text-sm font-medium",
+                              semIncentivo
+                                ? "text-muted-foreground"
+                                : "text-emerald-200"
+                            )}
+                          >
+                            {statusLabel}
                           </div>
                         </div>
                       </div>
