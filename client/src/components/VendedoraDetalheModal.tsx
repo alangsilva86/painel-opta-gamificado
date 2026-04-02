@@ -178,6 +178,19 @@ export function VendedoraDetalheModal({
                     <span>{`#${String(rank).padStart(2, "0")} no ranking`}</span>
                   </div>
                 ) : null}
+                <div
+                  className={cn(
+                    "status-chip border-border/70 bg-background/60",
+                    tierVisual.textClass
+                  )}
+                >
+                  <TierBadge
+                    tier={vendedora.tier}
+                    size="sm"
+                    showLabel={false}
+                  />
+                  <span>{vendedora.tier}</span>
+                </div>
               </div>
 
               <div className="flex min-w-0 items-start gap-4">
@@ -195,11 +208,6 @@ export function VendedoraDetalheModal({
                       <span>Visão analítica</span>
                     </div>
                   </div>
-                  <TierBadge tier={vendedora.tier} size="sm" />
-                  <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                    Resumo consolidado de meta, incentivo e contratos para
-                    análise rápida em qualquer breakpoint.
-                  </p>
                 </div>
               </div>
             </div>
@@ -262,22 +270,6 @@ export function VendedoraDetalheModal({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
-          <div className="page-section-header items-start gap-3">
-            <div>
-              <h3 className="text-lg font-semibold text-foreground">
-                Histórico de contratos
-              </h3>
-              <p className="page-section-copy">
-                {contratosOrdenados.length} registros ordenados do mais recente
-                para o mais antigo. A coluna de incentivo mostra apenas o que a
-                vendedora recebe por venda ao bater 100% da meta individual,
-                ajudando a identificar operações com melhor retorno pessoal.
-                Quando o financeiro ainda não informou a comissão, o contrato
-                aparece como aguardando financeiro.
-              </p>
-            </div>
-          </div>
-
           {contratosOrdenados.length === 0 ? (
             <div className="empty-state mt-4 flex min-h-[240px] flex-col items-center justify-center text-center">
               <FileText className="mb-3 h-8 w-8 text-muted-foreground/50" />
