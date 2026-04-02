@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import TierBadge from "./TierBadge";
 import { cn, formatCurrency } from "@/lib/utils";
-import { getTierVisual } from "@/lib/tierVisuals";
+import { getTierByThreshold, getTierVisual } from "@/lib/tierVisuals";
 import {
   BarChart3,
   CheckCircle2,
@@ -47,12 +47,19 @@ interface VendedoraDetalheModalProps {
     contratosSemComissao: number;
   } | null;
   rank?: number;
+  globalAcelerador?: number;
   open: boolean;
   onClose: () => void;
 }
 
 function isSemIncentivo(c: Contrato): boolean {
   return c.ignoradoPainelVendedoras === true || c.baseComissionavel === 0;
+}
+
+function getContratoStatusLabel(c: Contrato): string {
+  if (c.ignoradoPainelVendedoras) return "Não elegível";
+  if (c.baseComissionavel === 0) return "Aguardando financeiro";
+  return "Comissão informada";
 }
 
 function formatDate(dateStr: string): string {
@@ -76,6 +83,7 @@ function getRankColor(rank: number | undefined): string {
 export function VendedoraDetalheModal({
   vendedora,
   rank,
+  globalAcelerador = 0,
   open,
   onClose,
 }: VendedoraDetalheModalProps) {
@@ -92,13 +100,11 @@ export function VendedoraDetalheModal({
   const totalSemIncentivo = contratosOrdenados.filter(c =>
     isSemIncentivo(c)
   ).length;
-  const taxaEfetiva =
-    vendedora.baseComissionavelTotal > 0
-      ? vendedora.comissaoPrevista / vendedora.baseComissionavelTotal
-      : 0;
+  const tierMeta100 = getTierByThreshold(100);
+  const fatorMeta100 = tierMeta100.multiplicador * (1 + globalAcelerador);
 
-  const incentivoContrato = (c: Contrato) =>
-    isSemIncentivo(c) ? 0 : c.baseComissionavel * taxaEfetiva;
+  const incentivoContratoMeta100 = (c: Contrato) =>
+    isSemIncentivo(c) ? 0 : c.baseComissionavel * fatorMeta100;
 
   const summaryCards = [
     {
@@ -125,7 +131,7 @@ export function VendedoraDetalheModal({
     {
       label: "Contratos",
       value: String(vendedora.contratos.length),
-      description: `${totalComIncentivo} com incentivo elegível.`,
+      description: `${totalComIncentivo} com comissão informada.`,
       icon: FileText,
       tone: "text-foreground",
     },
@@ -239,11 +245,11 @@ export function VendedoraDetalheModal({
           </div>
           <div className="status-chip border-emerald-500/30 bg-emerald-500/10 text-emerald-200">
             <CheckCircle2 className="h-3.5 w-3.5" />
-            <span>{`${totalComIncentivo} com incentivo`}</span>
+            <span>{`${totalComIncentivo} com comissão informada`}</span>
           </div>
           <div className="status-chip border-border/70 bg-background/60 text-muted-foreground">
             <XCircle className="h-3.5 w-3.5" />
-            <span>{`${totalSemIncentivo} sem incentivo`}</span>
+            <span>{`${totalSemIncentivo} aguardando comissão`}</span>
           </div>
           <div className="status-chip border-border/70 bg-background/60 text-foreground">
             <DollarSign className={cn("h-3.5 w-3.5", tierVisual.textClass)} />
@@ -259,7 +265,10 @@ export function VendedoraDetalheModal({
               </h3>
               <p className="page-section-copy">
                 {contratosOrdenados.length} registros ordenados do mais recente
-                para o mais antigo.
+                para o mais antigo. A coluna de incentivo mostra o valor por
+                venda ao bater 100% da meta individual. Quando o financeiro
+                ainda não informou a comissão, o contrato aparece como
+                aguardando financeiro.
               </p>
             </div>
           </div>
@@ -290,7 +299,7 @@ export function VendedoraDetalheModal({
                         Valor Líquido
                       </th>
                       <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                        Incentivo
+                        Incentivo 100%
                       </th>
                       <th className="px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                         Status
@@ -300,7 +309,8 @@ export function VendedoraDetalheModal({
                   <tbody>
                     {contratosOrdenados.map((contrato, index) => {
                       const semIncentivo = isSemIncentivo(contrato);
-                      const incentivo = incentivoContrato(contrato);
+                      const incentivo = incentivoContratoMeta100(contrato);
+                      const statusLabel = getContratoStatusLabel(contrato);
 
                       return (
                         <tr
@@ -348,7 +358,7 @@ export function VendedoraDetalheModal({
                                   : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
                               }
                             >
-                              {semIncentivo ? "Sem incentivo" : "Com incentivo"}
+                              {statusLabel}
                             </Badge>
                           </td>
                         </tr>
@@ -361,7 +371,8 @@ export function VendedoraDetalheModal({
               <div className="space-y-3 lg:hidden">
                 {contratosOrdenados.map((contrato, index) => {
                   const semIncentivo = isSemIncentivo(contrato);
-                  const incentivo = incentivoContrato(contrato);
+                  const incentivo = incentivoContratoMeta100(contrato);
+                  const statusLabel = getContratoStatusLabel(contrato);
 
                   return (
                     <div
@@ -383,7 +394,7 @@ export function VendedoraDetalheModal({
                               : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
                           }
                         >
-                          {semIncentivo ? "Sem incentivo" : "Com incentivo"}
+                          {statusLabel}
                         </Badge>
                       </div>
 
@@ -401,7 +412,7 @@ export function VendedoraDetalheModal({
                           </div>
                         </div>
                         <div className="panel-inset rounded-xl p-3">
-                          <div className="metric-label">Incentivo</div>
+                          <div className="metric-label">Incentivo 100%</div>
                           <div
                             className={cn(
                               "mt-2 text-sm font-semibold tabular-nums",

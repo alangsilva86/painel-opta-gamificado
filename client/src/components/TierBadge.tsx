@@ -112,7 +112,7 @@ export default function TierBadge({
           <span className={`font-semibold ${style.color}`}>{config.nome}</span>
           <span className="text-xs text-muted-foreground">
             {config.multiplicador === 0
-              ? "Sem incentivo"
+              ? "Incentivo não liberado"
               : `${config.multiplicador.toFixed(1)}x`}
           </span>
         </div>

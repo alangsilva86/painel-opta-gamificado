@@ -176,6 +176,7 @@ export function VendedoraCard({
     proximoNivel.percentual > 0 &&
     vendedora.percentualMeta < proximoNivel.percentual &&
     1 - vendedora.percentualMeta / proximoNivel.percentual <= 0.05;
+  const metaConfigured = vendedora.meta > 0;
   const isEligibleForIncentive = tierDefinition.multiplicador > 0;
   const showAceleradorPill =
     isEligibleForIncentive && (vendedora.aceleradorAplicado || 0) > 0;
@@ -198,16 +199,40 @@ export function VendedoraCard({
         acceleratorFactor,
     };
   });
-  const incentiveSupportCopy =
-    vendedora.percentualMeta < 75
-      ? `Ao bater 75% da meta, com a produção atual você libera ${formatCurrency(
-          incentiveMilestones[0].amount
-        )}.`
-      : vendedora.percentualMeta < 100
-        ? `Em 100% da meta, com a produção atual esse incentivo sobe para ${formatCurrency(
-            incentiveMilestones[1].amount
-          )}.`
-        : "Com a produção atual, você já liberou os marcos de 75% e 100% da meta.";
+  const nextIncentiveMilestone = metaConfigured
+    ? (incentiveMilestones.find(milestone => !milestone.unlocked) ?? null)
+    : null;
+  const incentiveProgress = metaConfigured
+    ? Math.min(100, Math.max(0, vendedora.percentualMeta))
+    : 0;
+  const incentiveHeadline = !metaConfigured
+    ? "Meta pendente"
+    : isEligibleForIncentive
+      ? formatCurrency(vendedora.comissaoPrevista)
+      : nextIncentiveMilestone
+        ? formatCurrency(nextIncentiveMilestone.amount)
+        : formatCurrency(vendedora.comissaoPrevista);
+  const incentiveContextLabel = !metaConfigured
+    ? "Defina a meta para ativar a escada"
+    : isEligibleForIncentive
+      ? nextIncentiveMilestone
+        ? `Ativo · mira ${nextIncentiveMilestone.threshold}%`
+        : "Escada concluída"
+      : nextIncentiveMilestone
+        ? `Destrava em ${nextIncentiveMilestone.threshold}%`
+        : "Escada base pronta";
+  const incentiveFooterLabel = !metaConfigured
+    ? "Meta do mês não definida"
+    : nextIncentiveMilestone
+      ? `Faltam ${nextIncentiveMilestone.missingPct.toFixed(0)} p.p.`
+      : "75% e 100% destravados";
+  const incentiveMetaChip = !metaConfigured
+    ? "Sem meta"
+    : `${vendedora.percentualMeta.toFixed(0)}%`;
+  const pendingFinanceLabel =
+    vendedora.contratosSemComissao > 0
+      ? `${vendedora.contratosSemComissao} aguard. financeiro`
+      : null;
   const bannerClass =
     vendedora.percentualMeta >= 150
       ? "bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 text-background"
@@ -272,115 +297,167 @@ export function VendedoraCard({
                 "border-white/5"
               )}
             >
-              <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                Incentivo atual
-              </div>
-              {isEligibleForIncentive ? (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <DollarSign size={18} className={tierVisual.textClass} />
-                  <span
-                    className={cn("text-xl font-black", tierVisual.textClass)}
-                  >
-                    {formatCurrency(vendedora.comissaoPrevista)}
-                  </span>
-                  {showAceleradorPill && (
-                    <Badge
-                      variant="outline"
-                      className="border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                      Escada do incentivo
+                    </div>
+                    {showAceleradorPill && (
+                      <Badge
+                        variant="outline"
+                        className="border-emerald-500/40 bg-emerald-500/10 text-[10px] text-emerald-300"
+                      >
+                        + acel.
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-end gap-x-2 gap-y-1">
+                    {metaConfigured ? (
+                      isEligibleForIncentive ? (
+                        <DollarSign
+                          size={16}
+                          className={tierVisual.textClass}
+                        />
+                      ) : (
+                        <Lock size={16} className="text-muted-foreground" />
+                      )
+                    ) : (
+                      <Lock size={16} className="text-muted-foreground" />
+                    )}
+                    <span
+                      className={cn(
+                        "text-lg font-black tracking-tight tabular-nums",
+                        metaConfigured && isEligibleForIncentive
+                          ? tierVisual.textClass
+                          : "text-foreground"
+                      )}
                     >
-                      + acel.
-                    </Badge>
-                  )}
+                      {incentiveHeadline}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {incentiveContextLabel}
+                    </span>
+                  </div>
                 </div>
-              ) : (
-                <div className="mt-2 flex items-center gap-2 text-muted-foreground">
-                  <Lock size={16} />
-                  <span className="text-base font-semibold">
-                    Incentivo bloqueado
-                  </span>
-                </div>
-              )}
-              <p className="mt-2 text-xs text-muted-foreground">
-                {incentiveSupportCopy}
-              </p>
-              {vendedora.contratosSemComissao > 0 && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {vendedora.contratosSemComissao} contratos sem incentivo no
-                  período.
-                </p>
-              )}
 
-              <div className="mt-4 rounded-xl border border-white/10 bg-background/40 p-3">
-                <div className="flex items-center justify-between gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                  <span>Degraus do incentivo</span>
-                  <span>com a produção atual</span>
+                <div className="shrink-0 rounded-xl border border-white/10 bg-background/50 px-3 py-2 text-right">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                    Progresso
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-foreground tabular-nums">
+                    {incentiveMetaChip}
+                  </div>
                 </div>
-                <div className="relative mt-3 space-y-3 pl-5 before:absolute before:left-[7px] before:top-3 before:bottom-3 before:w-px before:bg-white/10">
-                  {incentiveMilestones.map(milestone => (
-                    <div key={milestone.threshold} className="relative">
-                      <span
-                        className="absolute -left-[18px] top-5 h-3 w-3 rounded-full border-2"
-                        style={{
-                          backgroundColor: milestone.unlocked
-                            ? milestone.visual.accentColor
-                            : "rgba(15, 23, 42, 0.95)",
-                          borderColor: milestone.visual.accentColor,
-                        }}
-                      />
+              </div>
+
+              <div className="mt-3">
+                <div className="relative px-1 pb-3 pt-1">
+                  <div className="h-1.5 rounded-full bg-white/10" />
+                  <div
+                    className={cn(
+                      "absolute left-0 top-1 h-1.5 rounded-full bg-gradient-to-r",
+                      nearThreshold
+                        ? "from-amber-400 to-yellow-300"
+                        : "from-primary/80 to-sky-400"
+                    )}
+                    style={{ width: `${incentiveProgress}%` }}
+                  />
+                  {incentiveMilestones.map(milestone => {
+                    const isNextTarget =
+                      nextIncentiveMilestone?.threshold === milestone.threshold;
+
+                    return (
                       <div
+                        key={`marker-${milestone.threshold}`}
+                        className="absolute top-[2px] -translate-x-1/2"
+                        style={{ left: `${milestone.threshold}%` }}
+                      >
+                        <div
+                          className={cn(
+                            "h-3.5 w-3.5 rounded-full border-2 bg-background shadow-[0_0_0_4px_rgba(10,14,23,0.45)]",
+                            milestone.unlocked
+                              ? "border-transparent bg-emerald-400"
+                              : isNextTarget
+                                ? "border-primary"
+                                : "border-white/20"
+                          )}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {incentiveMilestones.map(milestone => {
+                    const isNextTarget =
+                      nextIncentiveMilestone?.threshold === milestone.threshold;
+
+                    return (
+                      <div
+                        key={milestone.threshold}
                         className={cn(
                           "rounded-xl border px-3 py-2",
                           milestone.unlocked
-                            ? milestone.visual.softBgClass
-                            : "border-white/10 bg-background/60"
+                            ? `${milestone.visual.softBgClass} border-white/5`
+                            : isNextTarget
+                              ? "border-primary/30 bg-primary/10"
+                              : "border-white/10 bg-background/45"
                         )}
                       >
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-sm font-semibold text-foreground">
-                                {milestone.threshold}% da meta
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-foreground">
+                                {milestone.threshold}%
                               </span>
-                              <Badge
-                                variant="outline"
+                              <span
                                 className={cn(
-                                  "text-[10px]",
+                                  "text-[10px] uppercase tracking-[0.14em]",
                                   milestone.unlocked
-                                    ? `${milestone.visual.textClass} border-white/10`
-                                    : "border-white/10 text-muted-foreground"
+                                    ? milestone.visual.textClass
+                                    : isNextTarget
+                                      ? "text-primary"
+                                      : "text-muted-foreground"
                                 )}
                               >
                                 {milestone.tierName}
-                              </Badge>
+                              </span>
                             </div>
-                            <p className="mt-1 text-[11px] text-muted-foreground">
-                              {milestone.unlocked
-                                ? `Degrau liberado. Incentivo ativo nesse nível.`
-                                : `Faltam ${milestone.missingPct.toFixed(
-                                    1
-                                  )}% da meta para destravar.`}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <div
-                              className={cn(
-                                "text-sm font-black",
-                                milestone.unlocked
-                                  ? milestone.visual.textClass
-                                  : "text-foreground"
-                              )}
-                            >
+                            <div className="mt-1 text-sm font-black tracking-tight text-foreground tabular-nums">
                               {formatCurrency(milestone.amount)}
                             </div>
-                            <div className="text-[11px] text-muted-foreground">
-                              no {milestone.tierName}
-                            </div>
                           </div>
+                          {milestone.unlocked && (
+                            <Badge
+                              variant="outline"
+                              className="border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0 text-[9px] uppercase tracking-[0.14em] text-emerald-300"
+                            >
+                              Ativo
+                            </Badge>
+                          )}
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                <span
+                  className={cn(
+                    nearThreshold
+                      ? "font-semibold text-amber-300"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  {incentiveFooterLabel}
+                </span>
+                {pendingFinanceLabel && (
+                  <span className="text-muted-foreground">
+                    {pendingFinanceLabel}
+                  </span>
+                )}
               </div>
             </div>
 

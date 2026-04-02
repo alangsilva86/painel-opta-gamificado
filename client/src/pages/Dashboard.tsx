@@ -532,11 +532,11 @@ export default function Dashboard() {
               {data.vendedoras.length} vendedoras ativas
             </p>
             <p className="text-xs text-muted-foreground">
-              Sem incentivo: {data.contratosSemComissao} (
+              Aguardando comissão: {data.contratosSemComissao} (
               {data.percentualContratosSemComissao.toFixed(1)}%)
             </p>
             <p className="text-xs text-muted-foreground">
-              Com incentivo: {data.contratosComComissao}
+              Comissão informada: {data.contratosComComissao}
             </p>
           </KpiCard>
         </div>
@@ -706,6 +706,7 @@ export default function Dashboard() {
           <VendedoraDetalheModal
             vendedora={selectedVendedora}
             rank={selectedRank}
+            globalAcelerador={data.metaGlobal.acelerador}
             open={selectedVendedora !== null}
             onClose={handleCloseSelectedVendedora}
           />
