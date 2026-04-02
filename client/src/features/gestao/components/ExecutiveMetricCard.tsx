@@ -67,7 +67,7 @@ function getDeltaTone(
 
 function buildSparklinePath(values: number[]) {
   if (values.length === 0) return { line: "", area: "" };
-  const width = 132;
+  const width = 96;
   const height = 42;
   const padding = 4;
   const min = Math.min(...values);
@@ -103,17 +103,17 @@ export function ExecutiveMetricCard({ metric }: ExecutiveMetricCardProps) {
   return (
     <Card
       className={cn(
-        "h-full border text-foreground shadow-[0_10px_30px_rgba(2,8,23,0.25)]",
+        "h-full min-w-0 overflow-hidden border text-foreground shadow-[0_10px_30px_rgba(2,8,23,0.25)]",
         tone.cardClass
       )}
     >
       <CardHeader className="space-y-3 pb-3">
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <CardTitle className="text-sm font-medium text-foreground">
               {metric.label}
             </CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground min-w-0 text-pretty">
               {metric.helpText}
             </p>
           </div>
@@ -129,18 +129,18 @@ export function ExecutiveMetricCard({ metric }: ExecutiveMetricCardProps) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <div className="text-3xl font-black tracking-tight">
+        <div className="grid grid-cols-[minmax(0,1fr)_96px] items-end gap-3">
+          <div className="min-w-0">
+            <div className="min-w-0 text-2xl leading-none font-black tracking-tight tabular-nums [overflow-wrap:anywhere] xl:text-3xl">
               {metric.formattedValue}
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">
+            <div className="mt-1 min-w-0 text-xs text-muted-foreground text-pretty">
               {metric.microText}
             </div>
           </div>
           <svg
-            viewBox="0 0 132 42"
-            className="h-11 w-32 shrink-0 overflow-visible"
+            viewBox="0 0 96 42"
+            className="h-11 w-full max-w-24 shrink-0 justify-self-end overflow-hidden"
             aria-hidden="true"
           >
             <path d={area} className={cn("stroke-none", tone.areaClass)} />
@@ -157,11 +157,11 @@ export function ExecutiveMetricCard({ metric }: ExecutiveMetricCardProps) {
           {comparisonTone && metric.deltaVsComparison !== undefined && (
             <div
               className={cn(
-                "flex items-center justify-between rounded-lg border border-border/70 bg-background/50 px-2.5 py-2",
+                "flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-background/50 px-2.5 py-2",
                 comparisonTone.className
               )}
             >
-              <span className="text-muted-foreground">
+              <span className="min-w-0 text-muted-foreground">
                 vs período comparado
               </span>
               <span className="inline-flex items-center gap-1 font-semibold">
@@ -176,11 +176,11 @@ export function ExecutiveMetricCard({ metric }: ExecutiveMetricCardProps) {
             metric.targetValue !== undefined && (
               <div
                 className={cn(
-                  "flex items-center justify-between rounded-lg border border-border/70 bg-background/50 px-2.5 py-2",
+                  "flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-background/50 px-2.5 py-2",
                   targetTone.className
                 )}
               >
-                <span className="text-muted-foreground">
+                <span className="min-w-0 text-muted-foreground">
                   alvo {formatTargetValue(metric, metric.targetValue)}
                 </span>
                 <span className="inline-flex items-center gap-1 font-semibold">

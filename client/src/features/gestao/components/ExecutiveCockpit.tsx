@@ -10,6 +10,17 @@ export function ExecutiveCockpit({
   metrics,
   comparisonEnabled,
 }: ExecutiveCockpitProps) {
+  const executivePriority = new Set([
+    "paceVsMeta",
+    "shareSemComissao",
+    "concentracaoLider",
+    "takeRate",
+  ]);
+  const visibleMetrics = (
+    metrics.filter(metric => executivePriority.has(metric.id)) || []
+  ).slice(0, 4);
+  const fallbackMetrics = metrics.slice(0, 4);
+
   return (
     <section className="page-hero px-5 py-5 sm:px-6">
       <div className="relative space-y-5">
@@ -20,8 +31,8 @@ export function ExecutiveCockpit({
               Visão executiva do recorte
             </h2>
             <p className="page-section-copy mt-2 max-w-2xl">
-              Síntese de risco, direção de negócio e foco recomendado para a
-              próxima decisão.
+              Sinais de risco, qualidade e concentração que orientam a próxima
+              decisão. Os totais operacionais seguem na faixa de KPIs abaixo.
             </p>
           </div>
           <div
@@ -36,9 +47,11 @@ export function ExecutiveCockpit({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {metrics.map(metric => (
-            <ExecutiveMetricCard key={metric.id} metric={metric} />
-          ))}
+          {(visibleMetrics.length > 0 ? visibleMetrics : fallbackMetrics).map(
+            metric => (
+              <ExecutiveMetricCard key={metric.id} metric={metric} />
+            )
+          )}
         </div>
       </div>
     </section>

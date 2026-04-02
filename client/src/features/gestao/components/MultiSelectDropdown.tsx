@@ -20,6 +20,8 @@ type MultiSelectDropdownProps = {
   options: string[];
   selected: string[];
   onToggle: (value: string) => void;
+  triggerClassName?: string;
+  contentClassName?: string;
 };
 
 export function MultiSelectDropdown({
@@ -27,6 +29,8 @@ export function MultiSelectDropdown({
   options,
   selected,
   onToggle,
+  triggerClassName,
+  contentClassName,
 }: MultiSelectDropdownProps) {
   const selectedCount = selected.length;
   const summary =
@@ -39,14 +43,20 @@ export function MultiSelectDropdown({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className="min-w-[220px] justify-between rounded-xl border-white/10 bg-background/70 text-foreground shadow-none hover:bg-background/90"
+          className={cn(
+            "min-w-[220px] max-w-full justify-between rounded-xl border-white/10 bg-background/70 text-foreground shadow-none hover:bg-background/90",
+            triggerClassName
+          )}
         >
           <span className="truncate text-left">{summary}</span>
           <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-60" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="panel-card w-[300px] p-0 text-foreground"
+        className={cn(
+          "panel-card w-[min(22rem,calc(100vw-2rem))] p-0 text-foreground",
+          contentClassName
+        )}
         align="start"
       >
         <Command className="bg-transparent">

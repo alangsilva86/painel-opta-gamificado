@@ -8,6 +8,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import type { GestaoSavedView } from "../types";
 
 type SavedViewsManagerProps = {
@@ -22,6 +23,7 @@ type SavedViewsManagerProps = {
   onReset: () => void;
   onRestoreLast?: () => void;
   lastViewName?: string | null;
+  triggerClassName?: string;
 };
 
 export function SavedViewsManager({
@@ -36,6 +38,7 @@ export function SavedViewsManager({
   onReset,
   onRestoreLast,
   lastViewName,
+  triggerClassName,
 }: SavedViewsManagerProps) {
   const [draftName, setDraftName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -62,12 +65,19 @@ export function SavedViewsManager({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline">
+        <Button
+          type="button"
+          variant="outline"
+          className={cn("min-w-0", triggerClassName)}
+        >
           <Bookmark size={14} />
-          {activeLabel}
+          <span className="truncate">{activeLabel}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[420px] p-4">
+      <PopoverContent
+        align="start"
+        className="w-[min(26rem,calc(100vw-2rem))] p-4"
+      >
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
@@ -127,6 +137,7 @@ export function SavedViewsManager({
                       size="icon"
                       variant="ghost"
                       className="size-8"
+                      aria-label={`Renomear vista ${view.name}`}
                       onClick={() => {
                         setEditingId(view.id);
                         setDraftName(view.name);
@@ -138,6 +149,7 @@ export function SavedViewsManager({
                       size="icon"
                       variant="ghost"
                       className="size-8"
+                      aria-label={`Duplicar vista ${view.name}`}
                       onClick={() => onDuplicate(view.id)}
                     >
                       <Copy size={14} />
@@ -146,6 +158,7 @@ export function SavedViewsManager({
                       size="icon"
                       variant="ghost"
                       className="size-8 text-destructive hover:text-destructive"
+                      aria-label={`Excluir vista ${view.name}`}
                       onClick={() => onDelete(view.id)}
                     >
                       <Trash2 size={14} />
@@ -175,11 +188,7 @@ export function SavedViewsManager({
 
           <div className="flex flex-wrap gap-2">
             {onRestoreLast && lastViewName && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onRestoreLast}
-              >
+              <Button type="button" variant="outline" onClick={onRestoreLast}>
                 <RotateCcw size={14} />
                 Reabrir {lastViewName}
               </Button>

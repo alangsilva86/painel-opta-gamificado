@@ -1,5 +1,6 @@
 import { BookOpenText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Sheet,
   SheetContent,
@@ -68,11 +69,19 @@ const GLOSSARY = [
   },
 ];
 
-export function MetricGlossaryDrawer() {
+export function MetricGlossaryDrawer({
+  triggerClassName,
+}: {
+  triggerClassName?: string;
+}) {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button type="button" variant="outline">
+        <Button
+          type="button"
+          variant="outline"
+          className={cn(triggerClassName)}
+        >
           <BookOpenText size={14} />
           Glossário
         </Button>

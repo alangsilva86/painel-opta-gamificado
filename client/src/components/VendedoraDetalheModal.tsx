@@ -135,7 +135,7 @@ export function VendedoraDetalheModal({
     <Dialog open={open} onOpenChange={nextOpen => !nextOpen && onClose()}>
       <DialogContent
         showCloseButton={false}
-        className="flex h-[min(94vh,calc(100svh-1rem))] w-[min(100%-1rem,76rem)] max-w-6xl flex-col overflow-hidden rounded-[28px] border border-border/70 bg-background/96 p-0 shadow-2xl backdrop-blur-xl overscroll-contain sm:h-[min(92vh,calc(100svh-2rem))]"
+        className="flex h-[min(94vh,calc(100svh-1rem))] w-full max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[28px] border border-border/70 bg-background/96 p-0 shadow-2xl backdrop-blur-xl overscroll-contain sm:h-[min(92vh,calc(100svh-2rem))] sm:max-w-[calc(100vw-2rem)] xl:max-w-5xl 2xl:max-w-6xl"
       >
         <DialogHeader className="sr-only">
           <DialogTitle>{`Análise de ${vendedora.nome}`}</DialogTitle>
@@ -217,7 +217,7 @@ export function VendedoraDetalheModal({
                   </div>
                   <div
                     className={cn(
-                      "mt-3 text-xl font-semibold sm:text-2xl",
+                      "mt-3 min-w-0 text-lg leading-tight font-semibold tabular-nums [overflow-wrap:anywhere] sm:text-xl xl:text-2xl",
                       item.tone
                     )}
                   >

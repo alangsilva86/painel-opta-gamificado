@@ -40,7 +40,8 @@ export function PeriodKpisSection({
           KPIs do Período
         </h2>
         <p className="text-sm text-muted-foreground">
-          Indicadores de meta, ritmo, volume e qualidade do recorte selecionado.
+          Totais, metas e ritmo operacional do recorte selecionado, sem repetir
+          os sinais executivos exibidos acima.
         </p>
       </div>
 

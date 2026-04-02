@@ -404,6 +404,37 @@ export default function Gestao() {
 
   const [metaInput, setMetaInput] = useState("");
 
+  const hasPendingHeaderChanges = useMemo(() => {
+    const sameSelection = (left: string[], right: string[]) =>
+      left.length === right.length &&
+      left.every((value, index) => value === right[index]);
+
+    return (
+      dateFrom !== filters.dateFrom ||
+      dateTo !== filters.dateTo ||
+      !sameSelection(draftFilterState.vendedorNome, filterState.vendedorNome) ||
+      !sameSelection(draftFilterState.produto, filterState.produto) ||
+      comparisonMode !== comparisonModeApplied ||
+      comparisonDateFrom !== (comparisonFilters?.dateFrom ?? "") ||
+      comparisonDateTo !== (comparisonFilters?.dateTo ?? "")
+    );
+  }, [
+    comparisonDateFrom,
+    comparisonDateTo,
+    comparisonFilters?.dateFrom,
+    comparisonFilters?.dateTo,
+    comparisonMode,
+    comparisonModeApplied,
+    dateFrom,
+    dateTo,
+    draftFilterState.produto,
+    draftFilterState.vendedorNome,
+    filterState.produto,
+    filterState.vendedorNome,
+    filters.dateFrom,
+    filters.dateTo,
+  ]);
+
   useEffect(() => {
     if (resumoQuery.data?.cards.metaComissaoMensal !== undefined) {
       setMetaInput(resumoQuery.data.cards.metaComissaoMensal.toString());
@@ -667,6 +698,10 @@ export default function Gestao() {
             void handleRestoreLastView();
           }}
           lastViewName={lastViewName}
+          appliedDateFrom={filters.dateFrom}
+          appliedDateTo={filters.dateTo}
+          hasFetched={hasFetched}
+          hasPendingChanges={hasPendingHeaderChanges}
         />
 
         <div className="page-stack pt-2">
