@@ -74,27 +74,21 @@ const BADGE_DESCRICOES: Record<string, string> = {
 
 const BADGE_STYLE = {
   "Meta 100%": {
-    emoji: "🏅",
     className: "bg-yellow-500/20 text-yellow-300 border-yellow-500/40",
   },
   "Supermeta 150%": {
-    emoji: "🔥",
     className: "bg-orange-500/20 text-orange-300 border-orange-500/40",
   },
   "Supermeta 200%": {
-    emoji: "💥",
     className: "bg-red-500/20 text-red-300 border-red-500/40",
   },
   "Hat-trick": {
-    emoji: "🎯",
     className: "bg-blue-500/20 text-blue-300 border-blue-500/40",
   },
   Imparável: {
-    emoji: "⚡",
-    className: "bg-purple-500/20 text-purple-300 border-purple-500/40",
+    className: "bg-sky-500/20 text-sky-300 border-sky-500/40",
   },
   Dominante: {
-    emoji: "👑",
     className: "bg-amber-500/20 text-amber-300 border-amber-500/40",
   },
 } as const;
@@ -216,8 +210,8 @@ export function VendedoraCard({
         : "Com a produção atual, você já liberou os marcos de 75% e 100% da meta.";
   const bannerClass =
     vendedora.percentualMeta >= 150
-      ? "bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 text-slate-950"
-      : "bg-gradient-to-r from-green-500 to-emerald-400 text-white";
+      ? "bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 text-background"
+      : "bg-gradient-to-r from-emerald-500 to-cyan-400 text-white";
 
   return (
     <motion.div
@@ -240,13 +234,16 @@ export function VendedoraCard({
           ? { duration: 2, repeat: Infinity, ease: "easeInOut" }
           : { duration: 0.3 },
       }}
-      whileHover={{ scale: 1.02 }}
+      whileHover={onClick ? { scale: 1.02 } : undefined}
       onClick={onClick}
-      className="cursor-pointer rounded-2xl"
+      className={cn(
+        "rounded-2xl",
+        onClick ? "cursor-pointer" : "cursor-default"
+      )}
     >
       <Card
         className={cn(
-          "relative overflow-hidden border bg-card/95 hover:shadow-lg transition-[box-shadow,border-color]",
+          "panel-card-strong relative overflow-hidden border bg-card/95 transition-[box-shadow,border-color]",
           tierVisual.cardClass
         )}
       >
@@ -256,7 +253,10 @@ export function VendedoraCard({
             <Tooltip>
               <TooltipTrigger asChild>
                 <div
-                  className={cn("flex items-center gap-1 font-bold text-lg", getRankColor(rank))}
+                  className={cn(
+                    "flex items-center gap-1 font-bold text-lg",
+                    getRankColor(rank)
+                  )}
                 >
                   <Trophy size={20} />
                   <span>#{rank}</span>
@@ -270,7 +270,7 @@ export function VendedoraCard({
         <CardContent className="p-6">
           {vendedora.percentualMeta >= 100 && (
             <div className={cn("banner-strip", bannerClass)}>
-              <span>META ALCANÇADA 🏆</span>
+              <span>Meta alcançada</span>
               <span>{vendedora.percentualMeta.toFixed(0)}%</span>
             </div>
           )}
@@ -278,7 +278,7 @@ export function VendedoraCard({
           <div className="flex items-start gap-4">
             {/* Avatar placeholder */}
             <div className="flex-shrink-0">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white text-2xl font-bold">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-sky-500 text-2xl font-bold text-white">
                 {vendedora.nome.charAt(0).toUpperCase()}
               </div>
             </div>
@@ -392,7 +392,7 @@ export function VendedoraCard({
                                   "text-sm font-black",
                                   milestone.unlocked
                                     ? milestone.visual.textClass
-                                    : "text-slate-100"
+                                    : "text-foreground"
                                 )}
                               >
                                 {formatCurrency(milestone.amount)}
@@ -481,7 +481,7 @@ export function VendedoraCard({
                   {formatCurrency(proximoNivel.falta)}
                   {nearThreshold && (
                     <Badge className="border-amber-500/50 bg-amber-500/15 text-amber-200">
-                      QUASE LÁ!
+                      Quase lá
                     </Badge>
                   )}
                 </div>
@@ -501,9 +501,6 @@ export function VendedoraCard({
                               ?.className
                           )}
                         >
-                          {BADGE_STYLE[badge as keyof typeof BADGE_STYLE]?.emoji
-                            ? `${BADGE_STYLE[badge as keyof typeof BADGE_STYLE].emoji} `
-                            : ""}
                           {badge}
                         </Badge>
                       </TooltipTrigger>
@@ -535,9 +532,9 @@ export function VendedoraCard({
 
           {onClick && (
             <div className="mt-4 flex justify-end">
-              <span className="flex items-center gap-1 text-[11px] text-muted-foreground/50 select-none">
+              <span className="flex select-none items-center gap-1 text-[11px] text-muted-foreground/70">
                 <Eye size={11} />
-                ver detalhes
+                ver análise
               </span>
             </div>
           )}

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/_core/hooks/useAuth";
 import {
+  ArrowLeft,
   Settings,
   Users,
   Target,
@@ -14,20 +15,29 @@ import {
   Plus,
   Eye,
   EyeOff,
-  TrendingUp,
   Zap,
   CalendarRange,
   RefreshCw,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { MetasCalendario } from "@/components/MetasCalendario";
-import { calcularDiasUteisDoMes, calcularSemanasUteisDoMes } from "@shared/dateUtils";
+import {
+  calcularDiasUteisDoMes,
+  calcularSemanasUteisDoMes,
+} from "@shared/dateUtils";
 
 export default function Admin() {
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   const [mesAtual] = useState(() => {
     const now = new Date();
@@ -37,9 +47,11 @@ export default function Admin() {
   const { data: vendedoras, refetch: refetchVendedoras } =
     trpc.admin.listarTodasVendedoras.useQuery();
 
-  const { data: metas, refetch: refetchMetas } = trpc.admin.obterMetas.useQuery({
-    mes: mesAtual,
-  });
+  const { data: metas, refetch: refetchMetas } = trpc.admin.obterMetas.useQuery(
+    {
+      mes: mesAtual,
+    }
+  );
 
   const { data: historico } = trpc.admin.obterHistorico.useQuery({
     mes: mesAtual,
@@ -50,7 +62,7 @@ export default function Admin() {
       toast.success("Meta de vendedora atualizada!");
       refetchMetas();
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(`Erro: ${error.message}`);
     },
   });
@@ -60,7 +72,7 @@ export default function Admin() {
       toast.success("Meta global atualizada!");
       refetchMetas();
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(`Erro: ${error.message}`);
     },
   });
@@ -71,7 +83,7 @@ export default function Admin() {
       refetchVendedoras();
       setNovaVendedora({ id: "", nome: "", email: "" });
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(`Erro: ${error.message}`);
     },
   });
@@ -81,7 +93,7 @@ export default function Admin() {
       toast.success("Visibilidade atualizada!");
       refetchVendedoras();
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(`Erro: ${error.message}`);
     },
   });
@@ -91,7 +103,7 @@ export default function Admin() {
       toast.success("Meta diária atualizada");
       metasOperacionais.refetch();
     },
-    onError: (error) => toast.error(error.message),
+    onError: error => toast.error(error.message),
   });
 
   const atualizarMetaSemanal = trpc.admin.atualizarMetaSemanal.useMutation({
@@ -99,7 +111,7 @@ export default function Admin() {
       toast.success("Meta semanal atualizada");
       metasOperacionais.refetch();
     },
-    onError: (error) => toast.error(error.message),
+    onError: error => toast.error(error.message),
   });
 
   const regenerarMetas = trpc.admin.regenerarMetasVendedora.useMutation({
@@ -107,13 +119,17 @@ export default function Admin() {
       toast.success("Metas recalculadas com dias úteis");
       metasOperacionais.refetch();
     },
-    onError: (error) => toast.error(error.message),
+    onError: error => toast.error(error.message),
   });
 
   const [metaGlobalInput, setMetaGlobalInput] = useState("");
   const [superMetaGlobalInput, setSuperMetaGlobalInput] = useState("");
-  const [metasVendedorInput, setMetasVendedorInput] = useState<Record<string, string>>({});
-  const [metasSemanaisInput, setMetasSemanaisInput] = useState<Record<number, string>>({});
+  const [metasVendedorInput, setMetasVendedorInput] = useState<
+    Record<string, string>
+  >({});
+  const [metasSemanaisInput, setMetasSemanaisInput] = useState<
+    Record<number, string>
+  >({});
   const [novaVendedora, setNovaVendedora] = useState({
     id: "",
     nome: "",
@@ -210,7 +226,9 @@ export default function Admin() {
     const metaSelecionada = metas?.metasVendedor?.find(
       (m: any) => m.vendedoraId === vendedoraOperacional
     );
-    const metaValor = metaSelecionada ? parseFloat(metaSelecionada.metaValor) : undefined;
+    const metaValor = metaSelecionada
+      ? parseFloat(metaSelecionada.metaValor)
+      : undefined;
 
     regenerarMetas.mutate({
       mes: mesAtual,
@@ -230,59 +248,170 @@ export default function Admin() {
 
   const diasUteis = calcularDiasUteisDoMes(mesAtual);
   const semanas = calcularSemanasUteisDoMes(mesAtual);
+  const totalVendedoras = vendedoras?.length ?? 0;
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="bg-card border-b border-border sticky top-0 z-10">
-        <div className="container py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold flex items-center gap-3">
-                <Settings size={32} />
-                Administração
-              </h1>
-              <p className="text-muted-foreground mt-1">
-                {mesAtual} • {diasUteis} dias úteis • {semanas} semanas
-              </p>
+    <div className="page-shell">
+      <div className="page-content page-stack pb-12">
+        <section className="page-hero">
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-4">
+              <div className="status-chip w-fit border-primary/25 bg-primary/10 text-primary">
+                Console operacional
+              </div>
+              <div className="space-y-3">
+                <h1 className="flex items-center gap-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                  <Settings className="h-8 w-8 text-primary" />
+                  Administração comercial
+                </h1>
+                <p className="max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
+                  Configure metas globais, planeje metas operacionais e gerencie
+                  visibilidade das vendedoras sem alterar o fluxo comercial já
+                  existente.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <div className="status-chip">Mês {mesAtual}</div>
+                <div className="status-chip">{diasUteis} dias úteis</div>
+                <div className="status-chip">{semanas} semanas planejadas</div>
+                <div
+                  className={`status-chip ${
+                    isAuthenticated
+                      ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
+                      : "border-amber-500/25 bg-amber-500/10 text-amber-100"
+                  }`}
+                >
+                  {isAuthenticated
+                    ? "Sessão autenticada"
+                    : "Sessão sem autenticação"}
+                </div>
+              </div>
             </div>
-            <Button variant="outline" onClick={() => setLocation("/")}>
-              Voltar ao Dashboard
+            <Button
+              variant="outline"
+              onClick={() => setLocation("/")}
+              className="h-11 rounded-xl border-border/70 bg-background/70 px-5 text-sm"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Voltar ao dashboard
             </Button>
           </div>
-        </div>
-      </div>
 
-      <div className="container py-8">
-        <Tabs defaultValue="metas" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-8">
-            <TabsTrigger value="metas">Metas Globais</TabsTrigger>
-            <TabsTrigger value="vendedoras">Vendedoras</TabsTrigger>
-            <TabsTrigger value="operacional">Metas Dia/Sem</TabsTrigger>
-            <TabsTrigger value="historico">Histórico</TabsTrigger>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <Card className="panel-card">
+              <CardContent className="space-y-1 p-5">
+                <div className="metric-label">Janela ativa</div>
+                <div className="text-2xl font-semibold text-foreground">
+                  {mesAtual}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Base para metas globais e operacionais.
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="panel-card">
+              <CardContent className="space-y-1 p-5">
+                <div className="metric-label">Equipe cadastrada</div>
+                <div className="text-2xl font-semibold text-foreground">
+                  {totalVendedoras}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Vendedoras disponíveis para metas e visibilidade.
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="panel-card">
+              <CardContent className="space-y-1 p-5">
+                <div className="metric-label">Dias úteis</div>
+                <div className="text-2xl font-semibold text-foreground">
+                  {diasUteis}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Base para distribuição automática das metas diárias.
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="panel-card">
+              <CardContent className="space-y-1 p-5">
+                <div className="metric-label">Planejamento semanal</div>
+                <div className="text-2xl font-semibold text-foreground">
+                  {semanas}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Semanas úteis consideradas no mês corrente.
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        <Tabs defaultValue="metas" className="w-full space-y-6">
+          <TabsList className="grid w-full grid-cols-2 gap-2 rounded-2xl border border-border/60 bg-background/70 p-2 md:grid-cols-4">
+            <TabsTrigger
+              value="metas"
+              className="rounded-xl px-4 py-3 text-sm data-[state=active]:bg-card data-[state=active]:text-foreground"
+            >
+              Metas globais
+            </TabsTrigger>
+            <TabsTrigger
+              value="vendedoras"
+              className="rounded-xl px-4 py-3 text-sm data-[state=active]:bg-card data-[state=active]:text-foreground"
+            >
+              Vendedoras
+            </TabsTrigger>
+            <TabsTrigger
+              value="operacional"
+              className="rounded-xl px-4 py-3 text-sm data-[state=active]:bg-card data-[state=active]:text-foreground"
+            >
+              Metas dia/sem
+            </TabsTrigger>
+            <TabsTrigger
+              value="historico"
+              className="rounded-xl px-4 py-3 text-sm data-[state=active]:bg-card data-[state=active]:text-foreground"
+            >
+              Histórico
+            </TabsTrigger>
           </TabsList>
 
-          {/* TAB: METAS GLOBAIS */}
           <TabsContent value="metas" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Meta Global */}
-              <Card className="border-2 border-blue-500/30">
-                <CardHeader className="bg-blue-500/5">
-                  <CardTitle className="flex items-center gap-2">
-                    <Target size={24} className="text-blue-400" />
+            <div className="page-section-header">
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">
+                  Metas globais e aceleradores
+                </h2>
+                <p className="page-section-copy">
+                  Defina o patamar do mês e os gatilhos de incentivo para toda a
+                  operação.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <Card className="panel-card-strong">
+                <CardHeader className="border-b border-border/60 pb-5">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Target size={22} className="text-sky-300" />
                     Meta Global
                   </CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Atingir 100% = +25% acelerador para vendedoras 75%+
+                  <p className="text-sm text-muted-foreground">
+                    Atingir 100% libera +25% de acelerador para vendedoras com
+                    pelo menos 75% da meta individual.
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-6">
                   <div>
-                    <Label className="text-xs uppercase tracking-wide">Mês</Label>
-                    <Input value={mesAtual} disabled className="mt-1" />
+                    <Label className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                      Mês
+                    </Label>
+                    <Input
+                      value={mesAtual}
+                      disabled
+                      className="mt-2 rounded-xl border-border/70 bg-background/70"
+                    />
                   </div>
                   <div>
-                    <Label className="text-xs uppercase tracking-wide">Meta Atual</Label>
+                    <Label className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                      Meta atual
+                    </Label>
                     <Input
                       value={
                         metas?.metaGlobal
@@ -290,23 +419,25 @@ export default function Admin() {
                           : "Não definida"
                       }
                       disabled
-                      className="mt-1"
+                      className="mt-2 rounded-xl border-border/70 bg-background/70"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs uppercase tracking-wide">Nova Meta (R$)</Label>
+                    <Label className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                      Nova meta (R$)
+                    </Label>
                     <Input
                       type="number"
                       placeholder="Ex: 610000"
                       value={metaGlobalInput}
-                      onChange={(e) => setMetaGlobalInput(e.target.value)}
-                      className="mt-1"
+                      onChange={e => setMetaGlobalInput(e.target.value)}
+                      className="mt-2 rounded-xl border-border/70 bg-background/80"
                     />
                   </div>
                   <Button
                     onClick={handleSaveMetaGlobal}
                     disabled={definirMetaGlobal.isPending}
-                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    className="h-11 w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
                   >
                     <Save size={16} className="mr-2" />
                     Salvar Meta Global
@@ -314,24 +445,33 @@ export default function Admin() {
                 </CardContent>
               </Card>
 
-              {/* Super Meta Global */}
-              <Card className="border-2 border-purple-500/30">
-                <CardHeader className="bg-purple-500/5">
-                  <CardTitle className="flex items-center gap-2">
-                    <Zap size={24} className="text-purple-400" />
+              <Card className="panel-card-strong">
+                <CardHeader className="border-b border-border/60 pb-5">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Zap size={22} className="text-emerald-300" />
                     Super Meta Global
                   </CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Atingir 100% = +50% acelerador para vendedoras 75%+
+                  <p className="text-sm text-muted-foreground">
+                    Atingir 100% substitui o gatilho anterior e libera +50% de
+                    acelerador para vendedoras com pelo menos 75% da meta
+                    individual.
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-6">
                   <div>
-                    <Label className="text-xs uppercase tracking-wide">Mês</Label>
-                    <Input value={mesAtual} disabled className="mt-1" />
+                    <Label className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                      Mês
+                    </Label>
+                    <Input
+                      value={mesAtual}
+                      disabled
+                      className="mt-2 rounded-xl border-border/70 bg-background/70"
+                    />
                   </div>
                   <div>
-                    <Label className="text-xs uppercase tracking-wide">Super Meta Atual</Label>
+                    <Label className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                      Super meta atual
+                    </Label>
                     <Input
                       value={
                         metas?.metaGlobal?.superMetaValor
@@ -339,23 +479,25 @@ export default function Admin() {
                           : "Não definida"
                       }
                       disabled
-                      className="mt-1"
+                      className="mt-2 rounded-xl border-border/70 bg-background/70"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs uppercase tracking-wide">Nova Super Meta (R$)</Label>
+                    <Label className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                      Nova super meta (R$)
+                    </Label>
                     <Input
                       type="number"
                       placeholder="Ex: 800000"
                       value={superMetaGlobalInput}
-                      onChange={(e) => setSuperMetaGlobalInput(e.target.value)}
-                      className="mt-1"
+                      onChange={e => setSuperMetaGlobalInput(e.target.value)}
+                      className="mt-2 rounded-xl border-border/70 bg-background/80"
                     />
                   </div>
                   <Button
                     onClick={handleSaveSuperMetaGlobal}
                     disabled={definirMetaGlobal.isPending}
-                    className="w-full bg-purple-600 hover:bg-purple-700"
+                    className="h-11 w-full rounded-xl bg-emerald-500 text-background hover:bg-emerald-400"
                   >
                     <Save size={16} className="mr-2" />
                     Salvar Super Meta
@@ -364,75 +506,111 @@ export default function Admin() {
               </Card>
             </div>
 
-            {/* Info sobre aceleradores */}
-            <Card className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/20">
+            <Card className="panel-card">
               <CardContent className="pt-6">
-                <h3 className="font-semibold mb-3">📊 Como funcionam os aceleradores</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="font-medium text-blue-400">Meta Global</p>
-                    <p className="text-muted-foreground">Se atingir 100%, todas as vendedoras com ≥75% de meta individual ganham +25% no incentivo</p>
+                <div className="mb-4 flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+                    Regras de acelerador
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 text-sm">
+                  <div className="panel-inset space-y-2 rounded-2xl p-4">
+                    <p className="font-medium text-sky-300">Meta global</p>
+                    <p className="text-muted-foreground">
+                      Ao atingir 100%, todas as vendedoras com pelo menos 75% da
+                      meta individual recebem +25% de incentivo.
+                    </p>
                   </div>
-                  <div>
-                    <p className="font-medium text-purple-400">Super Meta Global</p>
-                    <p className="text-muted-foreground">Se atingir 100%, todas as vendedoras com ≥75% de meta individual ganham +50% no incentivo (não cumulativo; substitui o +25%)</p>
+                  <div className="panel-inset space-y-2 rounded-2xl p-4">
+                    <p className="font-medium text-emerald-300">
+                      Super meta global
+                    </p>
+                    <p className="text-muted-foreground">
+                      Ao atingir 100%, o acelerador passa para +50% e substitui
+                      o gatilho anterior; os percentuais não se acumulam.
+                    </p>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* TAB: VENDEDORAS */}
           <TabsContent value="vendedoras" className="space-y-6">
-            {/* Criar Vendedora */}
-            <Card>
-              <CardHeader className="bg-green-500/5">
-                <CardTitle className="flex items-center gap-2">
-                  <Plus size={24} className="text-green-400" />
+            <div className="page-section-header">
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">
+                  Gestão de vendedoras
+                </h2>
+                <p className="page-section-copy">
+                  Cadastre novas contas, ajuste metas individuais e controle
+                  quem aparece nas superfícies públicas do produto.
+                </p>
+              </div>
+            </div>
+            <Card className="panel-card">
+              <CardHeader className="border-b border-border/60 pb-5">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Plus size={22} className="text-emerald-300" />
                   Nova Vendedora
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 pt-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div>
-                    <Label className="text-xs uppercase tracking-wide">ID</Label>
+                    <Label className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                      ID
+                    </Label>
                     <Input
                       placeholder="vend_007"
                       value={novaVendedora.id}
-                      onChange={(e) =>
-                        setNovaVendedora({ ...novaVendedora, id: e.target.value })
+                      onChange={e =>
+                        setNovaVendedora({
+                          ...novaVendedora,
+                          id: e.target.value,
+                        })
                       }
-                      className="mt-1"
+                      className="mt-2 rounded-xl border-border/70 bg-background/80"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs uppercase tracking-wide">Nome</Label>
+                    <Label className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                      Nome
+                    </Label>
                     <Input
                       placeholder="Gabriela Souza"
                       value={novaVendedora.nome}
-                      onChange={(e) =>
-                        setNovaVendedora({ ...novaVendedora, nome: e.target.value })
+                      onChange={e =>
+                        setNovaVendedora({
+                          ...novaVendedora,
+                          nome: e.target.value,
+                        })
                       }
-                      className="mt-1"
+                      className="mt-2 rounded-xl border-border/70 bg-background/80"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs uppercase tracking-wide">Email</Label>
+                    <Label className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                      Email
+                    </Label>
                     <Input
                       type="email"
                       placeholder="gabriela@opta.com.br"
                       value={novaVendedora.email}
-                      onChange={(e) =>
-                        setNovaVendedora({ ...novaVendedora, email: e.target.value })
+                      onChange={e =>
+                        setNovaVendedora({
+                          ...novaVendedora,
+                          email: e.target.value,
+                        })
                       }
-                      className="mt-1"
+                      className="mt-2 rounded-xl border-border/70 bg-background/80"
                     />
                   </div>
                 </div>
                 <Button
                   onClick={handleCriarVendedora}
                   disabled={criarVendedora.isPending}
-                  className="w-full bg-green-600 hover:bg-green-700"
+                  className="h-11 w-full rounded-xl bg-emerald-500 text-background hover:bg-emerald-400"
                 >
                   <Plus size={16} className="mr-2" />
                   Criar Vendedora
@@ -440,56 +618,84 @@ export default function Admin() {
               </CardContent>
             </Card>
 
-            {/* Lista de Vendedoras */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users size={24} />
-                  Gerenciar Vendedoras ({vendedoras?.length || 0})
+            <Card className="table-shell">
+              <CardHeader className="pb-5">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Users size={22} className="text-primary" />
+                  Gerenciar Vendedoras ({totalVendedoras})
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {vendedoras?.map((vendedora) => (
+                <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                  {vendedoras?.map(vendedora => (
                     <div
                       key={vendedora.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-card border border-border hover:border-primary/50 transition"
+                      className="interactive-row flex flex-col gap-3 rounded-2xl border border-border/60 p-4 lg:flex-row lg:items-center lg:justify-between"
                     >
                       <div className="flex-1">
-                        <p className="font-medium">{vendedora.nome}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-foreground">
+                            {vendedora.nome}
+                          </p>
+                          <div
+                            className={`status-chip ${
+                              vendedora.visivel === "sim"
+                                ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
+                                : "border-muted bg-muted/40 text-muted-foreground"
+                            }`}
+                          >
+                            {vendedora.visivel === "sim" ? "Visível" : "Oculta"}
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
                           {vendedora.id} • Meta:{" "}
-                          {metas?.metasVendedor && metas.metasVendedor[vendedora.id as keyof typeof metas.metasVendedor]
-                            ? formatCurrency((metas.metasVendedor[vendedora.id as keyof typeof metas.metasVendedor] as any).metaValor)
+                          {metas?.metasVendedor &&
+                          metas.metasVendedor[
+                            vendedora.id as keyof typeof metas.metasVendedor
+                          ]
+                            ? formatCurrency(
+                                (
+                                  metas.metasVendedor[
+                                    vendedora.id as keyof typeof metas.metasVendedor
+                                  ] as any
+                                ).metaValor
+                              )
                             : "Não definida"}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <Input
                           type="number"
                           placeholder="Nova meta"
                           value={metasVendedorInput[vendedora.id] || ""}
-                          onChange={(e) =>
+                          onChange={e =>
                             setMetasVendedorInput({
                               ...metasVendedorInput,
                               [vendedora.id]: e.target.value,
                             })
                           }
-                          className="w-32 text-sm"
+                          className="h-10 w-full rounded-xl border-border/70 bg-background/80 text-sm sm:w-36"
                         />
                         <Button
                           size="sm"
                           onClick={() => handleSaveMetaVendedor(vendedora.id)}
                           disabled={definirMetaVendedor.isPending}
-                          className="bg-blue-600 hover:bg-blue-700"
+                          className="h-10 rounded-xl bg-primary px-3 text-primary-foreground hover:bg-primary/90"
                         >
                           <Save size={14} />
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => alternarVisibilidade.mutate({ vendedoraId: vendedora.id, visivel: vendedora.visivel === "sim" ? "nao" : "sim" })}
+                          onClick={() =>
+                            alternarVisibilidade.mutate({
+                              vendedoraId: vendedora.id,
+                              visivel:
+                                vendedora.visivel === "sim" ? "nao" : "sim",
+                            })
+                          }
                           disabled={alternarVisibilidade.isPending}
+                          className="h-10 rounded-xl border-border/70 bg-background/60 px-3 hover:bg-background/90"
                         >
                           {vendedora.visivel === "sim" ? (
                             <Eye size={14} />
@@ -505,28 +711,40 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
-          {/* TAB: OPERACIONAL */}
           <TabsContent value="operacional" className="space-y-6">
-            <Card className="border-2 border-primary/20">
-              <CardHeader className="bg-primary/5">
-                <CardTitle className="flex items-center gap-2">
+            <div className="page-section-header">
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">
+                  Planejamento operacional
+                </h2>
+                <p className="page-section-copy">
+                  Ajuste a distribuição diária e semanal por vendedora, mantendo
+                  o calendário do mês como referência.
+                </p>
+              </div>
+            </div>
+            <Card className="panel-card-strong">
+              <CardHeader className="border-b border-border/60 pb-5">
+                <CardTitle className="flex items-center gap-2 text-lg">
                   <CalendarRange size={22} />
                   Metas Diárias e Semanais
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 pt-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div>
-                    <Label className="text-xs uppercase tracking-wide">Vendedora</Label>
+                    <Label className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                      Vendedora
+                    </Label>
                     <Select
                       value={vendedoraOperacional}
-                      onValueChange={(value) => setVendedoraOperacional(value)}
+                      onValueChange={value => setVendedoraOperacional(value)}
                     >
-                      <SelectTrigger className="mt-1">
+                      <SelectTrigger className="mt-2 rounded-xl border-border/70 bg-background/80">
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
-                      <SelectContent>
-                        {vendedoras?.map((v) => (
+                      <SelectContent className="rounded-xl border-border/70 bg-card/95 text-foreground">
+                        {vendedoras?.map(v => (
                           <SelectItem key={v.id} value={v.id}>
                             {v.nome}
                           </SelectItem>
@@ -535,19 +753,25 @@ export default function Admin() {
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-xs uppercase tracking-wide">Dias úteis</Label>
+                    <Label className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                      Dias úteis
+                    </Label>
                     <Input
                       value={metasOperacionais.data?.diasUteis ?? diasUteis}
                       disabled
-                      className="mt-1"
+                      className="mt-2 rounded-xl border-border/70 bg-background/70"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs uppercase tracking-wide">Semanas</Label>
+                    <Label className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                      Semanas
+                    </Label>
                     <Input
-                      value={metasOperacionais.data?.semanasPlanejadas ?? semanas}
+                      value={
+                        metasOperacionais.data?.semanasPlanejadas ?? semanas
+                      }
                       disabled
-                      className="mt-1"
+                      className="mt-2 rounded-xl border-border/70 bg-background/70"
                     />
                   </div>
                 </div>
@@ -561,9 +785,12 @@ export default function Admin() {
                     size="sm"
                     onClick={handleRegenerarMetas}
                     disabled={regenerarMetas.isPending || !vendedoraOperacional}
-                    className="gap-2"
+                    className="gap-2 rounded-xl border-border/70 bg-background/60 hover:bg-background/90"
                   >
-                    <RefreshCw size={14} className={regenerarMetas.isPending ? "animate-spin" : ""} />
+                    <RefreshCw
+                      size={14}
+                      className={regenerarMetas.isPending ? "animate-spin" : ""}
+                    />
                     Regenerar com dias úteis
                   </Button>
                 </div>
@@ -575,38 +802,40 @@ export default function Admin() {
                 <MetasCalendario
                   mes={mesAtual}
                   vendedoraNome={
-                    vendedoras?.find((v) => v.id === vendedoraOperacional)?.nome || "Vendedora"
+                    vendedoras?.find(v => v.id === vendedoraOperacional)
+                      ?.nome || "Vendedora"
                   }
                   metasDiarias={
-                    metasOperacionais.data.diarias?.map((d) => ({
+                    metasOperacionais.data.diarias?.map(d => ({
                       dia: d.dia,
                       meta: parseFloat(d.metaValor),
                       tipo: d.tipo as "automatica" | "manual",
                     })) || []
                   }
-                  metaMensal={
-                    parseFloat(
-                      (metas?.metasVendedor as any)?.find((m: any) => m.vendedoraId === vendedoraOperacional)?.metaValor || "0"
-                    )
-                  }
+                  metaMensal={parseFloat(
+                    (metas?.metasVendedor as any)?.find(
+                      (m: any) => m.vendedoraId === vendedoraOperacional
+                    )?.metaValor || "0"
+                  )}
                   onAtualizarMeta={handleAtualizarMetaDiaria}
                   onRegenerar={handleRegenerarMetas}
                 />
 
-                <Card>
+                <Card className="table-shell">
                   <CardHeader>
-                    <CardTitle>Metas Semanais</CardTitle>
+                    <CardTitle className="text-lg">Metas Semanais</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {(metasOperacionais.data.semanais || []).map((semana) => (
+                    {(metasOperacionais.data.semanais || []).map(semana => (
                       <div
                         key={semana.semana}
-                        className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border"
+                        className="interactive-row flex flex-col gap-3 rounded-2xl border border-border/60 p-4 sm:flex-row sm:items-center sm:justify-between"
                       >
                         <div>
                           <p className="font-medium">Semana {semana.semana}</p>
                           <p className="text-xs text-muted-foreground">
-                            Atual: {formatCurrency(parseFloat(semana.metaValor))}
+                            Atual:{" "}
+                            {formatCurrency(parseFloat(semana.metaValor))}
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -614,18 +843,21 @@ export default function Admin() {
                             type="number"
                             placeholder="Nova meta"
                             value={metasSemanaisInput[semana.semana] || ""}
-                            onChange={(e) =>
+                            onChange={e =>
                               setMetasSemanaisInput({
                                 ...metasSemanaisInput,
                                 [semana.semana]: e.target.value,
                               })
                             }
-                            className="w-32 text-sm"
+                            className="h-10 w-full rounded-xl border-border/70 bg-background/80 text-sm sm:w-32"
                           />
                           <Button
                             size="sm"
-                            onClick={() => handleAtualizarMetaSemanal(semana.semana)}
+                            onClick={() =>
+                              handleAtualizarMetaSemanal(semana.semana)
+                            }
                             disabled={atualizarMetaSemanal.isPending}
+                            className="h-10 rounded-xl"
                           >
                             <Save size={14} className="mr-1" />
                             Salvar
@@ -644,34 +876,52 @@ export default function Admin() {
             )}
           </TabsContent>
 
-          {/* TAB: HISTÓRICO */}
-          <TabsContent value="historico">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <History size={24} />
+          <TabsContent value="historico" className="space-y-6">
+            <div className="page-section-header">
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">
+                  Histórico de alterações
+                </h2>
+                <p className="page-section-copy">
+                  Acompanhe a trilha de mudanças nas metas para auditar decisões
+                  e ajustes do mês.
+                </p>
+              </div>
+            </div>
+            <Card className="table-shell">
+              <CardHeader className="pb-5">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <History size={22} className="text-primary" />
                   Histórico de Alterações
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
+                <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
                   {historico && historico.length > 0 ? (
                     historico.map((item, idx) => (
                       <div
                         key={idx}
-                        className="p-3 rounded-lg bg-card border border-border text-sm"
+                        className="interactive-row rounded-2xl border border-border/60 p-4 text-sm"
                       >
-                        <p className="font-medium">{item.tipo === "vendedor" ? "Meta Vendedora" : "Meta Global"}</p>
+                        <p className="font-medium text-foreground">
+                          {item.tipo === "vendedor"
+                            ? "Meta vendedora"
+                            : "Meta global"}
+                        </p>
                         <p className="text-muted-foreground">
                           {item.valorAnterior || "-"} → {item.valorNovo}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {new Date(item.alteradoEm || new Date()).toLocaleString("pt-BR")}
+                          {new Date(
+                            item.alteradoEm || new Date()
+                          ).toLocaleString("pt-BR")}
                         </p>
                       </div>
                     ))
                   ) : (
-                    <p className="text-muted-foreground text-center py-8">Nenhuma alteração registrada</p>
+                    <div className="empty-state py-10 text-center text-sm text-muted-foreground">
+                      Nenhuma alteração registrada neste mês.
+                    </div>
                   )}
                 </div>
               </CardContent>

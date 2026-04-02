@@ -16,19 +16,18 @@ type ClickableListProps = {
 
 export function ClickableList({ title, rows }: ClickableListProps) {
   return (
-    <Card>
+    <Card className="panel-card">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm text-muted-foreground">{title}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
         {rows.map(row => (
-          <div
+          <button
+            type="button"
             key={row.label}
             className={cn(
-              "flex cursor-pointer items-center justify-between rounded-md border px-3 py-2 transition-colors",
-              row.active
-                ? "border-emerald-500/60 bg-emerald-500/10"
-                : "border-border bg-muted/30 hover:border-border/80 hover:bg-muted/50"
+              "interactive-row flex w-full items-center justify-between px-3 py-2 text-left",
+              row.active ? "border-emerald-500/40 bg-emerald-500/10" : ""
             )}
             onClick={row.onClick}
           >
@@ -39,7 +38,7 @@ export function ClickableList({ title, rows }: ClickableListProps) {
               )}
             </div>
             <div className="text-sm font-semibold">{row.value}</div>
-          </div>
+          </button>
         ))}
       </CardContent>
     </Card>

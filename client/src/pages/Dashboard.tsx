@@ -38,10 +38,12 @@ import { getTierDefinition, getTierVisual } from "@/lib/tierVisuals";
 import { VendedoraDetalheModal } from "@/components/VendedoraDetalheModal";
 
 function getMotivationalMessage(percentualMeta: number) {
-  if (percentualMeta >= 150) return "SUPER META BATIDA! 🔥🔥🔥";
-  if (percentualMeta >= 100) return "Meta batida! 🏆 Bora para a Super Meta!";
-  if (percentualMeta >= 75) return "Reta final da meta global! ⚡";
-  return "Vamos começar! 💪";
+  if (percentualMeta >= 150)
+    return "Super meta consolidada. Mantenha a cadência.";
+  if (percentualMeta >= 100)
+    return "Meta batida. Direcione a energia para a super meta.";
+  if (percentualMeta >= 75) return "Reta final da meta global.";
+  return "Mês em construção. Priorize ritmo e consistência.";
 }
 
 function getDayProgressTone(dayPct: number) {
@@ -64,11 +66,11 @@ function DashboardHeaderStatus({ percentualMeta }: { percentualMeta: number }) {
   return (
     <div className="mt-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-sm font-medium text-foreground">
+        <div className="status-chip border-primary/20 bg-primary/10 text-foreground">
           <Sparkles size={14} className="text-primary" />
           <span>{getMotivationalMessage(percentualMeta)}</span>
         </div>
-        <div className="flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1.5 font-mono text-sm text-muted-foreground">
+        <div className="status-chip font-mono text-muted-foreground">
           <Clock3 size={14} />
           <span>{now.toLocaleTimeString("pt-BR")}</span>
         </div>
@@ -94,10 +96,7 @@ function DashboardHeaderStatus({ percentualMeta }: { percentualMeta: number }) {
 }
 
 function getLeaderboardRankBadge(index: number) {
-  if (index === 0) return "🥇";
-  if (index === 1) return "🥈";
-  if (index === 2) return "🥉";
-  return `#${index + 1}`;
+  return `#${String(index + 1).padStart(2, "0")}`;
 }
 
 function getLeaderboardBorder(index: number) {
@@ -134,7 +133,9 @@ export default function Dashboard() {
   } | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [selectedVendedora, setSelectedVendedora] = useState<any | null>(null);
-  const [selectedRank, setSelectedRank] = useState<number | undefined>(undefined);
+  const [selectedRank, setSelectedRank] = useState<number | undefined>(
+    undefined
+  );
 
   useEffect(() => {
     if (!data) return;
@@ -366,7 +367,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="page-shell">
       {saleCelebration && (
         <button
           type="button"
@@ -378,10 +379,10 @@ export default function Dashboard() {
             animate={{ scale: 1.05, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
             transition={{ duration: 0.4, ease: "easeOut" }}
-            className="relative px-8 py-6 rounded-3xl shadow-2xl bg-gradient-to-br from-primary/90 via-primary to-purple-700/90 text-white flex flex-col items-center gap-2 border border-white/10"
+            className="relative flex flex-col items-center gap-2 rounded-3xl border border-white/10 bg-gradient-to-br from-primary/90 via-primary to-sky-600/90 px-8 py-6 text-white shadow-2xl"
           >
             <span className="text-sm uppercase tracking-[0.2em] text-white/80">
-              Venda fechada!
+              Venda confirmada
             </span>
             <div className="text-3xl font-extrabold drop-shadow-sm">
               {saleCelebration.nome}
@@ -393,16 +394,20 @@ export default function Dashboard() {
       )}
 
       {/* Header */}
-      <div className="bg-card border-b border-border">
-        <div className="container py-6">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+      <div className="page-content">
+        <div className="page-hero px-6 py-6">
+          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex-1">
-              <h1 className="text-3xl font-bold">Painel de Vendas Opta</h1>
-              <p className="text-muted-foreground mt-1">
+              <div className="metric-label">Performance comercial</div>
+              <h1 className="mt-2 text-4xl font-black tracking-tight">
+                Painel de Vendas Opta
+              </h1>
+              <p className="mt-2 text-sm text-muted-foreground">
                 {new Date().toLocaleDateString("pt-BR", {
                   month: "long",
                   year: "numeric",
                 })}
+                {" · "}Monitoramento do mês, ritmo e aceleração por vendedora
               </p>
               <DashboardHeaderStatus
                 percentualMeta={data.metaGlobal.percentualMeta}
@@ -413,7 +418,7 @@ export default function Dashboard() {
                 variant="ghost"
                 size="sm"
                 onClick={toggleMute}
-                className="gap-2"
+                className="gap-2 rounded-xl"
               >
                 {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
                 {muted ? "Áudio off" : "Áudio on"}
@@ -422,7 +427,7 @@ export default function Dashboard() {
                 variant="outline"
                 size="sm"
                 onClick={() => (window.location.href = "/tv")}
-                className="gap-2"
+                className="gap-2 rounded-xl border-white/10 bg-background/70"
               >
                 <Target size={16} />
                 Modo TV
@@ -431,7 +436,7 @@ export default function Dashboard() {
                 variant="outline"
                 size="sm"
                 onClick={() => (window.location.href = "/admin")}
-                className="gap-2"
+                className="gap-2 rounded-xl border-white/10 bg-background/70"
               >
                 <Users size={16} />
                 Admin
@@ -440,7 +445,7 @@ export default function Dashboard() {
                 variant="outline"
                 size="sm"
                 onClick={() => refetch()}
-                className="gap-2"
+                className="gap-2 rounded-xl border-white/10 bg-background/70"
               >
                 <RefreshCw size={16} />
                 Atualizar
@@ -450,7 +455,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="container py-8">
+      <div className="page-content page-stack">
         {/* KPIs Globais */}
         <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
           <KpiCard
@@ -522,7 +527,8 @@ export default function Dashboard() {
               {data.vendedoras.length} vendedoras ativas
             </p>
             <p className="text-xs text-muted-foreground">
-              Sem incentivo: {data.contratosSemComissao} ({data.percentualContratosSemComissao.toFixed(1)}%)
+              Sem incentivo: {data.contratosSemComissao} (
+              {data.percentualContratosSemComissao.toFixed(1)}%)
             </p>
             <p className="text-xs text-muted-foreground">
               Com incentivo: {data.contratosComComissao}
@@ -531,7 +537,7 @@ export default function Dashboard() {
         </div>
 
         <div className="mb-6 space-y-3">
-          <Card className="border-primary/20">
+          <Card className="panel-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Zap size={18} />
@@ -553,14 +559,19 @@ export default function Dashboard() {
             </CardContent>
           </Card>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Card>
+            <Card className="panel-card">
               <CardContent className="pt-4 space-y-3">
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <div className="flex items-center gap-2">
                     <SunMedium size={14} />
                     Ritmo Diário
                   </div>
-                  <span className={cn("font-semibold", getProgressColor(pctDiaGlobal))}>
+                  <span
+                    className={cn(
+                      "font-semibold",
+                      getProgressColor(pctDiaGlobal)
+                    )}
+                  >
                     {pctDiaGlobal.toFixed(0)}%
                   </span>
                 </div>
@@ -584,14 +595,19 @@ export default function Dashboard() {
                 </p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="panel-card">
               <CardContent className="pt-4 space-y-3">
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <div className="flex items-center gap-2">
                     <CalendarRange size={14} />
                     Ritmo Semanal
                   </div>
-                  <span className={cn("font-semibold", getProgressColor(pctSemanaGlobal))}>
+                  <span
+                    className={cn(
+                      "font-semibold",
+                      getProgressColor(pctSemanaGlobal)
+                    )}
+                  >
                     {pctSemanaGlobal.toFixed(0)}%
                   </span>
                 </div>
@@ -615,7 +631,7 @@ export default function Dashboard() {
                 </p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="panel-card">
               <CardContent className="pt-4">
                 <p className="text-xs text-muted-foreground">
                   Valor em liberação (fora do incentivo)
@@ -635,7 +651,7 @@ export default function Dashboard() {
             animate={{ opacity: 1, scale: 1 }}
             className="mb-8"
           >
-            <Card className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/20">
+            <Card className="panel-card border-emerald-500/20 bg-gradient-to-r from-emerald-500/10 to-cyan-500/10">
               <CardContent className="py-4">
                 <div className="flex items-center justify-center gap-3">
                   <Zap className="text-green-400" size={24} />
@@ -652,12 +668,17 @@ export default function Dashboard() {
         )}
 
         {/* Grid de Vendedoras */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold flex items-center gap-2">
-              <Users size={28} />
-              Vendedoras
-            </h2>
+        <div className="page-section">
+          <div className="page-section-header">
+            <div>
+              <h2 className="flex items-center gap-2 text-2xl font-black tracking-tight">
+                <Users size={28} />
+                Vendedoras
+              </h2>
+              <p className="page-section-copy mt-2">
+                Ranking vivo, ritmo e potencial de incentivo por pessoa.
+              </p>
+            </div>
             <Badge variant="secondary" className="text-sm">
               {data.vendedoras.length} ativas
             </Badge>
@@ -691,7 +712,7 @@ export default function Dashboard() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
         >
-          <Card>
+          <Card className="panel-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Trophy size={24} />
@@ -714,7 +735,7 @@ export default function Dashboard() {
                       getLeaderboardBorder(index)
                     )}
                   >
-                    <div className="w-8 text-center text-2xl font-bold">
+                    <div className="w-12 text-center text-lg font-black tracking-[0.16em] text-muted-foreground">
                       {getLeaderboardRankBadge(index)}
                     </div>
                     <div className="flex-1">
@@ -732,7 +753,7 @@ export default function Dashboard() {
                         colorClass={cn(
                           getTierVisual(vendedora.tier).softBgClass,
                           index === 0 && "bg-yellow-400",
-                          index === 1 && "bg-slate-300",
+                          index === 1 && "bg-white/60",
                           index === 2 && "bg-orange-400"
                         )}
                         className="mt-2 bg-background/70"
@@ -748,8 +769,17 @@ export default function Dashboard() {
         </motion.div>
 
         {/* Produtos e Pipeline */}
-        <div className="mt-8">
-          <h2 className="text-2xl font-bold mb-4">Produtos & Pipeline</h2>
+        <div className="page-section">
+          <div className="page-section-header">
+            <div>
+              <h2 className="text-2xl font-black tracking-tight">
+                Produtos & Pipeline
+              </h2>
+              <p className="page-section-copy mt-2">
+                Leitura tática da produção, concentração e avanço operacional.
+              </p>
+            </div>
+          </div>
           <GraficosAnalise
             produtos={data.produtos || []}
             pipeline={data.pipeline || []}

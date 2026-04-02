@@ -115,28 +115,31 @@ export function LeversSection({
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Card className="bg-slate-950 border-slate-800">
+      <Card className="table-shell">
         <CardHeader>
           <CardTitle>Pareto Vendedores (Comissão)</CardTitle>
         </CardHeader>
         <CardContent className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={paretoData}>
-              <CartesianGrid strokeDasharray="2 4" stroke="#1f2937" />
+              <CartesianGrid
+                strokeDasharray="2 4"
+                stroke="rgba(255,255,255,0.08)"
+              />
               <XAxis
                 dataKey="vendedor"
-                stroke="#9ca3af"
+                stroke="rgba(255,255,255,0.55)"
                 tickFormatter={v => shortLabel(v, 12)}
               />
               <YAxis
                 yAxisId="left"
-                stroke="#9ca3af"
+                stroke="rgba(255,255,255,0.55)"
                 tickFormatter={v => formatCurrency(v)}
               />
               <YAxis
                 yAxisId="right"
                 orientation="right"
-                stroke="#9ca3af"
+                stroke="rgba(255,255,255,0.55)"
                 tickFormatter={v => `${v.toFixed(0)}%`}
               />
               <Tooltip
@@ -172,7 +175,7 @@ export function LeversSection({
                         : false;
                   return (
                     <span
-                      className={`text-xs ${isHidden ? "text-slate-500 line-through" : "text-slate-200"}`}
+                      className={`text-xs ${isHidden ? "text-muted-foreground/50 line-through" : "text-foreground/85"}`}
                     >
                       {value} · clique para esconder/mostrar
                     </span>
@@ -203,7 +206,7 @@ export function LeversSection({
         </CardContent>
       </Card>
 
-      <Card className="bg-slate-950 border-slate-800">
+      <Card className="table-shell">
         <CardHeader>
           <CardTitle>
             Scatter: Comissão Média x Ticket (Produto + Operação)
@@ -212,19 +215,22 @@ export function LeversSection({
         <CardContent className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <ScatterChart>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="rgba(255,255,255,0.08)"
+              />
               <XAxis
                 type="number"
                 dataKey="ticket"
                 name="Ticket"
-                stroke="#9ca3af"
+                stroke="rgba(255,255,255,0.55)"
                 tickFormatter={v => formatCurrency(v)}
               />
               <YAxis
                 type="number"
                 dataKey="takeRate"
                 name="Comissão média"
-                stroke="#9ca3af"
+                stroke="rgba(255,255,255,0.55)"
                 tickFormatter={v => `${(v * 100).toFixed(1)}%`}
                 domain={[
                   0,
@@ -236,7 +242,7 @@ export function LeversSection({
                 onClick={handleScatterLegendToggle}
                 formatter={value => (
                   <span
-                    className={`text-xs ${scatterVisible ? "text-slate-200" : "text-slate-500 line-through"}`}
+                    className={`text-xs ${scatterVisible ? "text-foreground/85" : "text-muted-foreground/50 line-through"}`}
                   >
                     {value} · clique para esconder/mostrar
                   </span>

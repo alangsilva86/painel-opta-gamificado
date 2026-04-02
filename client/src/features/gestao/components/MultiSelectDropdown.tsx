@@ -29,28 +29,30 @@ export function MultiSelectDropdown({
   onToggle,
 }: MultiSelectDropdownProps) {
   const selectedCount = selected.length;
+  const summary =
+    selectedCount === 0
+      ? `Todos os ${label.toLowerCase()}`
+      : `${label} (${selectedCount})`;
 
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className="min-w-[190px] justify-between border-slate-800 bg-slate-950 text-slate-200"
+          className="min-w-[220px] justify-between rounded-xl border-white/10 bg-background/70 text-foreground shadow-none hover:bg-background/90"
         >
-          <span className="truncate">
-            {label} ({selectedCount} selecionados)
-          </span>
+          <span className="truncate text-left">{summary}</span>
           <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-60" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-[280px] border-slate-800 bg-slate-950 p-0 text-slate-100"
+        className="panel-card w-[300px] p-0 text-foreground"
         align="start"
       >
-        <Command className="bg-slate-950">
+        <Command className="bg-transparent">
           <CommandInput
             placeholder={`Buscar ${label.toLowerCase()}...`}
-            className="text-slate-100"
+            className="text-foreground"
           />
           <CommandList>
             <CommandEmpty>Nenhum item encontrado.</CommandEmpty>
@@ -63,11 +65,11 @@ export function MultiSelectDropdown({
                     key={option}
                     value={option}
                     onSelect={() => onToggle(option)}
-                    className="cursor-pointer"
+                    className="cursor-pointer gap-2 rounded-lg"
                   >
                     <div
                       className={cn(
-                        "flex size-4 items-center justify-center rounded-sm border border-slate-700",
+                        "flex size-4 items-center justify-center rounded-sm border border-white/10",
                         isSelected &&
                           "border-emerald-500 bg-emerald-500 text-white"
                       )}

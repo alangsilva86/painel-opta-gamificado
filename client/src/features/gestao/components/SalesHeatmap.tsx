@@ -31,7 +31,7 @@ type SalesHeatmapProps = {
 const WEEKDAY_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"];
 
 function getHeatColor(intensity: number) {
-  if (intensity <= 0) return "bg-slate-800";
+  if (intensity <= 0) return "bg-background/80";
   if (intensity < 0.25) return "bg-emerald-950";
   if (intensity < 0.5) return "bg-emerald-800";
   if (intensity < 0.75) return "bg-emerald-600";
@@ -73,21 +73,21 @@ export function SalesHeatmap({ data, dateFrom, dateTo }: SalesHeatmapProps) {
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <Card className="bg-slate-950 border-slate-800">
+      <Card className="table-shell">
         <CardHeader className="flex flex-row items-center justify-between gap-4">
           <div>
             <CardTitle className="flex items-center gap-2">
               <Flame size={18} />
               Heatmap de vendas
             </CardTitle>
-            <p className="mt-1 text-sm text-slate-400">
+            <p className="mt-1 text-sm text-muted-foreground">
               Densidade diária por semana e dia útil no período filtrado.
             </p>
           </div>
           <CollapsibleTrigger asChild>
             <button
               type="button"
-              className="inline-flex items-center gap-2 rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-200"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-background/72 px-3 py-2 text-sm text-foreground"
             >
               {open ? "Ocultar" : "Mostrar"}
               {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -102,14 +102,14 @@ export function SalesHeatmap({ data, dateFrom, dateTo }: SalesHeatmapProps) {
                 setMetric(value as "contracts" | "commission")
               }
             >
-              <TabsList className="bg-slate-900">
+              <TabsList className="bg-background/72">
                 <TabsTrigger value="contracts">Por contratos</TabsTrigger>
                 <TabsTrigger value="commission">Por comissão</TabsTrigger>
               </TabsList>
             </Tabs>
 
             <div className="flex gap-3 overflow-x-auto">
-              <div className="grid grid-rows-7 gap-1 pt-7 text-[11px] text-slate-500">
+              <div className="grid grid-rows-7 gap-1 pt-7 text-[11px] text-muted-foreground">
                 {WEEKDAY_LABELS.map(label => (
                   <div key={label} className="h-4">
                     {label}
@@ -130,7 +130,7 @@ export function SalesHeatmap({ data, dateFrom, dateTo }: SalesHeatmapProps) {
                       <TooltipTrigger asChild>
                         <div
                           className={cn(
-                            "size-4 rounded-[4px] border border-slate-800 transition-transform hover:scale-110",
+                            "size-4 rounded-[4px] border border-white/10 transition-transform hover:scale-110",
                             getHeatColor(intensity)
                           )}
                         />
@@ -150,7 +150,7 @@ export function SalesHeatmap({ data, dateFrom, dateTo }: SalesHeatmapProps) {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
               <span>Menor</span>
               {[0, 0.2, 0.45, 0.7, 1].map(value => (
                 <div

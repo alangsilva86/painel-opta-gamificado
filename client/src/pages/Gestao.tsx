@@ -15,6 +15,7 @@ import { GestaoAnalystChat } from "@/features/gestao/components/GestaoAnalystCha
 import { LeversSection } from "@/features/gestao/components/LeversSection";
 import { MixSection } from "@/features/gestao/components/MixSection";
 import { PeriodKpisSection } from "@/features/gestao/components/PeriodKpisSection";
+import { ExecutiveCockpit } from "@/features/gestao/components/ExecutiveCockpit";
 import { ProductRankingList } from "@/features/gestao/components/ProductRankingList";
 import { SalesHeatmap } from "@/features/gestao/components/SalesHeatmap";
 import { SellerPerformanceTable } from "@/features/gestao/components/SellerPerformanceTable";
@@ -577,377 +578,395 @@ export default function Gestao() {
 
   if (!authed) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background text-foreground px-4">
-        <Card className="w-full max-w-md bg-card border-border">
-          <CardHeader>
-            <CardTitle>Acesso Gestão</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Insira a senha fixa para liberar a visualização dos KPIs de
-              Gestão.
-            </p>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                setPassword(e.target.value)
-              }
-              placeholder="Senha"
-            />
-            <Button
-              className="w-full"
-              onClick={() => authMutation.mutate({ password })}
-              disabled={authMutation.isPending || !password}
-            >
-              {authMutation.isPending ? "Validando..." : "Entrar"}
-            </Button>
-            {authMutation.error && (
-              <p className="text-sm text-red-400">
-                Erro: {authMutation.error.message}
+      <div className="page-shell">
+        <div className="page-content flex min-h-screen items-center justify-center px-4">
+          <Card className="panel-card-strong w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Acesso Gestão</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Insira a senha fixa para liberar a visualização dos KPIs de
+                Gestão.
               </p>
-            )}
-          </CardContent>
-        </Card>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setPassword(e.target.value)
+                }
+                placeholder="Senha"
+              />
+              <Button
+                className="w-full"
+                onClick={() => authMutation.mutate({ password })}
+                disabled={authMutation.isPending || !password}
+              >
+                {authMutation.isPending ? "Validando..." : "Entrar"}
+              </Button>
+              {authMutation.error && (
+                <p className="text-sm text-red-400">
+                  Erro: {authMutation.error.message}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground px-4 py-6 space-y-6">
-      <FilterBar
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        onDateFromChange={setDateFrom}
-        onDateToChange={setDateTo}
-        incluirSemComissao={incluirSemComissao}
-        onToggleSemComissao={() => setIncluirSemComissao(v => !v)}
-        onRefresh={handleRefresh}
-        isRefreshing={syncMutation.isPending && !isApplying}
-        isApplying={isApplying}
-        onApply={handleApplyFilters}
-        onExport={handleExport}
-        onClear={() => {
-          clearFilters();
-          clearActiveView();
-        }}
-        isExporting={exportQuery.isFetching}
-        comparisonMode={comparisonMode}
-        onComparisonModeChange={setComparisonMode}
-        comparisonDateFrom={comparisonDateFrom}
-        comparisonDateTo={comparisonDateTo}
-        onComparisonDateFromChange={setComparisonDateFrom}
-        onComparisonDateToChange={setComparisonDateTo}
-        onComparisonPreset={applyComparisonPreset}
-        sellerOptions={availableSellers}
-        productOptions={availableProducts}
-        selectedSellers={draftFilterState.vendedorNome}
-        selectedProducts={draftFilterState.produto}
-        onToggleSeller={value => toggleDraftFilter("vendedorNome", value)}
-        onToggleProduct={value => toggleDraftFilter("produto", value)}
-        freshness={resumoQuery.data?.freshness ?? null}
-        dataQuality={resumoQuery.data?.dataQuality ?? null}
-        businessStatus={resumoQuery.data?.businessStatus ?? null}
-        presetViews={presetViews}
-        customViews={customViews}
-        activeViewId={activeViewId}
-        onApplySavedView={view => {
-          void applySavedView(view);
-        }}
-        onSaveView={handleSaveView}
-        onRenameView={handleRenameView}
-        onDuplicateView={handleDuplicateView}
-        onDeleteView={handleDeleteView}
-        onResetView={handleResetView}
-        onRestoreLastView={() => {
-          void handleRestoreLastView();
-        }}
-        lastViewName={lastViewName}
-      />
+    <div className="page-shell">
+      <div className="page-content page-stack px-4">
+        <FilterBar
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onDateFromChange={setDateFrom}
+          onDateToChange={setDateTo}
+          incluirSemComissao={incluirSemComissao}
+          onToggleSemComissao={() => setIncluirSemComissao(v => !v)}
+          onRefresh={handleRefresh}
+          isRefreshing={syncMutation.isPending && !isApplying}
+          isApplying={isApplying}
+          onApply={handleApplyFilters}
+          onExport={handleExport}
+          onClear={() => {
+            clearFilters();
+            clearActiveView();
+          }}
+          isExporting={exportQuery.isFetching}
+          comparisonMode={comparisonMode}
+          onComparisonModeChange={setComparisonMode}
+          comparisonDateFrom={comparisonDateFrom}
+          comparisonDateTo={comparisonDateTo}
+          onComparisonDateFromChange={setComparisonDateFrom}
+          onComparisonDateToChange={setComparisonDateTo}
+          onComparisonPreset={applyComparisonPreset}
+          sellerOptions={availableSellers}
+          productOptions={availableProducts}
+          selectedSellers={draftFilterState.vendedorNome}
+          selectedProducts={draftFilterState.produto}
+          onToggleSeller={value => toggleDraftFilter("vendedorNome", value)}
+          onToggleProduct={value => toggleDraftFilter("produto", value)}
+          freshness={resumoQuery.data?.freshness ?? null}
+          dataQuality={resumoQuery.data?.dataQuality ?? null}
+          businessStatus={resumoQuery.data?.businessStatus ?? null}
+          presetViews={presetViews}
+          customViews={customViews}
+          activeViewId={activeViewId}
+          onApplySavedView={view => {
+            void applySavedView(view);
+          }}
+          onSaveView={handleSaveView}
+          onRenameView={handleRenameView}
+          onDuplicateView={handleDuplicateView}
+          onDeleteView={handleDeleteView}
+          onResetView={handleResetView}
+          onRestoreLastView={() => {
+            void handleRestoreLastView();
+          }}
+          lastViewName={lastViewName}
+        />
 
-      <div className="space-y-6 pt-2">
-        <ActiveFilters filterState={filterState} onRemove={applyFilter} />
+        <div className="page-stack pt-2">
+          <ActiveFilters filterState={filterState} onRemove={applyFilter} />
 
-        {isFetchingData && (
-          <Card className="bg-card border-border">
-            <CardContent className="flex items-center gap-3 text-foreground/80 py-3">
-              <Spinner className="h-4 w-4 text-primary" />
-              <div className="text-sm">
-                {isApplying || syncMutation.isPending
-                  ? "Sincronizando dados com Zoho para o período selecionado..."
-                  : "Preparando indicadores, aguarde..."}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+          {isFetchingData && (
+            <Card className="panel-card">
+              <CardContent className="flex items-center gap-3 text-foreground/80 py-3">
+                <Spinner className="h-4 w-4 text-primary" />
+                <div className="text-sm">
+                  {isApplying || syncMutation.isPending
+                    ? "Sincronizando dados com Zoho para o período selecionado..."
+                    : "Preparando indicadores, aguarde..."}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-        {!hasFetched && (
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-base">Nenhum dado carregado</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              Selecione o período desejado e clique em "Aplicar filtros" para
-              buscar os indicadores.
-            </CardContent>
-          </Card>
-        )}
+          {!hasFetched && (
+            <Card className="panel-card">
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Nenhum dado carregado
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground">
+                Selecione o período desejado e clique em "Aplicar filtros" para
+                buscar os indicadores.
+              </CardContent>
+            </Card>
+          )}
 
-        {hasFetched && resumoQuery.data && !isFetchingData && (
-          <>
-            <PeriodKpisSection
-              cards={resumoQuery.data.cards}
-              comparisonMetricDeltas={comparisonMetricDeltas}
-              comparisonModeApplied={comparisonModeApplied}
-              deltas={deltas}
-              metaInput={metaInput}
-              onMetaInputChange={setMetaInput}
-              onMetaSave={handleMetaSave}
-              isSavingMeta={setMetaMutation.isPending}
-            />
-
-            <Separator className="bg-border" />
-
-            <section className="space-y-4">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground section-heading">
-                  Diagnóstico
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Produção monetizada e pipeline operacional por tempo, mix,
-                  vendedoras e alavancas de melhoria.
-                </p>
-              </div>
-
-              <HealthPipelineSection
-                timeseriesData={timeseriesData}
-                stageData={stageData}
-                seriesVisibility={seriesVisibility}
-                onLegendToggle={handleLegendToggle}
-                necessarioPorDia={resumoQuery.data.cards.necessarioPorDia}
-                granularity={granularity}
-                onGranularityChange={setGranularity}
-                onStageClick={handleStageClick}
-                onClearFilters={clearFilters}
+          {hasFetched && resumoQuery.data && !isFetchingData && (
+            <>
+              <ExecutiveCockpit
+                businessStatus={resumoQuery.data.businessStatus}
+                metrics={resumoQuery.data.executiveMetrics}
+                comparisonEnabled={comparisonModeApplied}
               />
 
-              <SalesHeatmap
-                data={resumoQuery.data.timeseries}
-                dateFrom={filters.dateFrom}
-                dateTo={filters.dateTo}
+              <PeriodKpisSection
+                cards={resumoQuery.data.cards}
+                comparisonMetricDeltas={comparisonMetricDeltas}
+                comparisonModeApplied={comparisonModeApplied}
+                deltas={deltas}
+                metaInput={metaInput}
+                onMetaInputChange={setMetaInput}
+                onMetaSave={handleMetaSave}
+                isSavingMeta={setMetaMutation.isPending}
               />
 
-              <LeversSection
-                bySeller={resumoQuery.data.bySeller}
-                byProduct={resumoQuery.data.byProduct}
-                byProductOperation={resumoQuery.data.byProductOperation}
-                filterState={filterState}
-                onSellerClick={handleSellerClick}
-                onProductOperationClick={handleProductOperationClick}
-                onProductClick={handleProductClick}
-              />
+              <Separator className="bg-border/70" />
 
-              <SellerPerformanceTable
-                rows={resumoQuery.data.bySeller}
-                incluirSemComissao={incluirSemComissao}
-                filterState={filterState}
-                onSellerClick={handleSellerClick}
-                sellerDeltas={sellerDeltas}
-                rankEvolution={rankEvolution}
-              />
+              <section className="page-section">
+                <div className="page-section-header">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground section-heading">
+                      Diagnóstico
+                    </h2>
+                    <p className="page-section-copy">
+                      Produção monetizada e pipeline operacional por tempo, mix,
+                      vendedoras e alavancas de melhoria.
+                    </p>
+                  </div>
+                </div>
 
-              <MixSection
-                productData={productData}
-                operationData={operationData}
-                seriesVisibility={seriesVisibility}
-                onLegendToggle={handleLegendToggle}
-                onProductClick={handleProductClick}
-                onOperationClick={handleOperationClick}
-                onClearFilters={clearFilters}
-              />
-
-              <div className="grid gap-4 md:grid-cols-3">
-                <ClickableList
-                  title="Por Etapa"
-                  rows={resumoQuery.data.byStage.map(b => ({
-                    label: b.etapa,
-                    value: formatCurrency(b.comissao),
-                    extra: `${b.count} | ${formatPercent(b.takeRate)}`,
-                    active: filterState.etapaPipeline.includes(b.etapa),
-                    onClick: () =>
-                      applyFilter({
-                        etapaPipeline: filterState.etapaPipeline.includes(
-                          b.etapa
-                        )
-                          ? filterState.etapaPipeline
-                          : [b.etapa],
-                      }),
-                  }))}
+                <HealthPipelineSection
+                  timeseriesData={timeseriesData}
+                  stageData={stageData}
+                  seriesVisibility={seriesVisibility}
+                  onLegendToggle={handleLegendToggle}
+                  necessarioPorDia={resumoQuery.data.cards.necessarioPorDia}
+                  granularity={granularity}
+                  onGranularityChange={setGranularity}
+                  onStageClick={handleStageClick}
+                  onClearFilters={clearFilters}
                 />
-                <ClickableList
-                  title="Por Vendedor"
-                  rows={sellersSorted.map(b => ({
-                    label: b.vendedor,
-                    value: formatCurrency(b.comissao),
-                    extra: `${b.count} | ${formatPercent(b.takeRate)}`,
-                    active: filterState.vendedorNome.includes(b.vendedor),
-                    onClick: () =>
-                      applyFilter({
-                        vendedorNome: filterState.vendedorNome.includes(
-                          b.vendedor
-                        )
-                          ? filterState.vendedorNome
-                          : [b.vendedor],
-                      }),
-                  }))}
+
+                <SalesHeatmap
+                  data={resumoQuery.data.timeseries}
+                  dateFrom={filters.dateFrom}
+                  dateTo={filters.dateTo}
                 />
-                <ProductRankingList
-                  title="Por Produto"
-                  rows={productsSorted}
-                  operationsByProduct={productOperationMap}
-                  activeProducts={filterState.produto}
-                  activeOperations={filterState.tipoOperacao}
+
+                <LeversSection
+                  bySeller={resumoQuery.data.bySeller}
+                  byProduct={resumoQuery.data.byProduct}
+                  byProductOperation={resumoQuery.data.byProductOperation}
+                  filterState={filterState}
+                  onSellerClick={handleSellerClick}
+                  onProductOperationClick={handleProductOperationClick}
                   onProductClick={handleProductClick}
-                  onOperationClick={handleProductOperationClick}
                 />
-              </div>
-            </section>
 
-            <Separator className="bg-border" />
+                <SellerPerformanceTable
+                  rows={resumoQuery.data.bySeller}
+                  incluirSemComissao={incluirSemComissao}
+                  filterState={filterState}
+                  onSellerClick={handleSellerClick}
+                  sellerDeltas={sellerDeltas}
+                  rankEvolution={rankEvolution}
+                />
 
-            <section className="space-y-4">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground section-heading">
-                  Auditoria e Rastreamento
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Alertas automáticos, progresso de sincronização e
-                  rastreabilidade detalhada do recorte.
-                </p>
-              </div>
+                <MixSection
+                  productData={productData}
+                  operationData={operationData}
+                  seriesVisibility={seriesVisibility}
+                  onLegendToggle={handleLegendToggle}
+                  onProductClick={handleProductClick}
+                  onOperationClick={handleOperationClick}
+                  onClearFilters={clearFilters}
+                />
 
-              <AlertsCard
-                alerts={resumoQuery.data.alerts}
-                filterState={filterState}
-                onFilter={applyFilter}
-                onRefresh={handleRefresh}
-              />
+                <div className="grid gap-4 md:grid-cols-3">
+                  <ClickableList
+                    title="Por Etapa"
+                    rows={resumoQuery.data.byStage.map(b => ({
+                      label: b.etapa,
+                      value: formatCurrency(b.comissao),
+                      extra: `${b.count} | ${formatPercent(b.takeRate)}`,
+                      active: filterState.etapaPipeline.includes(b.etapa),
+                      onClick: () =>
+                        applyFilter({
+                          etapaPipeline: filterState.etapaPipeline.includes(
+                            b.etapa
+                          )
+                            ? filterState.etapaPipeline
+                            : [b.etapa],
+                        }),
+                    }))}
+                  />
+                  <ClickableList
+                    title="Por Vendedor"
+                    rows={sellersSorted.map(b => ({
+                      label: b.vendedor,
+                      value: formatCurrency(b.comissao),
+                      extra: `${b.count} | ${formatPercent(b.takeRate)}`,
+                      active: filterState.vendedorNome.includes(b.vendedor),
+                      onClick: () =>
+                        applyFilter({
+                          vendedorNome: filterState.vendedorNome.includes(
+                            b.vendedor
+                          )
+                            ? filterState.vendedorNome
+                            : [b.vendedor],
+                        }),
+                    }))}
+                  />
+                  <ProductRankingList
+                    title="Por Produto"
+                    rows={productsSorted}
+                    operationsByProduct={productOperationMap}
+                    activeProducts={filterState.produto}
+                    activeOperations={filterState.tipoOperacao}
+                    onProductClick={handleProductClick}
+                    onOperationClick={handleProductOperationClick}
+                  />
+                </div>
+              </section>
 
-              {!isApplying && !syncMutation.isPending && lastSyncSummary && (
-                <Card className="bg-card border-border">
-                  <CardContent className="flex flex-wrap items-center gap-x-5 gap-y-2 py-3 text-sm">
-                    <div className="font-semibold text-foreground">
-                      Última sincronização
-                    </div>
-                    <div className="text-muted-foreground">
-                      Buscados:{" "}
-                      <span className="text-foreground font-medium">
-                        {lastSyncSummary.fetched}
-                      </span>
-                    </div>
-                    <div className="text-muted-foreground">
-                      Inseridos:{" "}
-                      <span className="text-foreground font-medium">
-                        {lastSyncSummary.upserted}
-                      </span>
-                    </div>
-                    <div className="text-muted-foreground">
-                      Iguais:{" "}
-                      <span className="text-foreground font-medium">
-                        {lastSyncSummary.unchanged}
-                      </span>
-                    </div>
-                    <div className="text-muted-foreground">
-                      Pulados:{" "}
-                      <span className="text-foreground font-medium">
-                        {lastSyncSummary.skipped}
-                      </span>
-                    </div>
-                    {lastSyncSummary.warnings > 0 && (
-                      <div className="text-amber-400 font-medium">
-                        {lastSyncSummary.warnings} aviso
-                        {lastSyncSummary.warnings > 1 ? "s" : ""}
+              <Separator className="bg-border/70" />
+
+              <section className="page-section">
+                <div className="page-section-header">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground section-heading">
+                      Auditoria e Rastreamento
+                    </h2>
+                    <p className="page-section-copy">
+                      Alertas automáticos, progresso de sincronização e
+                      rastreabilidade detalhada do recorte.
+                    </p>
+                  </div>
+                </div>
+
+                <AlertsCard
+                  alerts={resumoQuery.data.alerts}
+                  filterState={filterState}
+                  onFilter={applyFilter}
+                  onRefresh={handleRefresh}
+                />
+
+                {!isApplying && !syncMutation.isPending && lastSyncSummary && (
+                  <Card className="panel-card">
+                    <CardContent className="flex flex-wrap items-center gap-x-5 gap-y-2 py-3 text-sm">
+                      <div className="font-semibold text-foreground">
+                        Última sincronização
                       </div>
-                    )}
-                    {syncStatusQuery.data?.status !== "done" && (
                       <div className="text-muted-foreground">
-                        Aguardando conclusão...
+                        Buscados:{" "}
+                        <span className="text-foreground font-medium">
+                          {lastSyncSummary.fetched}
+                        </span>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {syncStatusQuery.data?.perMonth &&
-                syncStatusQuery.data?.perMonth.length > 0 && (
-                  <Card className="bg-card border-border">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-semibold">
-                        Progresso de sincronização por mês
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-1.5 text-sm">
-                      {syncStatusQuery.data.perMonth
-                        .slice()
-                        .sort((a, b) => a.mesInicio.localeCompare(b.mesInicio))
-                        .map(m => (
-                          <div
-                            key={`${m.mesInicio}-${m.mesFim}`}
-                            className="flex items-center justify-between rounded-lg border border-border bg-secondary/50 px-3 py-2"
-                          >
-                            <div className="flex flex-col gap-0.5">
-                              <span className="font-medium text-foreground">
-                                {m.mesInicio} → {m.mesFim}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                {m.status === "done" ? "Concluído" : "Erro"} ·{" "}
-                                {m.fetched} buscados · {m.upserted} inseridos
-                              </span>
-                            </div>
-                            <div
-                              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                                m.status === "done"
-                                  ? "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/25"
-                                  : "bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/25"
-                              }`}
-                            >
-                              {m.status === "done" ? "OK" : "Aviso"}
-                            </div>
-                          </div>
-                        ))}
+                      <div className="text-muted-foreground">
+                        Inseridos:{" "}
+                        <span className="text-foreground font-medium">
+                          {lastSyncSummary.upserted}
+                        </span>
+                      </div>
+                      <div className="text-muted-foreground">
+                        Iguais:{" "}
+                        <span className="text-foreground font-medium">
+                          {lastSyncSummary.unchanged}
+                        </span>
+                      </div>
+                      <div className="text-muted-foreground">
+                        Pulados:{" "}
+                        <span className="text-foreground font-medium">
+                          {lastSyncSummary.skipped}
+                        </span>
+                      </div>
+                      {lastSyncSummary.warnings > 0 && (
+                        <div className="text-amber-400 font-medium">
+                          {lastSyncSummary.warnings} aviso
+                          {lastSyncSummary.warnings > 1 ? "s" : ""}
+                        </div>
+                      )}
+                      {syncStatusQuery.data?.status !== "done" && (
+                        <div className="text-muted-foreground">
+                          Aguardando conclusão...
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 )}
 
-              <DrilldownTable
-                rows={drilldownQuery.data?.data ?? []}
-                sortBy={sortBy}
-                sortDir={sortDir}
-                onSort={handleSort}
-                flagFilters={flagFilters}
-                toggleFlag={toggleFlag}
-                flagCounts={flagCounts}
-                page={page}
-                onPrevPage={() => setPage(p => Math.max(1, p - 1))}
-                onNextPage={() => setPage(p => p + 1)}
-                onExport={handleExport}
-                takeRateBaseline={resumoQuery.data?.cards.takeRate}
-                isEmpty={(drilldownQuery.data?.data?.length ?? 0) === 0}
-                isExporting={exportQuery.isFetching}
-              />
-            </section>
-          </>
-        )}
-      </div>
+                {syncStatusQuery.data?.perMonth &&
+                  syncStatusQuery.data?.perMonth.length > 0 && (
+                    <Card className="panel-card">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-semibold">
+                          Progresso de sincronização por mês
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-1.5 text-sm">
+                        {syncStatusQuery.data.perMonth
+                          .slice()
+                          .sort((a, b) =>
+                            a.mesInicio.localeCompare(b.mesInicio)
+                          )
+                          .map(m => (
+                            <div
+                              key={`${m.mesInicio}-${m.mesFim}`}
+                              className="interactive-row flex items-center justify-between px-3 py-2"
+                            >
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-medium text-foreground">
+                                  {m.mesInicio} → {m.mesFim}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {m.status === "done" ? "Concluído" : "Erro"} ·{" "}
+                                  {m.fetched} buscados · {m.upserted} inseridos
+                                </span>
+                              </div>
+                              <div
+                                className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                  m.status === "done"
+                                    ? "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/25"
+                                    : "bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/25"
+                                }`}
+                              >
+                                {m.status === "done" ? "OK" : "Aviso"}
+                              </div>
+                            </div>
+                          ))}
+                      </CardContent>
+                    </Card>
+                  )}
 
-      {hasFetched && resumoQuery.data ? (
-        <GestaoAnalystChat
-          viewState={chatViewState}
-          summary={resumoQuery.data}
-          availableViews={allSavedViews}
-          onAction={handleAnalystAction}
-        />
-      ) : null}
+                <DrilldownTable
+                  rows={drilldownQuery.data?.data ?? []}
+                  sortBy={sortBy}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                  flagFilters={flagFilters}
+                  toggleFlag={toggleFlag}
+                  flagCounts={flagCounts}
+                  page={page}
+                  onPrevPage={() => setPage(p => Math.max(1, p - 1))}
+                  onNextPage={() => setPage(p => p + 1)}
+                  onExport={handleExport}
+                  takeRateBaseline={resumoQuery.data?.cards.takeRate}
+                  isEmpty={(drilldownQuery.data?.data?.length ?? 0) === 0}
+                  isExporting={exportQuery.isFetching}
+                />
+              </section>
+            </>
+          )}
+        </div>
+
+        {hasFetched && resumoQuery.data ? (
+          <GestaoAnalystChat
+            viewState={chatViewState}
+            summary={resumoQuery.data}
+            availableViews={allSavedViews}
+            onAction={handleAnalystAction}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }

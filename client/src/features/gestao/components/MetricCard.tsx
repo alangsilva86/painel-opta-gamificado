@@ -38,9 +38,9 @@ export function MetricCard({
       : "text-muted-foreground";
 
   const content = (
-    <Card className="bg-card border-border h-full transition-colors hover:border-border/80">
+    <Card className="panel-card h-full transition-[border-color,transform,box-shadow] hover:-translate-y-0.5 hover:border-white/12">
       <CardHeader className={compact ? "pb-1 pt-4 px-4" : "pb-2 pt-4 px-4"}>
-        <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           {title}
         </CardTitle>
       </CardHeader>
@@ -48,7 +48,7 @@ export function MetricCard({
         className={`${compact ? "px-4 pb-3" : "px-4 pb-4"} space-y-1.5`}
       >
         <div
-          className={`${compact ? "text-xl" : "text-2xl"} font-bold text-foreground flex items-center gap-2 leading-none`}
+          className={`${compact ? "text-xl" : "text-[1.75rem]"} flex items-center gap-2 font-black leading-none tracking-tight text-foreground`}
         >
           {value}
           {badge && (
@@ -67,7 +67,7 @@ export function MetricCard({
         {delta !== undefined && (
           <div
             className={cn(
-              "flex items-center gap-1 text-xs font-medium",
+              "inline-flex items-center gap-1 rounded-full border border-white/8 bg-background/65 px-2.5 py-1 text-xs font-medium",
               deltaToneClass
             )}
           >
@@ -87,7 +87,11 @@ export function MetricCard({
             )}
           </div>
         )}
-        {hint && <div className="text-xs text-muted-foreground/70">{hint}</div>}
+        {hint && (
+          <div className="text-xs leading-5 text-muted-foreground/75">
+            {hint}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

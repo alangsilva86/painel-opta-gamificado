@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatPercent } from "../utils";
 
@@ -31,10 +35,8 @@ type ProductRankingListProps = {
 
 const rowClass = (active: boolean) =>
   cn(
-    "flex items-center justify-between rounded-md border px-3 py-2 transition-colors",
-    active
-      ? "border-emerald-500/60 bg-emerald-500/10"
-      : "border-border bg-muted/30 hover:border-border/80 hover:bg-muted/50"
+    "interactive-row flex items-center justify-between px-3 py-2",
+    active ? "border-emerald-500/40 bg-emerald-500/10" : ""
   );
 
 export function ProductRankingList({
@@ -49,7 +51,7 @@ export function ProductRankingList({
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
 
   return (
-    <Card>
+    <Card className="panel-card">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm text-muted-foreground">{title}</CardTitle>
       </CardHeader>
@@ -86,7 +88,7 @@ export function ProductRankingList({
                     <CollapsibleTrigger asChild>
                       <button
                         type="button"
-                        className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+                        className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground"
                         aria-label="Mostrar tipos de operação"
                       >
                         <ChevronDown

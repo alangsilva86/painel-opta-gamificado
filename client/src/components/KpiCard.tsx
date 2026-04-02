@@ -35,15 +35,30 @@ export function KpiCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: motionDelay }}
     >
-      <Card className="h-full">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">{title}</CardTitle>
-          {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+      <Card className="panel-card-strong h-full gap-4">
+        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-1">
+          <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            {title}
+          </CardTitle>
+          {Icon && (
+            <span className="rounded-full border border-white/10 bg-background/60 p-2">
+              <Icon className="h-4 w-4 text-muted-foreground" />
+            </span>
+          )}
         </CardHeader>
-        <CardContent>
-          <div className={cn("text-2xl font-bold", valueClassName)}>{value}</div>
+        <CardContent className="space-y-3">
+          <div
+            className={cn(
+              "text-[2rem] font-black tracking-tight",
+              valueClassName
+            )}
+          >
+            {value}
+          </div>
           {subtitle && (
-            <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
+            <p className="text-xs leading-5 text-muted-foreground">
+              {subtitle}
+            </p>
           )}
           {progress && (
             <AnimatedProgressBar

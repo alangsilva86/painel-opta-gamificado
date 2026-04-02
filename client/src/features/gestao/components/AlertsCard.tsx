@@ -1,3 +1,4 @@
+import { AlertTriangle, RefreshCw, ShieldAlert, Siren } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatRelativeTime } from "../utils";
@@ -19,17 +20,22 @@ type AlertsCardProps = {
 };
 
 const severityColors = {
-  info: "border-blue-500/30 bg-blue-500/10 text-blue-200",
+  info: "border-primary/20 bg-primary/10 text-foreground",
   warning: "border-amber-500/30 bg-amber-500/10 text-amber-200",
-  critical: "border-red-500/30 bg-red-500/10 text-red-200",
+  critical: "border-rose-500/30 bg-rose-500/10 text-rose-200",
 };
 
-export function AlertsCard({ alerts, filterState, onFilter, onRefresh }: AlertsCardProps) {
+export function AlertsCard({
+  alerts,
+  filterState,
+  onFilter,
+  onRefresh,
+}: AlertsCardProps) {
   if (!alerts || alerts.length === 0) {
     return (
-      <Card>
+      <Card className="panel-card">
         <CardHeader>
-          <CardTitle>Alertas</CardTitle>
+          <CardTitle>Alertas e monitoramento</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
           Tudo estável. Revise mix e pipeline para oportunidades.
@@ -39,31 +45,39 @@ export function AlertsCard({ alerts, filterState, onFilter, onRefresh }: AlertsC
   }
 
   return (
-    <Card className="bg-slate-950 border-slate-800">
+    <Card className="table-shell">
       <CardHeader>
-        <CardTitle>Alertas</CardTitle>
+        <CardTitle>Alertas e monitoramento</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        {alerts.map((alert) => {
+        {alerts.map(alert => {
           const color =
             alert.severity === "critical"
               ? severityColors.critical
               : alert.severity === "warning"
                 ? severityColors.warning
                 : severityColors.info;
+          const Icon =
+            alert.severity === "critical"
+              ? Siren
+              : alert.severity === "warning"
+                ? AlertTriangle
+                : ShieldAlert;
           return (
             <div
               key={alert.title}
-              className={`flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2 ${color}`}
+              className={`interactive-row flex flex-wrap items-center justify-between gap-3 px-3 py-3 ${color}`}
             >
-              <div>
-                <div className="text-sm font-semibold flex items-center gap-2">
-                  {alert.severity === "critical" ? "🚨" : alert.severity === "warning" ? "⚠️" : "ℹ️"}
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <Icon size={16} />
                   {alert.title}
                 </div>
                 <div className="text-xs opacity-80">{alert.detail}</div>
                 {alert.generatedAt && (
-                  <div className="text-[11px] opacity-70">Disparou {formatRelativeTime(alert.generatedAt)}</div>
+                  <div className="text-[11px] opacity-70">
+                    Disparou {formatRelativeTime(alert.generatedAt)}
+                  </div>
                 )}
               </div>
               <div className="flex gap-2">
@@ -73,8 +87,12 @@ export function AlertsCard({ alerts, filterState, onFilter, onRefresh }: AlertsC
                     variant="secondary"
                     onClick={() =>
                       onFilter({
-                        etapaPipeline: alert.filters?.etapaPipeline ?? filterState.etapaPipeline,
-                        vendedorNome: alert.filters?.vendedorNome ?? filterState.vendedorNome,
+                        etapaPipeline:
+                          alert.filters?.etapaPipeline ??
+                          filterState.etapaPipeline,
+                        vendedorNome:
+                          alert.filters?.vendedorNome ??
+                          filterState.vendedorNome,
                         produto: alert.filters?.produto ?? filterState.produto,
                       })
                     }
@@ -83,7 +101,8 @@ export function AlertsCard({ alerts, filterState, onFilter, onRefresh }: AlertsC
                   </Button>
                 )}
                 <Button size="sm" variant="outline" onClick={onRefresh}>
-                  Limpar alerta
+                  <RefreshCw size={14} />
+                  Atualizar leitura
                 </Button>
               </div>
             </div>

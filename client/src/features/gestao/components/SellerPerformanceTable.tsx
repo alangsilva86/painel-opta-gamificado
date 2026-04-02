@@ -105,7 +105,7 @@ export function SellerPerformanceTable({
   }, [rows, incluirSemComissao, sortKey, sortDir]);
 
   return (
-    <Card className="bg-slate-950 border-slate-800">
+    <Card className="table-shell">
       <CardHeader className="pb-2">
         <CardTitle>Produção Monetizada & Comissão por Vendedora</CardTitle>
       </CardHeader>
@@ -146,7 +146,10 @@ export function SellerPerformanceTable({
           <TableBody>
             {sorted.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-slate-300">
+                <TableCell
+                  colSpan={8}
+                  className="py-10 text-center text-muted-foreground"
+                >
                   Sem dados de vendedoras no período.
                 </TableCell>
               </TableRow>
@@ -189,10 +192,10 @@ export function SellerPerformanceTable({
                   key={row.vendedor}
                   className={`cursor-pointer ${
                     ativo
-                      ? "bg-emerald-900/20"
+                      ? "bg-emerald-500/10"
                       : idx % 2 === 0
-                        ? "bg-[#0f172a]"
-                        : "bg-[#111827]"
+                        ? "bg-background/30"
+                        : "bg-background/55"
                   } ${semComissaoAlert ? "ring-1 ring-amber-500/40" : ""}`}
                   onClick={() => onSellerClick(row.vendedor)}
                 >
@@ -216,7 +219,7 @@ export function SellerPerformanceTable({
                         </div>
                       )}
                     </div>
-                    <div className="text-xs text-slate-400">
+                    <div className="text-xs text-muted-foreground">
                       {formatPercent(row.pctTotal ?? 0)} da comissão
                     </div>
                     {rankEvolution?.has(row.vendedor) &&
@@ -225,7 +228,7 @@ export function SellerPerformanceTable({
                           className={`text-[11px] ${
                             (rankEvolution.get(row.vendedor) ?? 0) > 0
                               ? "text-emerald-300"
-                              : "text-slate-400"
+                              : "text-muted-foreground"
                           }`}
                         >
                           {(rankEvolution.get(row.vendedor) ?? 0) > 0
@@ -242,19 +245,21 @@ export function SellerPerformanceTable({
                         <div className="font-semibold">
                           {formatCurrency(row.meta)}
                         </div>
-                        <div className="text-xs text-slate-400">
+                        <div className="text-xs text-muted-foreground">
                           {formatPercent(row.pctMeta ?? 0)} da meta
                         </div>
                       </>
                     ) : (
-                      <div className="text-xs text-slate-500">Sem meta</div>
+                      <div className="text-xs text-muted-foreground/70">
+                        Sem meta
+                      </div>
                     )}
                   </TableCell>
                   <TableCell>
                     <div className="font-semibold">
                       {formatCurrency(liquidoDisplay)}
                     </div>
-                    <div className="text-xs text-slate-400">
+                    <div className="text-xs text-muted-foreground">
                       Ticket {formatCurrency(ticketDisplay)}
                     </div>
                   </TableCell>
@@ -262,7 +267,7 @@ export function SellerPerformanceTable({
                     <div className="font-semibold">
                       {formatCurrency(comissaoDisplay)}
                     </div>
-                    <div className="text-xs text-slate-400">
+                    <div className="text-xs text-muted-foreground">
                       Base {formatCurrency(row.comissaoBase ?? 0)} • Bônus{" "}
                       {formatCurrency(row.comissaoBonus ?? 0)}
                     </div>
@@ -271,13 +276,15 @@ export function SellerPerformanceTable({
                     <div className="font-semibold">
                       {formatCurrency(row.comissaoVendedora ?? 0)}
                     </div>
-                    <div className="text-xs text-slate-400">Base vendedora</div>
+                    <div className="text-xs text-muted-foreground">
+                      Base vendedora
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="font-semibold">
                       {formatPercent(takeRateDisplay)}
                     </div>
-                    <div className="text-xs text-slate-400">
+                    <div className="text-xs text-muted-foreground">
                       Limpa {formatPercent(takeRateLimpo)}
                     </div>
                   </TableCell>
@@ -286,12 +293,12 @@ export function SellerPerformanceTable({
                       {row.semComissaoCount} / {row.count}
                     </div>
                     <div
-                      className={`text-xs ${semComissaoAlert ? "text-amber-300" : "text-slate-400"}`}
+                      className={`text-xs ${semComissaoAlert ? "text-amber-300" : "text-muted-foreground"}`}
                     >
                       {formatPercent(pctSemComissao)} sem comissão
                     </div>
                     {liquidoSemComissao > 0 && (
-                      <div className="text-xs text-slate-500">
+                      <div className="text-xs text-muted-foreground/70">
                         Líquido sem comissão{" "}
                         {formatCurrency(liquidoSemComissao)}
                       </div>
@@ -303,13 +310,13 @@ export function SellerPerformanceTable({
                     )}
                   </TableCell>
                   <TableCell className="space-y-1">
-                    <div className="text-xs text-slate-400">
+                    <div className="text-xs text-muted-foreground">
                       calc {formatPercent(row.pctComissaoCalculada ?? 0)}
                     </div>
-                    <div className="text-xs text-slate-400">
+                    <div className="text-xs text-muted-foreground">
                       liq {formatPercent(row.pctLiquidoFallback ?? 0)}
                     </div>
-                    <div className="text-xs text-slate-400">
+                    <div className="text-xs text-muted-foreground">
                       data {formatPercent(row.pctInconsistenciaData ?? 0)}
                     </div>
                     {(row.semComissaoCount ?? 0) > 0 && (

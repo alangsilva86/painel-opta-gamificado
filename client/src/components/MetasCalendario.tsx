@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Calendar, RefreshCw, Edit2 } from "lucide-react";
 import { calcularDiasUteisDoMes } from "@shared/dateUtils";
 
@@ -57,7 +56,7 @@ export function MetasCalendario({
     const diaSemana = data.getDay();
     const isFimDeSemana = diaSemana === 0 || diaSemana === 6;
 
-    const metaInfo = metasDiarias.find((m) => m.dia === dia);
+    const metaInfo = metasDiarias.find(m => m.dia === dia);
     const meta = metaInfo?.meta || metaDiaria;
 
     return { isFimDeSemana, meta, tipo: metaInfo?.tipo || "automatica" };
@@ -72,29 +71,31 @@ export function MetasCalendario({
 
   return (
     <div className="space-y-6">
-      {/* Header com info */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 rounded-3xl border border-border/60 bg-background/55 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-lg font-semibold">{vendedoraNome}</h3>
+          <div className="metric-label mb-2">Planejamento diário</div>
+          <h3 className="text-lg font-semibold text-foreground">
+            {vendedoraNome}
+          </h3>
           <p className="text-sm text-muted-foreground">
-            Meta mensal: {formatCurrency(metaMensal)} • {diasUteis} dias úteis • Meta diária: {formatCurrency(metaDiaria)}
+            Meta mensal: {formatCurrency(metaMensal)} • {diasUteis} dias úteis •
+            Meta diária: {formatCurrency(metaDiaria)}
           </p>
         </div>
         <Button
           onClick={onRegenerar}
           variant="outline"
           size="sm"
-          className="gap-2"
+          className="gap-2 rounded-xl border-border/70 bg-background/60 hover:bg-background/90"
         >
           <RefreshCw size={14} />
           Regenerar Automático
         </Button>
       </div>
 
-      {/* Calendário */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+      <Card className="table-shell">
+        <CardHeader className="border-b border-border/60 pb-5">
+          <CardTitle className="flex items-center gap-2 text-lg">
             <Calendar size={20} />
             Metas Diárias - {mes}
           </CardTitle>
@@ -102,26 +103,29 @@ export function MetasCalendario({
         <CardContent>
           <div className="grid grid-cols-7 gap-2">
             {/* Headers dos dias da semana */}
-            {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"].map((dia) => (
-              <div key={dia} className="text-center font-semibold text-xs text-muted-foreground py-2">
+            {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"].map(dia => (
+              <div
+                key={dia}
+                className="py-2 text-center text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground"
+              >
                 {dia}
               </div>
             ))}
 
             {/* Dias do mês */}
-            {dias.map((dia) => {
+            {dias.map(dia => {
               const { isFimDeSemana, meta, tipo } = getDiaInfo(dia);
               const isEditando = editandoDia === dia;
 
               return (
                 <div
                   key={dia}
-                  className={`p-2 rounded-lg border text-center transition ${
+                  className={`rounded-2xl border p-2 text-center transition ${
                     isFimDeSemana
-                      ? "bg-muted/30 border-muted"
+                      ? "border-border/50 bg-background/40"
                       : tipo === "manual"
-                        ? "bg-blue-500/10 border-blue-500/30"
-                        : "bg-card border-border hover:border-primary/50"
+                        ? "border-primary/35 bg-primary/10"
+                        : "border-border/60 bg-background/70 hover:border-primary/40"
                   }`}
                 >
                   {isEditando ? (
@@ -130,15 +134,15 @@ export function MetasCalendario({
                         type="number"
                         placeholder={meta.toFixed(0)}
                         value={novaMetaInput}
-                        onChange={(e) => setNovaMetaInput(e.target.value)}
-                        className="h-6 text-xs p-1"
+                        onChange={e => setNovaMetaInput(e.target.value)}
+                        className="h-7 rounded-lg border-border/70 bg-background/80 p-1 text-xs"
                         autoFocus
                       />
                       <div className="flex gap-1">
                         <Button
                           size="sm"
                           variant="default"
-                          className="h-5 text-xs flex-1"
+                          className="h-6 flex-1 rounded-lg px-2 text-xs"
                           onClick={() => handleSalvarMeta(dia)}
                         >
                           OK
@@ -146,7 +150,7 @@ export function MetasCalendario({
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-5 text-xs flex-1"
+                          className="h-6 flex-1 rounded-lg px-2 text-xs"
                           onClick={() => setEditandoDia(null)}
                         >
                           X
@@ -154,8 +158,9 @@ export function MetasCalendario({
                       </div>
                     </div>
                   ) : (
-                    <div
-                      className="cursor-pointer group"
+                    <button
+                      type="button"
+                      className="group w-full rounded-xl p-1 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
                       onClick={() => {
                         if (!isFimDeSemana) {
                           setEditandoDia(dia);
@@ -163,35 +168,41 @@ export function MetasCalendario({
                         }
                       }}
                     >
-                      <p className="font-semibold text-sm">{dia}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-center text-sm font-semibold text-foreground">
+                        {dia}
+                      </p>
+                      <p className="text-center text-xs text-muted-foreground">
                         {formatCurrency(meta).replace("R$ ", "")}
                       </p>
                       {tipo === "manual" && (
-                        <Edit2 size={10} className="mx-auto mt-1 opacity-60" />
+                        <Edit2
+                          size={10}
+                          className="mx-auto mt-1 text-primary/70"
+                        />
                       )}
                       {isFimDeSemana && (
-                        <p className="text-xs text-muted-foreground mt-1">Fim</p>
+                        <p className="mt-1 text-center text-xs text-muted-foreground">
+                          Fim
+                        </p>
                       )}
-                    </div>
+                    </button>
                   )}
                 </div>
               );
             })}
           </div>
 
-          {/* Legenda */}
           <div className="flex gap-6 mt-6 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-card border border-border" />
+              <div className="h-4 w-4 rounded bg-background/70 border border-border/60" />
               <span>Automática</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-blue-500/10 border border-blue-500/30" />
+              <div className="h-4 w-4 rounded border border-primary/35 bg-primary/10" />
               <span>Manual</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-muted/30 border border-muted" />
+              <div className="h-4 w-4 rounded border border-border/50 bg-background/40" />
               <span>Fim de semana</span>
             </div>
           </div>

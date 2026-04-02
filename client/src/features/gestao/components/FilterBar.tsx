@@ -80,9 +80,7 @@ function StatusPill({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div
-          className={`inline-flex cursor-default items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${badgeClass}`}
-        >
+        <div className={`status-chip cursor-default ${badgeClass}`}>
           {icon}
           {label}
         </div>
@@ -144,19 +142,87 @@ export function FilterBar({
     : "";
 
   return (
-    <div className="sticky top-0 z-30 -mx-4 border-b border-border bg-background/92 px-4 py-3 backdrop-blur-xl">
-      <div className="space-y-3">
-        {/* Row 1: title + status pills + actions */}
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-              <Sparkles size={10} />
-              Gestão Executiva
+    <div className="sticky top-0 z-30 -mx-4 px-4 pb-2 pt-2">
+      <div className="panel-card-strong px-4 py-4 sm:px-5">
+        <div className="space-y-4">
+          <div className="page-section-header">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-background/60 px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                <Sparkles size={10} />
+                Gestão Executiva
+              </div>
+              <h1 className="text-2xl font-black tracking-tight text-foreground">
+                Command center comercial
+              </h1>
+              <p className="page-section-copy max-w-2xl">
+                Contexto, filtros e ações da leitura executiva em um único ponto
+                de controle.
+              </p>
             </div>
-            <h1 className="text-xl font-bold tracking-tight text-foreground">
-              Cockpit comercial
-            </h1>
 
+            <div className="flex flex-wrap items-center gap-2">
+              {onApplySavedView &&
+                onSaveView &&
+                onRenameView &&
+                onDuplicateView &&
+                onDeleteView &&
+                onResetView && (
+                  <SavedViewsManager
+                    presetViews={presetViews}
+                    customViews={customViews}
+                    activeViewId={activeViewId}
+                    onApply={onApplySavedView}
+                    onSave={onSaveView}
+                    onRename={onRenameView}
+                    onDuplicate={onDuplicateView}
+                    onDelete={onDeleteView}
+                    onReset={onResetView}
+                    onRestoreLast={onRestoreLastView}
+                    lastViewName={lastViewName}
+                  />
+                )}
+              <MetricGlossaryDrawer />
+              <Button
+                type="button"
+                size="sm"
+                variant={comparisonMode ? "secondary" : "outline"}
+                className="rounded-xl border-white/10 bg-background/65"
+                onClick={() => onComparisonModeChange(!comparisonMode)}
+              >
+                {comparisonMode ? "Comparação ativa" : "Comparar período"}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={onRefresh}
+                disabled={isRefreshing}
+                className="rounded-xl border-white/10 bg-background/65"
+              >
+                {isRefreshing ? "Atualizando..." : "Atualizar dados"}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={onApply}
+                disabled={isApplying || isRefreshing}
+                className="rounded-xl"
+              >
+                {isApplying ? "Aplicando..." : "Aplicar filtros"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onExport}
+                disabled={isExporting}
+                className="rounded-xl border-white/10 bg-background/65"
+              >
+                {isExporting ? "Exportando..." : "Exportar CSV"}
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
             {freshness && (
               <StatusPill
                 icon={<RefreshCw size={11} />}
@@ -178,196 +244,136 @@ export function FilterBar({
                 icon={<Activity size={11} />}
                 label={businessStatus.headline}
                 tooltip={businessStatus.summary}
-                badgeClass={getExecutiveStatusTone(businessStatus.status).badgeClass}
+                badgeClass={
+                  getExecutiveStatusTone(businessStatus.status).badgeClass
+                }
               />
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {onApplySavedView &&
-              onSaveView &&
-              onRenameView &&
-              onDuplicateView &&
-              onDeleteView &&
-              onResetView && (
-                <SavedViewsManager
-                  presetViews={presetViews}
-                  customViews={customViews}
-                  activeViewId={activeViewId}
-                  onApply={onApplySavedView}
-                  onSave={onSaveView}
-                  onRename={onRenameView}
-                  onDuplicate={onDuplicateView}
-                  onDelete={onDeleteView}
-                  onReset={onResetView}
-                  onRestoreLast={onRestoreLastView}
-                  lastViewName={lastViewName}
-                />
-              )}
-            <MetricGlossaryDrawer />
-            <Button
-              type="button"
-              size="sm"
-              variant={comparisonMode ? "secondary" : "outline"}
-              className="border-border bg-card text-foreground"
-              onClick={() => onComparisonModeChange(!comparisonMode)}
-            >
-              {comparisonMode ? "Comparação ativa" : "Comparar período"}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={onRefresh}
-              disabled={isRefreshing}
-            >
-              {isRefreshing ? "Atualizando..." : "Atualizar dados"}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={onApply}
-              disabled={isApplying || isRefreshing}
-            >
-              {isApplying ? "Aplicando..." : "Aplicar filtros"}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onExport}
-              disabled={isExporting}
-            >
-              {isExporting ? "Exportando..." : "Exportar CSV"}
-            </Button>
-          </div>
-        </div>
-
-        {/* Row 2: filters */}
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Início</label>
-            <Input
-              type="date"
-              value={dateFrom}
-              onChange={e => onDateFromChange(e.target.value)}
-              className="h-8 border-input bg-card text-sm"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">Fim</label>
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={e => onDateToChange(e.target.value)}
-              className="h-8 border-input bg-card text-sm"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-muted-foreground">
-              Sem comissão
-            </label>
-            <Button
-              size="sm"
-              variant={incluirSemComissao ? "secondary" : "outline"}
-              onClick={onToggleSemComissao}
-              className="h-8 justify-start border-border bg-card text-foreground"
-            >
-              {incluirSemComissao ? "Incluindo" : "Excluindo"}
-            </Button>
-          </div>
-          {onToggleSeller && sellerOptions.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted-foreground">
-                Vendedoras
-              </label>
-              <MultiSelectDropdown
-                label="Vendedoras"
-                options={sellerOptions}
-                selected={selectedSellers}
-                onToggle={onToggleSeller}
-              />
-            </div>
-          )}
-          {onToggleProduct && productOptions.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted-foreground">Produtos</label>
-              <MultiSelectDropdown
-                label="Produtos"
-                options={productOptions}
-                selected={selectedProducts}
-                onToggle={onToggleProduct}
-              />
-            </div>
-          )}
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={onClear}
-            className="h-8 text-muted-foreground"
-          >
-            Limpar filtros
-          </Button>
-        </div>
-
-        {/* Row 3 (conditional): comparison period */}
-        {comparisonMode && (
-          <div className="rounded-xl border border-border bg-card/80 p-3">
+          <div className="panel-inset p-3">
             <div className="flex flex-wrap items-end gap-3">
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 border-border bg-secondary text-foreground"
-                  onClick={() => onComparisonPreset("prev_month")}
-                >
-                  Mês anterior
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 border-border bg-secondary text-foreground"
-                  onClick={() => onComparisonPreset("prev_week")}
-                >
-                  Semana anterior
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 border-border bg-secondary text-foreground"
-                  onClick={() => onComparisonPreset("prev_year")}
-                >
-                  Mesmo período ano passado
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 text-muted-foreground"
-                  onClick={() => onComparisonPreset("custom")}
-                >
-                  Personalizado
-                </Button>
-              </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-muted-foreground">De</label>
+                <label className="metric-label">Início</label>
                 <Input
                   type="date"
-                  value={comparisonDateFrom}
-                  onChange={e => onComparisonDateFromChange(e.target.value)}
-                  className="h-8 border-input bg-background text-sm"
+                  value={dateFrom}
+                  onChange={e => onDateFromChange(e.target.value)}
+                  className="h-9 rounded-xl border-white/10 bg-background/72 text-sm"
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-muted-foreground">Até</label>
+                <label className="metric-label">Fim</label>
                 <Input
                   type="date"
-                  value={comparisonDateTo}
-                  onChange={e => onComparisonDateToChange(e.target.value)}
-                  className="h-8 border-input bg-background text-sm"
+                  value={dateTo}
+                  onChange={e => onDateToChange(e.target.value)}
+                  className="h-9 rounded-xl border-white/10 bg-background/72 text-sm"
                 />
               </div>
+              <div className="flex flex-col gap-1">
+                <label className="metric-label">Sem comissão</label>
+                <Button
+                  size="sm"
+                  variant={incluirSemComissao ? "secondary" : "outline"}
+                  onClick={onToggleSemComissao}
+                  className="h-9 justify-start rounded-xl border-white/10 bg-background/72 text-foreground"
+                >
+                  {incluirSemComissao ? "Incluindo" : "Excluindo"}
+                </Button>
+              </div>
+              {onToggleSeller && sellerOptions.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  <label className="metric-label">Vendedoras</label>
+                  <MultiSelectDropdown
+                    label="Vendedoras"
+                    options={sellerOptions}
+                    selected={selectedSellers}
+                    onToggle={onToggleSeller}
+                  />
+                </div>
+              )}
+              {onToggleProduct && productOptions.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  <label className="metric-label">Produtos</label>
+                  <MultiSelectDropdown
+                    label="Produtos"
+                    options={productOptions}
+                    selected={selectedProducts}
+                    onToggle={onToggleProduct}
+                  />
+                </div>
+              )}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={onClear}
+                className="h-9 rounded-xl px-4 text-muted-foreground"
+              >
+                Limpar filtros
+              </Button>
             </div>
+
+            {comparisonMode && (
+              <div className="mt-3 rounded-2xl border border-white/8 bg-background/55 p-3">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 rounded-xl border-white/10 bg-background/72 text-foreground"
+                      onClick={() => onComparisonPreset("prev_month")}
+                    >
+                      Mês anterior
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 rounded-xl border-white/10 bg-background/72 text-foreground"
+                      onClick={() => onComparisonPreset("prev_week")}
+                    >
+                      Semana anterior
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 rounded-xl border-white/10 bg-background/72 text-foreground"
+                      onClick={() => onComparisonPreset("prev_year")}
+                    >
+                      Mesmo período ano passado
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-9 rounded-xl text-muted-foreground"
+                      onClick={() => onComparisonPreset("custom")}
+                    >
+                      Personalizado
+                    </Button>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="metric-label">De</label>
+                    <Input
+                      type="date"
+                      value={comparisonDateFrom}
+                      onChange={e => onComparisonDateFromChange(e.target.value)}
+                      className="h-9 rounded-xl border-white/10 bg-background/72 text-sm"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="metric-label">Até</label>
+                    <Input
+                      type="date"
+                      value={comparisonDateTo}
+                      onChange={e => onComparisonDateToChange(e.target.value)}
+                      className="h-9 rounded-xl border-white/10 bg-background/72 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
