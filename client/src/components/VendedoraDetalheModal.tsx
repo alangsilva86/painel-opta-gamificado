@@ -27,6 +27,7 @@ interface Contrato {
   valorLiquido: number;
   baseComissionavel: number;
   produto: string;
+  tipoOperacao?: string;
   estagio: string;
   ignoradoPainelVendedoras?: boolean;
 }
@@ -82,11 +83,20 @@ export function VendedoraDetalheModal({
   const totalComIncentivo = contratosOrdenados.filter(c => !isSemIncentivo(c)).length;
   const totalSemIncentivo = contratosOrdenados.filter(c => isSemIncentivo(c)).length;
 
+  // Taxa efetiva = multiplicador × acelerador — usada para calcular incentivo por contrato
+  const taxaEfetiva =
+    vendedora.baseComissionavelTotal > 0
+      ? vendedora.comissaoPrevista / vendedora.baseComissionavelTotal
+      : 0;
+
+  const incentivoContrato = (c: Contrato) =>
+    isSemIncentivo(c) ? 0 : c.baseComissionavel * taxaEfetiva;
+
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-5xl w-full p-0 overflow-hidden">
-        {/* Header */}
-        <div className={cn("px-6 pt-6 pb-4 border-b border-white/10", tierVisual.softBgClass)}>
+      <DialogContent className="max-w-5xl w-full p-0 max-h-[92vh] flex flex-col">
+        {/* Header — fixo no topo */}
+        <div className={cn("px-6 pt-6 pb-4 border-b border-white/10 flex-shrink-0", tierVisual.softBgClass)}>
           <DialogHeader>
             <DialogTitle asChild>
               <div className="flex items-center gap-4">
@@ -111,7 +121,7 @@ export function VendedoraDetalheModal({
                 </div>
 
                 {/* Visão analítica label */}
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground pr-6">
                   <BarChart3 size={14} />
                   Visão analítica
                 </div>
@@ -164,8 +174,8 @@ export function VendedoraDetalheModal({
           </div>
         </div>
 
-        {/* Mini-KPI badges */}
-        <div className="flex flex-wrap items-center gap-2 px-6 py-3 border-b border-white/10 bg-background/60">
+        {/* Mini-KPI badges — fixo */}
+        <div className="flex flex-wrap items-center gap-2 px-6 py-3 border-b border-white/10 bg-background/60 flex-shrink-0">
           <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-background/60 px-3 py-1.5">
             <FileText size={13} className="text-muted-foreground" />
             <span className="text-xs text-muted-foreground">Total</span>
@@ -190,8 +200,8 @@ export function VendedoraDetalheModal({
           </div>
         </div>
 
-        {/* Tabela */}
-        <div className="px-6 py-4">
+        {/* Tabela — cresce e faz scroll interno */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
           <div className="text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground mb-3">
             Histórico de contratos — {contratosOrdenados.length} registros
           </div>
@@ -202,7 +212,7 @@ export function VendedoraDetalheModal({
               <p className="text-sm">Nenhum contrato no período</p>
             </div>
           ) : (
-            <div className="max-h-[42vh] overflow-y-auto rounded-xl border border-white/10">
+            <div className="rounded-xl border border-white/10 overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-background/95 backdrop-blur-sm z-10">
                   <tr className="border-b border-white/10">
@@ -210,13 +220,14 @@ export function VendedoraDetalheModal({
                     <th className="text-left px-3 py-2.5 text-[11px] uppercase tracking-[0.12em] text-muted-foreground font-semibold">Data</th>
                     <th className="text-left px-3 py-2.5 text-[11px] uppercase tracking-[0.12em] text-muted-foreground font-semibold">Tipo da Operação</th>
                     <th className="text-right px-3 py-2.5 text-[11px] uppercase tracking-[0.12em] text-muted-foreground font-semibold">Valor Líquido</th>
-                    <th className="text-right px-3 py-2.5 text-[11px] uppercase tracking-[0.12em] text-muted-foreground font-semibold">Incentivo na Meta</th>
+                    <th className="text-right px-3 py-2.5 text-[11px] uppercase tracking-[0.12em] text-muted-foreground font-semibold">Incentivo</th>
                     <th className="text-center px-3 py-2.5 text-[11px] uppercase tracking-[0.12em] text-muted-foreground font-semibold">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {contratosOrdenados.map((c, i) => {
                     const semIncentivo = isSemIncentivo(c);
+                    const incentivo = incentivoContrato(c);
                     return (
                       <tr
                         key={c.id}
@@ -229,17 +240,17 @@ export function VendedoraDetalheModal({
                         <td className="px-3 py-2.5 text-foreground tabular-nums whitespace-nowrap">
                           {formatDate(c.dataPagamento)}
                         </td>
-                        <td className="px-3 py-2.5 text-foreground max-w-[160px] truncate" title={c.produto}>
-                          {c.produto || "—"}
+                        <td className="px-3 py-2.5 text-foreground max-w-[160px] truncate" title={c.tipoOperacao || c.produto}>
+                          {c.tipoOperacao || c.produto || "—"}
                         </td>
                         <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-foreground">
                           {formatCurrency(c.valorLiquido)}
                         </td>
                         <td className={cn(
                           "px-3 py-2.5 text-right font-semibold tabular-nums",
-                          semIncentivo ? "text-muted-foreground" : tierVisual.textClass
+                          semIncentivo || incentivo === 0 ? "text-muted-foreground" : tierVisual.textClass
                         )}>
-                          {semIncentivo ? "—" : formatCurrency(c.baseComissionavel)}
+                          {semIncentivo || incentivo === 0 ? "—" : formatCurrency(incentivo)}
                         </td>
                         <td className="px-3 py-2.5 text-center">
                           {semIncentivo ? (
@@ -267,8 +278,8 @@ export function VendedoraDetalheModal({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex justify-end px-6 pb-5">
+        {/* Footer — fixo no fundo */}
+        <div className="flex justify-end px-6 py-4 border-t border-white/10 flex-shrink-0">
           <Button variant="outline" size="sm" onClick={onClose}>
             Fechar
           </Button>

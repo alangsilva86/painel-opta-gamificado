@@ -43,6 +43,7 @@ export interface ZohoContrato {
   Produto: { display_value: string; ID: string };
   Corban: { display_value: string; ID: string };
   Estagio: { display_value: string; ID: string }; // Blueprint.Current_Stage
+  TipoOperacao: { display_value: string; ID: string };
 }
 
 interface ZohoDataResponse {
@@ -250,6 +251,10 @@ class ZohoService {
       Estagio: {
         display_value: raw["Blueprint.Current_Stage"]?.zc_display_value || "Sem estágio",
         ID: raw["Blueprint.Current_Stage"]?.ID || "",
+      },
+      TipoOperacao: {
+        display_value: raw.operationType?.zc_display_value || raw.operationType?.operation_type_name || "",
+        ID: raw.operationType?.ID || "",
       },
     };
   }

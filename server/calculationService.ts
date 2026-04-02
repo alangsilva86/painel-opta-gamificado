@@ -30,6 +30,7 @@ export interface ContratoProcessado {
   corban: string;
   estagio: string;
   estagioId: string;
+  tipoOperacao: string;
   ignoradoPainelVendedoras?: boolean;
 }
 
@@ -165,6 +166,7 @@ export function processarContratos(contratosZoho: ZohoContrato[]): ContratoProce
       corban: c.Corban.display_value,
       estagio: c.Estagio.display_value,
       estagioId: c.Estagio.ID,
+      tipoOperacao: c.TipoOperacao.display_value,
       ignoradoPainelVendedoras,
     };
   });
