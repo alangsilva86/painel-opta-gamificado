@@ -39,7 +39,10 @@ import {
   calcularDiasUteisDoMes,
   calcularSemanasUteisDoMes,
 } from "./metasService";
-import { filtrarContratosProcessadosValidos, filtrarContratosZohoValidos } from "./contractUtils";
+import {
+  filtrarContratosProcessadosValidos,
+  filtrarContratosZohoValidos,
+} from "./contractUtils";
 
 function getIntervaloDoMes(mes: string) {
   const [ano, mesNum] = mes.split("-").map(Number);
@@ -51,7 +54,11 @@ function getIntervaloDoMes(mes: string) {
 
 function obterIntervalosOperacionais() {
   const agora = new Date();
-  const inicioDoDia = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  const inicioDoDia = new Date(
+    agora.getFullYear(),
+    agora.getMonth(),
+    agora.getDate()
+  );
   const inicioDaSemana = new Date(inicioDoDia);
   const diasParaSegunda = (inicioDoDia.getDay() + 6) % 7; // 0 = domingo -> 6, 1 = segunda -> 0
   inicioDaSemana.setDate(inicioDaSemana.getDate() - diasParaSegunda);
@@ -77,7 +84,9 @@ function somarRealizadoPeriodo(
   return contratos.reduce((acc, contrato) => {
     const dataPag = parseDataPagamento(contrato.dataPagamento);
     if (!dataPag) return acc;
-    return dataPag >= inicio && dataPag <= fim ? acc + (contrato.valorLiquido || 0) : acc;
+    return dataPag >= inicio && dataPag <= fim
+      ? acc + (contrato.valorLiquido || 0)
+      : acc;
   }, 0);
 }
 
@@ -97,10 +106,14 @@ export const dashboardRouter = router({
       // Busca contratos do Zoho ou usa mock
       let contratosZoho;
       if (shouldUseMockData()) {
-        console.log("[dashboardRouter] Usando dados mock (Zoho não disponível)");
+        console.log(
+          "[dashboardRouter] Usando dados mock (Zoho não disponível)"
+        );
         contratosZoho = gerarContratosMock();
       } else {
-        contratosZoho = filtrarContratosZohoValidos(await zohoService.buscarContratosMesAtual());
+        contratosZoho = filtrarContratosZohoValidos(
+          await zohoService.buscarContratosMesAtual()
+        );
       }
 
       // Sincroniza vendedoras do Zoho para o banco
@@ -108,10 +121,16 @@ export const dashboardRouter = router({
 
       // Processa contratos e aplica filtro de estágios válidos
       const contratosProcessados = processarContratos(contratosZoho);
-      const contratosParaExibicao = filtrarContratosProcessadosValidos(contratosProcessados);
-      const contratosParaPainelVendedoras = filtrarContratosPainelVendedoras(contratosParaExibicao);
-      const contratosSemComissao = contratosParaPainelVendedoras.filter((c) => c.baseComissionavel === 0).length;
-      const contratosComComissao = contratosParaPainelVendedoras.length - contratosSemComissao;
+      const contratosParaExibicao =
+        filtrarContratosProcessadosValidos(contratosProcessados);
+      const contratosParaPainelVendedoras = filtrarContratosPainelVendedoras(
+        contratosParaExibicao
+      );
+      const contratosSemComissao = contratosParaPainelVendedoras.filter(
+        c => c.baseComissionavel === 0
+      ).length;
+      const contratosComComissao =
+        contratosParaPainelVendedoras.length - contratosSemComissao;
       const percentualContratosSemComissao =
         contratosParaPainelVendedoras.length > 0
           ? (contratosSemComissao / contratosParaPainelVendedoras.length) * 100
@@ -121,63 +140,93 @@ export const dashboardRouter = router({
       );
 
       // Busca metas do banco (paralelo para reduzir latência)
-      const [metasVendedorDb, metaGlobalDb, metasDiariasMes, metasSemanaisMes] = await Promise.all([
-        listarMetasVendedorPorMes(mesAtual),
-        obterMetaGlobal(mesAtual),
-        listarMetasDiariasDoMes(mesAtual),
-        listarMetasSemanaisDoMes(mesAtual),
-      ]);
+      const [metasVendedorDb, metaGlobalDb, metasDiariasMes, metasSemanaisMes] =
+        await Promise.all([
+          listarMetasVendedorPorMes(mesAtual),
+          obterMetaGlobal(mesAtual),
+          listarMetasDiariasDoMes(mesAtual),
+          listarMetasSemanaisDoMes(mesAtual),
+        ]);
 
       // Monta mapa de metas por vendedora
       const metasMap = new Map<string, number>();
-      metasVendedorDb.forEach((m) => {
+      metasVendedorDb.forEach(m => {
         metasMap.set(m.vendedoraId, parseFloat(m.metaValor));
       });
 
       // Mapa de metas operacionais (diárias/semanais) por vendedora
-      const metasPlanejadasMap = new Map<string, { metaDiaria: number; metaSemanal: number }>();
+      const metasPlanejadasMap = new Map<
+        string,
+        { metaDiaria: number; metaSemanal: number }
+      >();
       const metasDiariasCount = new Map<string, number>();
       const metasSemanaisCount = new Map<string, number>();
 
-      metasDiariasMes.forEach((m) => {
+      metasDiariasMes.forEach(m => {
         const valor = parseFloat(m.metaValor);
         if (isNaN(valor)) return;
-        const atual = metasPlanejadasMap.get(m.vendedoraId) || { metaDiaria: 0, metaSemanal: 0 };
+        const atual = metasPlanejadasMap.get(m.vendedoraId) || {
+          metaDiaria: 0,
+          metaSemanal: 0,
+        };
         atual.metaDiaria += valor;
         metasPlanejadasMap.set(m.vendedoraId, atual);
-        metasDiariasCount.set(m.vendedoraId, (metasDiariasCount.get(m.vendedoraId) || 0) + 1);
+        metasDiariasCount.set(
+          m.vendedoraId,
+          (metasDiariasCount.get(m.vendedoraId) || 0) + 1
+        );
       });
 
-      metasSemanaisMes.forEach((m) => {
+      metasSemanaisMes.forEach(m => {
         const valor = parseFloat(m.metaValor);
         if (isNaN(valor)) return;
-        const atual = metasPlanejadasMap.get(m.vendedoraId) || { metaDiaria: 0, metaSemanal: 0 };
+        const atual = metasPlanejadasMap.get(m.vendedoraId) || {
+          metaDiaria: 0,
+          metaSemanal: 0,
+        };
         atual.metaSemanal += valor;
         metasPlanejadasMap.set(m.vendedoraId, atual);
-        metasSemanaisCount.set(m.vendedoraId, (metasSemanaisCount.get(m.vendedoraId) || 0) + 1);
+        metasSemanaisCount.set(
+          m.vendedoraId,
+          (metasSemanaisCount.get(m.vendedoraId) || 0) + 1
+        );
       });
 
-      const { agora, inicioDoDia, inicioDaSemana } = obterIntervalosOperacionais();
+      const { agora, inicioDoDia, inicioDaSemana } =
+        obterIntervalosOperacionais();
 
       // Agrega por vendedora
-      let vendedoras: VendedoraStats[] = agregarPorVendedora(contratosParaPainelVendedoras, metasMap).map((v) => {
+      let vendedoras: VendedoraStats[] = agregarPorVendedora(
+        contratosParaPainelVendedoras,
+        metasMap
+      ).map(v => {
         const planejada = metasPlanejadasMap.get(v.id);
         const metasDiariasEntradas = metasDiariasCount.get(v.id) || 0;
         const metasSemanaisEntradas = metasSemanaisCount.get(v.id) || 0;
         const metaDiaria =
           planejada && planejada.metaDiaria > 0
-            ? planejada.metaDiaria / Math.max(1, metasDiariasEntradas || diasUteis || 1)
+            ? planejada.metaDiaria /
+              Math.max(1, metasDiariasEntradas || diasUteis || 1)
             : diasUteis > 0
               ? v.meta / diasUteis
               : 0;
         const metaSemanal =
           planejada && planejada.metaSemanal > 0
-            ? planejada.metaSemanal / Math.max(1, metasSemanaisEntradas || semanasPlanejadas || 1)
+            ? planejada.metaSemanal /
+              Math.max(1, metasSemanaisEntradas || semanasPlanejadas || 1)
             : semanasPlanejadas > 0
               ? v.meta / semanasPlanejadas
               : 0;
-        const realizadoDia = somarRealizadoPeriodo(v.contratos, inicioDoDia, agora);
-        const realizadoSemana = somarRealizadoPeriodo(v.contratos, inicioDaSemana, agora);
+        const realizadoDia = somarRealizadoPeriodo(
+          v.contratos,
+          inicioDoDia,
+          agora
+        );
+        const realizadoSemana = somarRealizadoPeriodo(
+          v.contratos,
+          inicioDaSemana,
+          agora
+        );
 
         return {
           ...v,
@@ -191,43 +240,59 @@ export const dashboardRouter = router({
       });
 
       const realizadoDiaGlobal = vendedoras.reduce(
-        (acc, v) => acc + (typeof v.realizadoDia === "number" ? v.realizadoDia : 0),
+        (acc, v) =>
+          acc + (typeof v.realizadoDia === "number" ? v.realizadoDia : 0),
         0
       );
       const realizadoSemanaGlobal = vendedoras.reduce(
-        (acc, v) => acc + (typeof v.realizadoSemana === "number" ? v.realizadoSemana : 0),
+        (acc, v) =>
+          acc + (typeof v.realizadoSemana === "number" ? v.realizadoSemana : 0),
         0
       );
 
       // Busca vendedoras visíveis do banco
       const vendedorasVisiveis = await listarVendedoras();
-      const idsVisiveis = new Set(vendedorasVisiveis.map((v) => v.id));
+      const idsVisiveis = new Set(vendedorasVisiveis.map(v => v.id));
 
       // Calcula meta global (com TODAS as vendedoras)
-      const metaGlobalValor = metaGlobalDb ? parseFloat(metaGlobalDb.metaValor) : 0;
-      const superMetaGlobalValor = metaGlobalDb ? parseFloat(metaGlobalDb.superMetaValor) : 0;
-      const metaGlobal = calcularMetaGlobal(vendedoras, metaGlobalValor, superMetaGlobalValor, mesAtual);
+      const metaGlobalValor = metaGlobalDb
+        ? parseFloat(metaGlobalDb.metaValor)
+        : 0;
+      const superMetaGlobalValor = metaGlobalDb
+        ? parseFloat(metaGlobalDb.superMetaValor)
+        : 0;
+      const metaGlobal = calcularMetaGlobal(
+        vendedoras,
+        metaGlobalValor,
+        superMetaGlobalValor,
+        mesAtual
+      );
 
       // Aplica acelerador global
       vendedoras = aplicarAceleradorGlobal(vendedoras, metaGlobal.acelerador);
 
       // Detecta badges
-      vendedoras = vendedoras.map((v) => ({
+      vendedoras = vendedoras.map(v => ({
         ...v,
         badges: detectarBadges(v),
       }));
 
       // FILTRA apenas vendedoras visíveis para exibição
-      const vendedorasVisiveis2 = vendedoras.filter((v) => idsVisiveis.has(v.id));
+      const vendedorasVisiveis2 =
+        shouldUseMockData() && idsVisiveis.size === 0
+          ? vendedoras
+          : vendedoras.filter(v => idsVisiveis.has(v.id));
 
       // Calcula ranking (apenas com visíveis)
       const ranking = calcularRanking(vendedorasVisiveis2);
 
-      const { produtos, totalComissao } = calcularAnaliseProdutos(contratosParaPainelVendedoras);
+      const { produtos, totalComissao } = calcularAnaliseProdutos(
+        contratosParaPainelVendedoras
+      );
       const { pipeline, totalValor: totalValorPipeline } =
         calcularAnalisePipeline(contratosParaPainelVendedoras);
       const valorEmLiberacao = contratosParaPainelVendedoras
-        .filter((c) => c.valorComissaoOpta === 0 && c.valorLiquido > 0)
+        .filter(c => c.valorComissaoOpta === 0 && c.valorLiquido > 0)
         .reduce((acc, c) => acc + c.valorLiquido, 0);
 
       return {
@@ -283,16 +348,21 @@ export const dashboardRouter = router({
         );
       }
 
-      let contratosProcessados = filtrarContratosProcessadosValidos(processarContratos(contratosZoho));
-      let contratosParaPainelVendedoras = filtrarContratosPainelVendedoras(contratosProcessados);
+      let contratosProcessados = filtrarContratosProcessadosValidos(
+        processarContratos(contratosZoho)
+      );
+      let contratosParaPainelVendedoras =
+        filtrarContratosPainelVendedoras(contratosProcessados);
 
       if (input?.vendedoraId) {
         contratosParaPainelVendedoras = contratosParaPainelVendedoras.filter(
-          (c) => c.vendedoraId === input.vendedoraId
+          c => c.vendedoraId === input.vendedoraId
         );
       }
 
-      const { produtos, totalComissao } = calcularAnaliseProdutos(contratosParaPainelVendedoras);
+      const { produtos, totalComissao } = calcularAnaliseProdutos(
+        contratosParaPainelVendedoras
+      );
       const { pipeline, totalValor: totalValorPipeline } =
         calcularAnalisePipeline(contratosParaPainelVendedoras);
 
@@ -316,13 +386,17 @@ export const dashboardRouter = router({
         const diasUteis = calcularDiasUteisDoMes(mesAtual);
         const semanasPlanejadas = calcularSemanasUteisDoMes(mesAtual);
 
-      let contratosZoho;
-      if (shouldUseMockData()) {
-        contratosZoho = gerarContratosMock();
-      } else {
-        contratosZoho = filtrarContratosZohoValidos(await zohoService.buscarContratosMesAtual());
-      }
-        const contratosProcessados = filtrarContratosProcessadosValidos(processarContratos(contratosZoho));
+        let contratosZoho;
+        if (shouldUseMockData()) {
+          contratosZoho = gerarContratosMock();
+        } else {
+          contratosZoho = filtrarContratosZohoValidos(
+            await zohoService.buscarContratosMesAtual()
+          );
+        }
+        const contratosProcessados = filtrarContratosProcessadosValidos(
+          processarContratos(contratosZoho)
+        );
 
         const metasDiarias = await obterMetasDiarias(mesAtual, input.id);
         const metasSemanais = await obterMetasSemanais(mesAtual, input.id);
@@ -331,36 +405,52 @@ export const dashboardRouter = router({
         const metaGlobalDb = await obterMetaGlobal(mesAtual);
 
         const metasMap = new Map<string, number>();
-        metasVendedorDb.forEach((m) => {
+        metasVendedorDb.forEach(m => {
           metasMap.set(m.vendedoraId, parseFloat(m.metaValor));
         });
 
         const vendedoras = agregarPorVendedora(contratosProcessados, metasMap);
-        const metaGlobalValor = metaGlobalDb ? parseFloat(metaGlobalDb.metaValor) : 0;
-        const superMetaGlobalValor = metaGlobalDb ? parseFloat(metaGlobalDb.superMetaValor) : 0;
-        const metaGlobal = calcularMetaGlobal(vendedoras, metaGlobalValor, superMetaGlobalValor, mesAtual);
+        const metaGlobalValor = metaGlobalDb
+          ? parseFloat(metaGlobalDb.metaValor)
+          : 0;
+        const superMetaGlobalValor = metaGlobalDb
+          ? parseFloat(metaGlobalDb.superMetaValor)
+          : 0;
+        const metaGlobal = calcularMetaGlobal(
+          vendedoras,
+          metaGlobalValor,
+          superMetaGlobalValor,
+          mesAtual
+        );
 
-        const vendedora = vendedoras.find((v) => v.id === input.id);
+        const vendedora = vendedoras.find(v => v.id === input.id);
 
         if (!vendedora) {
           throw new Error("Vendedora não encontrada");
         }
 
         // Aplica acelerador global
-        const vendedorasComAcelerador = aplicarAceleradorGlobal([vendedora], metaGlobal.acelerador);
+        const vendedorasComAcelerador = aplicarAceleradorGlobal(
+          [vendedora],
+          metaGlobal.acelerador
+        );
         const vendedoraFinal = vendedorasComAcelerador[0];
         vendedoraFinal.badges = detectarBadges(vendedoraFinal);
         const metaDiariaPlanejada =
           metasDiarias.length > 0
-            ? metasDiarias.reduce((acc, m) => acc + parseFloat(m.metaValor), 0) /
-              Math.max(1, metasDiarias.length)
+            ? metasDiarias.reduce(
+                (acc, m) => acc + parseFloat(m.metaValor),
+                0
+              ) / Math.max(1, metasDiarias.length)
             : diasUteis > 0
               ? vendedoraFinal.meta / diasUteis
               : 0;
         const metaSemanalPlanejada =
           metasSemanais.length > 0
-            ? metasSemanais.reduce((acc, m) => acc + parseFloat(m.metaValor), 0) /
-              Math.max(1, metasSemanais.length)
+            ? metasSemanais.reduce(
+                (acc, m) => acc + parseFloat(m.metaValor),
+                0
+              ) / Math.max(1, metasSemanais.length)
             : semanasPlanejadas > 0
               ? vendedoraFinal.meta / semanasPlanejadas
               : 0;
@@ -369,8 +459,13 @@ export const dashboardRouter = router({
         vendedoraFinal.metaSemanalPlanejada = metaSemanalPlanejada;
         vendedoraFinal.diasUteis = diasUteis;
         vendedoraFinal.semanasPlanejadas = semanasPlanejadas;
-        const { agora, inicioDoDia, inicioDaSemana } = obterIntervalosOperacionais();
-        vendedoraFinal.realizadoDia = somarRealizadoPeriodo(vendedoraFinal.contratos, inicioDoDia, agora);
+        const { agora, inicioDoDia, inicioDaSemana } =
+          obterIntervalosOperacionais();
+        vendedoraFinal.realizadoDia = somarRealizadoPeriodo(
+          vendedoraFinal.contratos,
+          inicioDoDia,
+          agora
+        );
         vendedoraFinal.realizadoSemana = somarRealizadoPeriodo(
           vendedoraFinal.contratos,
           inicioDaSemana,
@@ -495,7 +590,8 @@ export const adminRouter = router({
     .mutation(async ({ input, ctx }) => {
       const existente = await obterMetaGlobal(input.mes);
       const metaValor = input.metaValor ?? existente?.metaValor ?? "0";
-      const superMetaValor = input.superMetaValor ?? existente?.superMetaValor ?? "0";
+      const superMetaValor =
+        input.superMetaValor ?? existente?.superMetaValor ?? "0";
       const id = `meta_glob_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       await criarOuAtualizarMetaGlobal(
         {
@@ -547,7 +643,12 @@ export const adminRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      await atualizarMetaDiaria(input.mes, input.dia, input.vendedoraId, input.metaValor);
+      await atualizarMetaDiaria(
+        input.mes,
+        input.dia,
+        input.vendedoraId,
+        input.metaValor
+      );
       return { success: true };
     }),
 
@@ -561,7 +662,12 @@ export const adminRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      await atualizarMetaSemanal(input.mes, input.semana, input.vendedoraId, input.metaValor);
+      await atualizarMetaSemanal(
+        input.mes,
+        input.semana,
+        input.vendedoraId,
+        input.metaValor
+      );
       return { success: true };
     }),
 
@@ -575,9 +681,12 @@ export const adminRouter = router({
     )
     .mutation(async ({ input }) => {
       const metasDoMes = await listarMetasVendedorPorMes(input.mes);
-      const metaVendedora = metasDoMes.find((m) => m.vendedoraId === input.vendedoraId);
+      const metaVendedora = metasDoMes.find(
+        m => m.vendedoraId === input.vendedoraId
+      );
       const metaValor =
-        input.metaValor ?? (metaVendedora ? parseFloat(metaVendedora.metaValor) : 0);
+        input.metaValor ??
+        (metaVendedora ? parseFloat(metaVendedora.metaValor) : 0);
 
       await gerarMetasDiarias(input.mes, input.vendedoraId, metaValor);
       await gerarMetasSemanais(input.mes, input.vendedoraId, metaValor);

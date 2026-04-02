@@ -14,6 +14,7 @@ export interface MockContrato {
   Produto: { display_value: string; ID: string };
   Corban: { display_value: string; ID: string };
   Estagio: { display_value: string; ID: string };
+  TipoOperacao: { display_value: string; ID: string };
 }
 
 const VENDEDORAS = [
@@ -33,6 +34,7 @@ const PRODUTOS = [
 ];
 
 const CORBANS = ["Corban A", "Corban B", "Corban C", "Corban D"];
+const TIPOS_OPERACAO = ["Novo", "Refinanciamento", "Portabilidade", "Cartão"];
 
 /**
  * Gera contratos mock para o mês atual
@@ -44,7 +46,7 @@ export function gerarContratosMock(): MockContrato[] {
   const mes = now.getMonth();
 
   // Gera entre 3 a 8 contratos por vendedora
-  VENDEDORAS.forEach((vendedora) => {
+  VENDEDORAS.forEach(vendedora => {
     const numContratos = Math.floor(Math.random() * 6) + 3;
 
     for (let i = 0; i < numContratos; i++) {
@@ -54,10 +56,10 @@ export function gerarContratosMock(): MockContrato[] {
 
       // Valor entre 5.000 e 50.000
       const valorLiquido = Math.floor(Math.random() * 45000) + 5000;
-      
+
       // NOVA REGRA: Comissão da Opta (simulação: 8% do valor líquido)
       const valorComissaoOpta = valorLiquido * 0.08;
-      
+
       // Base comissionável = Valor_comissao_opta * 0.55 * 0.06
       const baseComissionavelVendedores = valorComissaoOpta * 0.55 * 0.06;
 
@@ -83,8 +85,13 @@ export function gerarContratosMock(): MockContrato[] {
           ID: `corban_${Math.floor(Math.random() * 100)}`,
         },
         Estagio: {
-          display_value: "Pago",
-          ID: "estagio_pago",
+          display_value: "Financeiro",
+          ID: "estagio_financeiro",
+        },
+        TipoOperacao: {
+          display_value:
+            TIPOS_OPERACAO[Math.floor(Math.random() * TIPOS_OPERACAO.length)],
+          ID: `tipo_${Math.floor(Math.random() * 100)}`,
         },
       });
     }

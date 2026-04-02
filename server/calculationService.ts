@@ -1,7 +1,7 @@
 /**
  * Serviço de cálculos de comissão e tiers
  * Implementa as regras de negócio ATUALIZADAS do plano de comissionamento Opta
- * 
+ *
  * REGRA CRÍTICA: Base de comissão vem do campo Valor_comissao do Zoho,
  * NÃO do valor líquido (amount)
  */
@@ -103,22 +103,32 @@ export interface PipelineAnalise {
  * Tiers e escada compartilhados em @shared/tiers
  * REGRA CRÍTICA: Bronze (1-75%) NÃO recebe comissão, mesmo com acelerador global
  */
-export function isContratoIgnoradoPainelVendedoras(contrato: { produto: string; ignoradoPainelVendedoras?: boolean }) {
-  return contrato.ignoradoPainelVendedoras ?? isProdutoIgnoradoNoPainelVendedoras(contrato.produto);
+export function isContratoIgnoradoPainelVendedoras(contrato: {
+  produto: string;
+  ignoradoPainelVendedoras?: boolean;
+}) {
+  return (
+    contrato.ignoradoPainelVendedoras ??
+    isProdutoIgnoradoNoPainelVendedoras(contrato.produto)
+  );
 }
 
-export function filtrarContratosPainelVendedoras<T extends { produto: string; ignoradoPainelVendedoras?: boolean }>(
-  contratos: T[]
-): T[] {
-  return contratos.filter((c) => !isContratoIgnoradoPainelVendedoras(c));
+export function filtrarContratosPainelVendedoras<
+  T extends { produto: string; ignoradoPainelVendedoras?: boolean },
+>(contratos: T[]): T[] {
+  return contratos.filter(c => !isContratoIgnoradoPainelVendedoras(c));
 }
 
 /**
  * Calcula a escada de evolução (próximos níveis)
  */
-export function montarEscada(meta: number, realizado: number, labels?: Record<number, string>): EscadaStep[] {
+export function montarEscada(
+  meta: number,
+  realizado: number,
+  labels?: Record<number, string>
+): EscadaStep[] {
   if (meta <= 0) {
-    return ESCADA_NIVEIS.map((percentual) => ({
+    return ESCADA_NIVEIS.map(percentual => ({
       percentual,
       label: labels?.[percentual] || `${percentual}%`,
       alvo: 0,
@@ -127,7 +137,7 @@ export function montarEscada(meta: number, realizado: number, labels?: Record<nu
     }));
   }
 
-  return ESCADA_NIVEIS.map((percentual) => {
+  return ESCADA_NIVEIS.map(percentual => {
     const alvo = meta * (percentual / 100);
     const falta = Math.max(0, alvo - realizado);
     return {
@@ -144,10 +154,13 @@ export function montarEscada(meta: number, realizado: number, labels?: Record<nu
  * Processa contratos do Zoho para formato interno
  * NOVA REGRA: Usa Base_comissionavel_vendedores já calculado no zohoService
  */
-export function processarContratos(contratosZoho: ZohoContrato[]): ContratoProcessado[] {
-  return contratosZoho.map((c) => {
-    const produtoNome = c.Produto.display_value;
-    const ignoradoPainelVendedoras = isProdutoIgnoradoNoPainelVendedoras(produtoNome);
+export function processarContratos(
+  contratosZoho: ZohoContrato[]
+): ContratoProcessado[] {
+  return contratosZoho.map(c => {
+    const produtoNome = c.Produto?.display_value || "Sem produto";
+    const ignoradoPainelVendedoras =
+      isProdutoIgnoradoNoPainelVendedoras(produtoNome);
     const baseComissionavel = ignoradoPainelVendedoras
       ? 0 // Produto não gera comissão/produção para vendedoras
       : c.Base_comissionavel_vendedores;
@@ -159,14 +172,14 @@ export function processarContratos(contratosZoho: ZohoContrato[]): ContratoProce
       valorLiquido: c.Valor_liquido_liberado,
       valorComissaoOpta: c.Valor_comissao_opta, // NÃO EXIBIR
       baseComissionavel, // Já vem calculado, exceto para produtos sem comissão de vendedoras
-      vendedora: c.Vendedor.display_value,
-      vendedoraId: c.Vendedor.ID,
+      vendedora: c.Vendedor?.display_value || "Sem vendedor",
+      vendedoraId: c.Vendedor?.ID || "sem_vendedor",
       produto: produtoNome,
-      produtoId: c.Produto.ID,
-      corban: c.Corban.display_value,
-      estagio: c.Estagio.display_value,
-      estagioId: c.Estagio.ID,
-      tipoOperacao: c.TipoOperacao.display_value,
+      produtoId: c.Produto?.ID || "sem_produto",
+      corban: c.Corban?.display_value || "Sem corban",
+      estagio: c.Estagio?.display_value || "Sem estágio",
+      estagioId: c.Estagio?.ID || "sem_estagio",
+      tipoOperacao: c.TipoOperacao?.display_value || produtoNome,
       ignoradoPainelVendedoras,
     };
   });
@@ -181,7 +194,7 @@ export function agregarPorVendedora(
 ): VendedoraStats[] {
   const vendedorasMap = new Map<string, VendedoraStats>();
 
-  contratos.forEach((contrato) => {
+  contratos.forEach(contrato => {
     const { vendedoraId, vendedora } = contrato;
 
     if (!vendedorasMap.has(vendedoraId)) {
@@ -207,7 +220,8 @@ export function agregarPorVendedora(
     }
 
     const stats = vendedorasMap.get(vendedoraId)!;
-    const ignoradoPainelVendedoras = isContratoIgnoradoPainelVendedoras(contrato);
+    const ignoradoPainelVendedoras =
+      isContratoIgnoradoPainelVendedoras(contrato);
 
     if (ignoradoPainelVendedoras) {
       return;
@@ -226,7 +240,7 @@ export function agregarPorVendedora(
 
   // Calcula percentuais e tiers
   const vendedoras = Array.from(vendedorasMap.values());
-  vendedoras.forEach((v) => {
+  vendedoras.forEach(v => {
     v.percentualMeta = v.meta > 0 ? (v.realizado / v.meta) * 100 : 0;
     const tier = determinarTier(v.percentualMeta);
     v.tier = tier.nome;
@@ -254,10 +268,12 @@ export function calcularMetaGlobal(
   mes: string
 ): MetaGlobalStats {
   const realizado = vendedoras.reduce((sum, v) => sum + v.realizado, 0);
-  
-  const percentualMeta = metaGlobalValor > 0 ? (realizado / metaGlobalValor) * 100 : 0;
-  const percentualSuperMeta = superMetaGlobalValor > 0 ? (realizado / superMetaGlobalValor) * 100 : 0;
-  
+
+  const percentualMeta =
+    metaGlobalValor > 0 ? (realizado / metaGlobalValor) * 100 : 0;
+  const percentualSuperMeta =
+    superMetaGlobalValor > 0 ? (realizado / superMetaGlobalValor) * 100 : 0;
+
   const metaGlobalBatida = percentualMeta >= 100;
   const superMetaGlobalBatida = percentualSuperMeta >= 100;
 
@@ -271,7 +287,7 @@ export function calcularMetaGlobal(
   };
 
   const escada = montarEscada(metaGlobalValor, realizado, escadaLabels).filter(
-    (step) => step.percentual === 100
+    step => step.percentual === 100
   );
 
   if (superMetaGlobalValor > 0) {
@@ -308,7 +324,7 @@ export function aplicarAceleradorGlobal(
   vendedoras: VendedoraStats[],
   acelerador: number
 ): VendedoraStats[] {
-  return vendedoras.map((v) => {
+  return vendedoras.map(v => {
     // REGRA CRÍTICA: Bronze (< 75%) não recebe acelerador
     if (v.percentualMeta < GLOBAL_ACCELERATOR_ELIGIBILITY_PCT) {
       v.comissaoPrevista = 0;
@@ -334,7 +350,7 @@ export function detectarBadges(vendedora: VendedoraStats): string[] {
 
   // Badges de sequência (contratos no mesmo dia)
   const contratosPorDia = new Map<string, number>();
-  vendedora.contratos.forEach((c) => {
+  vendedora.contratos.forEach(c => {
     const dia = c.dataPagamento.split("T")[0];
     contratosPorDia.set(dia, (contratosPorDia.get(dia) || 0) + 1);
   });
@@ -350,7 +366,9 @@ export function detectarBadges(vendedora: VendedoraStats): string[] {
 /**
  * Calcula ranking das vendedoras
  */
-export function calcularRanking(vendedoras: VendedoraStats[]): VendedoraStats[] {
+export function calcularRanking(
+  vendedoras: VendedoraStats[]
+): VendedoraStats[] {
   return [...vendedoras].sort((a, b) => {
     // 1º critério: Valor realizado (maior primeiro)
     if (b.realizado !== a.realizado) {
@@ -373,7 +391,7 @@ export function calcularProdutosMaisVendidos(
 ): Array<{ produto: string; quantidade: number }> {
   const produtosMap = new Map<string, number>();
 
-  contratos.forEach((c) => {
+  contratos.forEach(c => {
     if (isContratoIgnoradoPainelVendedoras(c)) {
       return;
     }
@@ -393,11 +411,14 @@ export function calcularProdutosRentaveis(
 ): Array<{ produto: string; comissaoTotal: number }> {
   const produtosMap = new Map<string, number>();
 
-  contratos.forEach((c) => {
+  contratos.forEach(c => {
     if (isContratoIgnoradoPainelVendedoras(c)) {
       return;
     }
-    produtosMap.set(c.produto, (produtosMap.get(c.produto) || 0) + c.baseComissionavel);
+    produtosMap.set(
+      c.produto,
+      (produtosMap.get(c.produto) || 0) + c.baseComissionavel
+    );
   });
 
   return Array.from(produtosMap.entries())
@@ -409,10 +430,13 @@ export function calcularProdutosRentaveis(
  * Consolida analise de produtos (quantidade e incentivo)
  */
 export function calcularAnaliseProdutos(contratos: ContratoProcessado[]) {
-  const produtosMap = new Map<string, { contratos: number; comissao: number }>();
+  const produtosMap = new Map<
+    string,
+    { contratos: number; comissao: number }
+  >();
   let totalComissao = 0;
 
-  contratos.forEach((c) => {
+  contratos.forEach(c => {
     if (isContratoIgnoradoPainelVendedoras(c)) {
       return;
     }
@@ -429,7 +453,8 @@ export function calcularAnaliseProdutos(contratos: ContratoProcessado[]) {
       totalContratos: dados.contratos,
       totalComissao: dados.comissao,
       comissaoMedia: dados.contratos > 0 ? dados.comissao / dados.contratos : 0,
-      percentualTotal: totalComissao > 0 ? (dados.comissao / totalComissao) * 100 : 0,
+      percentualTotal:
+        totalComissao > 0 ? (dados.comissao / totalComissao) * 100 : 0,
     }))
     .sort((a, b) => b.totalComissao - a.totalComissao);
 
@@ -446,14 +471,20 @@ export function calcularAnaliseProdutos(contratos: ContratoProcessado[]) {
 export function calcularPipelinePorEstagio(
   contratos: ContratoProcessado[]
 ): Array<{ estagio: string; valorLiquido: number; quantidade: number }> {
-  const estagiosMap = new Map<string, { valorLiquido: number; quantidade: number }>();
+  const estagiosMap = new Map<
+    string,
+    { valorLiquido: number; quantidade: number }
+  >();
 
-  contratos.forEach((c) => {
+  contratos.forEach(c => {
     if (isContratoIgnoradoPainelVendedoras(c)) {
       return;
     }
     if (c.valorLiquido > 0 && contratoTemEstagioValidoNome(c.estagio)) {
-      const stats = estagiosMap.get(c.estagio) || { valorLiquido: 0, quantidade: 0 };
+      const stats = estagiosMap.get(c.estagio) || {
+        valorLiquido: 0,
+        quantidade: 0,
+      };
       stats.valorLiquido += c.valorLiquido;
       stats.quantidade += 1;
       estagiosMap.set(c.estagio, stats);
@@ -470,13 +501,17 @@ export function calcularPipelinePorEstagio(
  */
 export function calcularAnalisePipeline(contratos: ContratoProcessado[]) {
   const pipelineBruto = calcularPipelinePorEstagio(contratos);
-  const totalValor = pipelineBruto.reduce((acc, item) => acc + item.valorLiquido, 0);
+  const totalValor = pipelineBruto.reduce(
+    (acc, item) => acc + item.valorLiquido,
+    0
+  );
 
-  const pipeline: PipelineAnalise[] = pipelineBruto.map((p) => ({
+  const pipeline: PipelineAnalise[] = pipelineBruto.map(p => ({
     estagio: p.estagio,
     totalValor: p.valorLiquido,
     totalContratos: p.quantidade,
-    percentualPipeline: totalValor > 0 ? (p.valorLiquido / totalValor) * 100 : 0,
+    percentualPipeline:
+      totalValor > 0 ? (p.valorLiquido / totalValor) * 100 : 0,
   }));
 
   return {

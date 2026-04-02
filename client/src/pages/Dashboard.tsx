@@ -137,6 +137,11 @@ export default function Dashboard() {
     undefined
   );
 
+  const handleCloseSelectedVendedora = () => {
+    setSelectedVendedora(null);
+    setSelectedRank(undefined);
+  };
+
   useEffect(() => {
     if (!data) return;
 
@@ -702,7 +707,7 @@ export default function Dashboard() {
             vendedora={selectedVendedora}
             rank={selectedRank}
             open={selectedVendedora !== null}
-            onClose={() => setSelectedVendedora(null)}
+            onClose={handleCloseSelectedVendedora}
           />
         </div>
 

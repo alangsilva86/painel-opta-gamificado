@@ -213,6 +213,310 @@ export function VendedoraCard({
       ? "bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 text-background"
       : "bg-gradient-to-r from-emerald-500 to-cyan-400 text-white";
 
+  const cardBody = (
+    <Card
+      className={cn(
+        "panel-card-strong relative overflow-hidden border bg-card/95 text-left transition-[box-shadow,border-color,transform]",
+        tierVisual.cardClass,
+        onClick &&
+          "focus-visible:ring-primary/60 focus-visible:ring-2 focus-visible:ring-offset-2"
+      )}
+    >
+      {/* Ranking badge */}
+      {rank && rank <= 3 && (
+        <div className="absolute top-2 right-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                className={cn(
+                  "flex items-center gap-1 font-bold text-lg",
+                  getRankColor(rank)
+                )}
+              >
+                <Trophy size={20} />
+                <span>#{rank}</span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="top">Top {rank} do mês</TooltipContent>
+          </Tooltip>
+        </div>
+      )}
+
+      <CardContent className="p-6">
+        {vendedora.percentualMeta >= 100 && (
+          <div className={cn("banner-strip", bannerClass)}>
+            <span>Meta alcançada</span>
+            <span>{vendedora.percentualMeta.toFixed(0)}%</span>
+          </div>
+        )}
+
+        <div className="flex items-start gap-4">
+          {/* Avatar placeholder */}
+          <div className="flex-shrink-0">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-sky-500 text-2xl font-bold text-white">
+              {vendedora.nome.charAt(0).toUpperCase()}
+            </div>
+          </div>
+
+          {/* Info */}
+          <div className="flex-1 min-w-0">
+            <h3 className="text-lg font-bold truncate">{vendedora.nome}</h3>
+            <div className="flex items-center gap-2 mt-1">
+              <TierBadge tier={vendedora.tier} size="sm" />
+            </div>
+
+            <div
+              className={cn(
+                "mt-4 rounded-2xl border px-4 py-3",
+                tierVisual.softBgClass,
+                "border-white/5"
+              )}
+            >
+              <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                Incentivo atual
+              </div>
+              {isEligibleForIncentive ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <DollarSign size={18} className={tierVisual.textClass} />
+                  <span
+                    className={cn("text-xl font-black", tierVisual.textClass)}
+                  >
+                    {formatCurrency(vendedora.comissaoPrevista)}
+                  </span>
+                  {showAceleradorPill && (
+                    <Badge
+                      variant="outline"
+                      className="border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                    >
+                      + acel.
+                    </Badge>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-2 flex items-center gap-2 text-muted-foreground">
+                  <Lock size={16} />
+                  <span className="text-base font-semibold">
+                    Incentivo bloqueado
+                  </span>
+                </div>
+              )}
+              <p className="mt-2 text-xs text-muted-foreground">
+                {incentiveSupportCopy}
+              </p>
+              {vendedora.contratosSemComissao > 0 && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {vendedora.contratosSemComissao} contratos sem incentivo no
+                  período.
+                </p>
+              )}
+
+              <div className="mt-4 rounded-xl border border-white/10 bg-background/40 p-3">
+                <div className="flex items-center justify-between gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                  <span>Degraus do incentivo</span>
+                  <span>com a produção atual</span>
+                </div>
+                <div className="relative mt-3 space-y-3 pl-5 before:absolute before:left-[7px] before:top-3 before:bottom-3 before:w-px before:bg-white/10">
+                  {incentiveMilestones.map(milestone => (
+                    <div key={milestone.threshold} className="relative">
+                      <span
+                        className="absolute -left-[18px] top-5 h-3 w-3 rounded-full border-2"
+                        style={{
+                          backgroundColor: milestone.unlocked
+                            ? milestone.visual.accentColor
+                            : "rgba(15, 23, 42, 0.95)",
+                          borderColor: milestone.visual.accentColor,
+                        }}
+                      />
+                      <div
+                        className={cn(
+                          "rounded-xl border px-3 py-2",
+                          milestone.unlocked
+                            ? milestone.visual.softBgClass
+                            : "border-white/10 bg-background/60"
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-semibold text-foreground">
+                                {milestone.threshold}% da meta
+                              </span>
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "text-[10px]",
+                                  milestone.unlocked
+                                    ? `${milestone.visual.textClass} border-white/10`
+                                    : "border-white/10 text-muted-foreground"
+                                )}
+                              >
+                                {milestone.tierName}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              {milestone.unlocked
+                                ? `Degrau liberado. Incentivo ativo nesse nível.`
+                                : `Faltam ${milestone.missingPct.toFixed(
+                                    1
+                                  )}% da meta para destravar.`}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <div
+                              className={cn(
+                                "text-sm font-black",
+                                milestone.unlocked
+                                  ? milestone.visual.textClass
+                                  : "text-foreground"
+                              )}
+                            >
+                              {formatCurrency(milestone.amount)}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground">
+                              no {milestone.tierName}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+              <div>
+                <div className="text-xs text-muted-foreground">Realizado</div>
+                <div className="text-sm font-semibold">
+                  {formatCurrency(vendedora.realizado)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Meta</div>
+                <div className="text-sm font-semibold">
+                  {formatCurrency(vendedora.meta)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                  <TrendingUp size={12} />
+                  Contratos
+                </div>
+                <div className="text-sm font-semibold">
+                  <AnimatedContractCount value={vendedora.contratos.length} />
+                </div>
+              </div>
+            </div>
+
+            {/* Progress bar */}
+            <div className="mt-4">
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-muted-foreground">Progresso</span>
+                <span className="font-semibold">
+                  {vendedora.percentualMeta.toFixed(1)}%
+                </span>
+              </div>
+              <AnimatedProgressBar
+                value={vendedora.percentualMeta}
+                colorClass={getProgressBarColor(vendedora.percentualMeta)}
+                height="md"
+              />
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <div className="text-xs font-semibold text-muted-foreground">
+                Ritmo operacional
+              </div>
+              {renderRitmoLinha(
+                "Hoje",
+                <SunMedium size={12} className="text-foreground" />,
+                vendedora.realizadoDia || 0,
+                vendedora.metaDiariaPlanejada || 0
+              )}
+              {renderRitmoLinha(
+                "Semana",
+                <CalendarRange size={12} className="text-foreground" />,
+                vendedora.realizadoSemana || 0,
+                vendedora.metaSemanalPlanejada || 0
+              )}
+            </div>
+
+            {proximoNivel && (
+              <div
+                className={cn(
+                  "mt-3 text-xs flex items-center gap-2",
+                  nearThreshold
+                    ? "text-yellow-300 font-semibold"
+                    : "text-muted-foreground"
+                )}
+              >
+                <Zap size={12} className="text-yellow-400" />
+                Próximo nível {proximoNivel.label}: faltam{" "}
+                {formatCurrency(proximoNivel.falta)}
+                {nearThreshold && (
+                  <Badge className="border-amber-500/50 bg-amber-500/15 text-amber-200">
+                    Quase lá
+                  </Badge>
+                )}
+              </div>
+            )}
+
+            {/* Badges */}
+            {vendedora.badges.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-3">
+                {vendedora.badges.slice(0, 3).map(badge => (
+                  <Tooltip key={badge}>
+                    <TooltipTrigger asChild>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-xs cursor-default",
+                          BADGE_STYLE[badge as keyof typeof BADGE_STYLE]
+                            ?.className
+                        )}
+                      >
+                        {badge}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      {BADGE_DESCRICOES[badge] || "Conquista desbloqueada"}
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+                {vendedora.badges.length > 3 && (
+                  <Badge variant="outline" className="text-xs">
+                    +{vendedora.badges.length - 3}
+                  </Badge>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Progress ring */}
+          <div className="flex-shrink-0">
+            <ProgressRing
+              progress={vendedora.percentualMeta}
+              size={100}
+              strokeWidth={6}
+              showPercentage
+              tierColor={tierVisual.accentColor}
+            />
+          </div>
+        </div>
+
+        {onClick && (
+          <div className="mt-4 flex justify-end">
+            <span className="status-chip border-border/70 bg-background/60 text-muted-foreground">
+              <Eye size={11} />
+              ver análise
+            </span>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -235,311 +539,21 @@ export function VendedoraCard({
           : { duration: 0.3 },
       }}
       whileHover={onClick ? { scale: 1.02 } : undefined}
-      onClick={onClick}
-      className={cn(
-        "rounded-2xl",
-        onClick ? "cursor-pointer" : "cursor-default"
-      )}
+      className="rounded-2xl"
     >
-      <Card
-        className={cn(
-          "panel-card-strong relative overflow-hidden border bg-card/95 transition-[box-shadow,border-color]",
-          tierVisual.cardClass
-        )}
-      >
-        {/* Ranking badge */}
-        {rank && rank <= 3 && (
-          <div className="absolute top-2 right-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div
-                  className={cn(
-                    "flex items-center gap-1 font-bold text-lg",
-                    getRankColor(rank)
-                  )}
-                >
-                  <Trophy size={20} />
-                  <span>#{rank}</span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top">Top {rank} do mês</TooltipContent>
-            </Tooltip>
-          </div>
-        )}
-
-        <CardContent className="p-6">
-          {vendedora.percentualMeta >= 100 && (
-            <div className={cn("banner-strip", bannerClass)}>
-              <span>Meta alcançada</span>
-              <span>{vendedora.percentualMeta.toFixed(0)}%</span>
-            </div>
-          )}
-
-          <div className="flex items-start gap-4">
-            {/* Avatar placeholder */}
-            <div className="flex-shrink-0">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-sky-500 text-2xl font-bold text-white">
-                {vendedora.nome.charAt(0).toUpperCase()}
-              </div>
-            </div>
-
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-              <h3 className="text-lg font-bold truncate">{vendedora.nome}</h3>
-              <div className="flex items-center gap-2 mt-1">
-                <TierBadge tier={vendedora.tier} size="sm" />
-              </div>
-
-              <div
-                className={cn(
-                  "mt-4 rounded-2xl border px-4 py-3",
-                  tierVisual.softBgClass,
-                  "border-white/5"
-                )}
-              >
-                <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                  Incentivo atual
-                </div>
-                {isEligibleForIncentive ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <DollarSign size={18} className={tierVisual.textClass} />
-                    <span
-                      className={cn("text-xl font-black", tierVisual.textClass)}
-                    >
-                      {formatCurrency(vendedora.comissaoPrevista)}
-                    </span>
-                    {showAceleradorPill && (
-                      <Badge
-                        variant="outline"
-                        className="border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                      >
-                        + acel.
-                      </Badge>
-                    )}
-                  </div>
-                ) : (
-                  <div className="mt-2 flex items-center gap-2 text-muted-foreground">
-                    <Lock size={16} />
-                    <span className="text-base font-semibold">
-                      Incentivo bloqueado
-                    </span>
-                  </div>
-                )}
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {incentiveSupportCopy}
-                </p>
-                {vendedora.contratosSemComissao > 0 && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {vendedora.contratosSemComissao} contratos sem incentivo no
-                    período.
-                  </p>
-                )}
-
-                <div className="mt-4 rounded-xl border border-white/10 bg-background/40 p-3">
-                  <div className="flex items-center justify-between gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                    <span>Degraus do incentivo</span>
-                    <span>com a produção atual</span>
-                  </div>
-                  <div className="relative mt-3 space-y-3 pl-5 before:absolute before:left-[7px] before:top-3 before:bottom-3 before:w-px before:bg-white/10">
-                    {incentiveMilestones.map(milestone => (
-                      <div key={milestone.threshold} className="relative">
-                        <span
-                          className="absolute -left-[18px] top-5 h-3 w-3 rounded-full border-2"
-                          style={{
-                            backgroundColor: milestone.unlocked
-                              ? milestone.visual.accentColor
-                              : "rgba(15, 23, 42, 0.95)",
-                            borderColor: milestone.visual.accentColor,
-                          }}
-                        />
-                        <div
-                          className={cn(
-                            "rounded-xl border px-3 py-2",
-                            milestone.unlocked
-                              ? milestone.visual.softBgClass
-                              : "border-white/10 bg-background/60"
-                          )}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-sm font-semibold text-foreground">
-                                  {milestone.threshold}% da meta
-                                </span>
-                                <Badge
-                                  variant="outline"
-                                  className={cn(
-                                    "text-[10px]",
-                                    milestone.unlocked
-                                      ? `${milestone.visual.textClass} border-white/10`
-                                      : "border-white/10 text-muted-foreground"
-                                  )}
-                                >
-                                  {milestone.tierName}
-                                </Badge>
-                              </div>
-                              <p className="mt-1 text-[11px] text-muted-foreground">
-                                {milestone.unlocked
-                                  ? `Degrau liberado. Incentivo ativo nesse nível.`
-                                  : `Faltam ${milestone.missingPct.toFixed(
-                                      1
-                                    )}% da meta para destravar.`}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <div
-                                className={cn(
-                                  "text-sm font-black",
-                                  milestone.unlocked
-                                    ? milestone.visual.textClass
-                                    : "text-foreground"
-                                )}
-                              >
-                                {formatCurrency(milestone.amount)}
-                              </div>
-                              <div className="text-[11px] text-muted-foreground">
-                                no {milestone.tierName}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
-                <div>
-                  <div className="text-xs text-muted-foreground">Realizado</div>
-                  <div className="text-sm font-semibold">
-                    {formatCurrency(vendedora.realizado)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Meta</div>
-                  <div className="text-sm font-semibold">
-                    {formatCurrency(vendedora.meta)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground flex items-center gap-1">
-                    <TrendingUp size={12} />
-                    Contratos
-                  </div>
-                  <div className="text-sm font-semibold">
-                    <AnimatedContractCount value={vendedora.contratos.length} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Progress bar */}
-              <div className="mt-4">
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-muted-foreground">Progresso</span>
-                  <span className="font-semibold">
-                    {vendedora.percentualMeta.toFixed(1)}%
-                  </span>
-                </div>
-                <AnimatedProgressBar
-                  value={vendedora.percentualMeta}
-                  colorClass={getProgressBarColor(vendedora.percentualMeta)}
-                  height="md"
-                />
-              </div>
-
-              <div className="mt-4 space-y-3">
-                <div className="text-xs font-semibold text-muted-foreground">
-                  Ritmo operacional
-                </div>
-                {renderRitmoLinha(
-                  "Hoje",
-                  <SunMedium size={12} className="text-foreground" />,
-                  vendedora.realizadoDia || 0,
-                  vendedora.metaDiariaPlanejada || 0
-                )}
-                {renderRitmoLinha(
-                  "Semana",
-                  <CalendarRange size={12} className="text-foreground" />,
-                  vendedora.realizadoSemana || 0,
-                  vendedora.metaSemanalPlanejada || 0
-                )}
-              </div>
-
-              {proximoNivel && (
-                <div
-                  className={cn(
-                    "mt-3 text-xs flex items-center gap-2",
-                    nearThreshold
-                      ? "text-yellow-300 font-semibold"
-                      : "text-muted-foreground"
-                  )}
-                >
-                  <Zap size={12} className="text-yellow-400" />
-                  Próximo nível {proximoNivel.label}: faltam{" "}
-                  {formatCurrency(proximoNivel.falta)}
-                  {nearThreshold && (
-                    <Badge className="border-amber-500/50 bg-amber-500/15 text-amber-200">
-                      Quase lá
-                    </Badge>
-                  )}
-                </div>
-              )}
-
-              {/* Badges */}
-              {vendedora.badges.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-3">
-                  {vendedora.badges.slice(0, 3).map(badge => (
-                    <Tooltip key={badge}>
-                      <TooltipTrigger asChild>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-xs cursor-default",
-                            BADGE_STYLE[badge as keyof typeof BADGE_STYLE]
-                              ?.className
-                          )}
-                        >
-                          {badge}
-                        </Badge>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        {BADGE_DESCRICOES[badge] || "Conquista desbloqueada"}
-                      </TooltipContent>
-                    </Tooltip>
-                  ))}
-                  {vendedora.badges.length > 3 && (
-                    <Badge variant="outline" className="text-xs">
-                      +{vendedora.badges.length - 3}
-                    </Badge>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Progress ring */}
-            <div className="flex-shrink-0">
-              <ProgressRing
-                progress={vendedora.percentualMeta}
-                size={100}
-                strokeWidth={6}
-                showPercentage
-                tierColor={tierVisual.accentColor}
-              />
-            </div>
-          </div>
-
-          {onClick && (
-            <div className="mt-4 flex justify-end">
-              <span className="flex select-none items-center gap-1 text-[11px] text-muted-foreground/70">
-                <Eye size={11} />
-                ver análise
-              </span>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {onClick ? (
+        <button
+          type="button"
+          onClick={onClick}
+          aria-haspopup="dialog"
+          aria-label={`Abrir análise detalhada de ${vendedora.nome}`}
+          className="block w-full rounded-2xl cursor-pointer text-left touch-manipulation focus-visible:outline-none"
+        >
+          {cardBody}
+        </button>
+      ) : (
+        <div className="cursor-default">{cardBody}</div>
+      )}
     </motion.div>
   );
 }

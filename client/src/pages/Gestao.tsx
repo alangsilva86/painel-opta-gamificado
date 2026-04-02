@@ -702,7 +702,6 @@ export default function Gestao() {
           {hasFetched && resumoQuery.data && !isFetchingData && (
             <>
               <ExecutiveCockpit
-                businessStatus={resumoQuery.data.businessStatus}
                 metrics={resumoQuery.data.executiveMetrics}
                 comparisonEnabled={comparisonModeApplied}
               />
