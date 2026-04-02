@@ -35,6 +35,7 @@ import {
   getProgressColor,
 } from "@/lib/utils";
 import { getTierDefinition, getTierVisual } from "@/lib/tierVisuals";
+import { VendedoraDetalheModal } from "@/components/VendedoraDetalheModal";
 
 function getMotivationalMessage(percentualMeta: number) {
   if (percentualMeta >= 150) return "SUPER META BATIDA! 🔥🔥🔥";
@@ -131,6 +132,9 @@ export default function Dashboard() {
     nome: string;
     id: string;
   } | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [selectedVendedora, setSelectedVendedora] = useState<any | null>(null);
+  const [selectedRank, setSelectedRank] = useState<number | undefined>(undefined);
 
   useEffect(() => {
     if (!data) return;
@@ -665,9 +669,20 @@ export default function Dashboard() {
                 key={vendedora.id}
                 vendedora={vendedora}
                 rank={index + 1}
+                onClick={() => {
+                  setSelectedVendedora(vendedora);
+                  setSelectedRank(index + 1);
+                }}
               />
             ))}
           </div>
+
+          <VendedoraDetalheModal
+            vendedora={selectedVendedora}
+            rank={selectedRank}
+            open={selectedVendedora !== null}
+            onClose={() => setSelectedVendedora(null)}
+          />
         </div>
 
         {/* Leaderboard */}

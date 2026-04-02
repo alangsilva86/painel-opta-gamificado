@@ -18,6 +18,7 @@ import {
   SunMedium,
   CalendarRange,
   Lock,
+  Eye,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -531,6 +532,15 @@ export function VendedoraCard({
               />
             </div>
           </div>
+
+          {onClick && (
+            <div className="mt-4 flex justify-end">
+              <span className="flex items-center gap-1 text-[11px] text-muted-foreground/50 select-none">
+                <Eye size={11} />
+                ver detalhes
+              </span>
+            </div>
+          )}
         </CardContent>
       </Card>
     </motion.div>
