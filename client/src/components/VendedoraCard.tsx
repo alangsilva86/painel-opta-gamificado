@@ -123,7 +123,7 @@ export function VendedoraCard({
   rank,
   onClick,
 }: VendedoraCardProps) {
-  const renderRitmoLinha = (
+  const renderRitmoCard = (
     label: string,
     icon: ReactNode,
     realizado: number,
@@ -131,35 +131,48 @@ export function VendedoraCard({
   ) => {
     const pct = metaPlanejada > 0 ? (realizado / metaPlanejada) * 100 : 0;
     const falta = Math.max(0, metaPlanejada - realizado);
+    const statusLabel =
+      metaPlanejada <= 0
+        ? "Sem meta"
+        : falta === 0
+          ? "No alvo"
+          : `Gap ${formatCurrency(falta)}`;
 
     return (
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
+      <div className="rounded-xl border border-white/10 bg-background/40 px-3 py-2.5">
+        <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
           <div className="flex items-center gap-2">
             {icon}
             <span>{label}</span>
           </div>
-          <span className="font-semibold text-foreground">
-            {pct.toFixed(0)}%
+          <span className="font-semibold tabular-nums text-foreground">
+            {metaPlanejada > 0 ? `${pct.toFixed(0)}%` : "Sem meta"}
           </span>
         </div>
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-          <span>{formatCurrency(realizado)}</span>
-          <span>Meta {formatCurrency(metaPlanejada)}</span>
+        <div className="mt-1.5 flex items-end justify-between gap-3">
+          <span className="text-sm font-semibold tabular-nums text-foreground">
+            {formatCurrency(realizado)}
+          </span>
+          <span className="text-[11px] text-muted-foreground">
+            Meta {formatCurrency(metaPlanejada)}
+          </span>
         </div>
         <AnimatedProgressBar
           value={pct}
           colorClass={getProgressBarColor(pct)}
-          height="md"
+          height="sm"
+          className="mt-2 bg-background/70"
         />
-        {metaPlanejada > 0 && falta > 0 && (
-          <p className="text-[11px] text-muted-foreground">
-            Faltam {formatCurrency(falta)} para fechar {label.toLowerCase()}.
-          </p>
-        )}
-        {metaPlanejada > 0 && falta === 0 && (
-          <p className="text-[11px] text-green-500">Ritmo batido!</p>
-        )}
+        <div
+          className={cn(
+            "mt-1.5 text-[10px] uppercase tracking-[0.14em]",
+            falta === 0 && metaPlanejada > 0
+              ? "text-emerald-300"
+              : "text-muted-foreground"
+          )}
+        >
+          {statusLabel}
+        </div>
       </div>
     );
   };
@@ -275,7 +288,7 @@ export function VendedoraCard({
           </div>
         )}
 
-        <div className="flex items-start gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           {/* Avatar placeholder */}
           <div className="flex-shrink-0">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-sky-500 text-2xl font-bold text-white">
@@ -461,94 +474,112 @@ export function VendedoraCard({
               </div>
             </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
-              <div>
-                <div className="text-xs text-muted-foreground">Realizado</div>
-                <div className="text-sm font-semibold">
-                  {formatCurrency(vendedora.realizado)}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Meta</div>
-                <div className="text-sm font-semibold">
-                  {formatCurrency(vendedora.meta)}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground flex items-center gap-1">
-                  <TrendingUp size={12} />
-                  Contratos
-                </div>
-                <div className="text-sm font-semibold">
-                  <AnimatedContractCount value={vendedora.contratos.length} />
-                </div>
-              </div>
-            </div>
-
-            {/* Progress bar */}
-            <div className="mt-4">
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-muted-foreground">Progresso</span>
-                <span className="font-semibold">
-                  {vendedora.percentualMeta.toFixed(1)}%
-                </span>
-              </div>
-              <AnimatedProgressBar
-                value={vendedora.percentualMeta}
-                colorClass={getProgressBarColor(vendedora.percentualMeta)}
-                height="md"
-              />
-            </div>
-
             <div className="mt-4 space-y-3">
-              <div className="text-xs font-semibold text-muted-foreground">
-                Ritmo operacional
-              </div>
-              {renderRitmoLinha(
-                "Hoje",
-                <SunMedium size={12} className="text-foreground" />,
-                vendedora.realizadoDia || 0,
-                vendedora.metaDiariaPlanejada || 0
-              )}
-              {renderRitmoLinha(
-                "Semana",
-                <CalendarRange size={12} className="text-foreground" />,
-                vendedora.realizadoSemana || 0,
-                vendedora.metaSemanalPlanejada || 0
-              )}
-            </div>
+              <div className="rounded-2xl border border-white/5 bg-background/35 px-3 py-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-xl border border-white/8 bg-background/40 px-3 py-2">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                      Realizado
+                    </div>
+                    <div className="mt-1 text-sm font-semibold tabular-nums text-foreground">
+                      {formatCurrency(vendedora.realizado)}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-white/8 bg-background/40 px-3 py-2">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                      Meta
+                    </div>
+                    <div className="mt-1 text-sm font-semibold tabular-nums text-foreground">
+                      {formatCurrency(vendedora.meta)}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-white/8 bg-background/40 px-3 py-2">
+                    <div className="flex items-center gap-1 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                      <TrendingUp size={11} />
+                      Contratos
+                    </div>
+                    <div className="mt-1 text-sm font-semibold tabular-nums text-foreground">
+                      <AnimatedContractCount
+                        value={vendedora.contratos.length}
+                      />
+                    </div>
+                  </div>
+                </div>
 
-            {proximoNivel && (
-              <div
-                className={cn(
-                  "mt-3 text-xs flex items-center gap-2",
-                  nearThreshold
-                    ? "text-yellow-300 font-semibold"
-                    : "text-muted-foreground"
+                <div className="mt-3 flex items-center justify-between gap-2 text-[11px]">
+                  <span className="uppercase tracking-[0.16em] text-muted-foreground">
+                    Meta do mês
+                  </span>
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {vendedora.percentualMeta.toFixed(1)}%
+                  </span>
+                </div>
+                <AnimatedProgressBar
+                  value={vendedora.percentualMeta}
+                  colorClass={getProgressBarColor(vendedora.percentualMeta)}
+                  height="sm"
+                  className="mt-2 bg-background/70"
+                />
+
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                  {proximoNivel ? (
+                    <>
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-full border px-2.5 py-1",
+                          nearThreshold
+                            ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
+                            : "border-white/10 bg-background/45 text-muted-foreground"
+                        )}
+                      >
+                        <Zap size={11} className="text-yellow-400" />
+                        Próximo {proximoNivel.label}
+                      </span>
+                      <span
+                        className={cn(
+                          "tabular-nums",
+                          nearThreshold
+                            ? "font-semibold text-amber-300"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        Faltam {formatCurrency(proximoNivel.falta)}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-emerald-300">
+                      Escada principal concluída
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                {renderRitmoCard(
+                  "Hoje",
+                  <SunMedium size={12} className="text-foreground" />,
+                  vendedora.realizadoDia || 0,
+                  vendedora.metaDiariaPlanejada || 0
                 )}
-              >
-                <Zap size={12} className="text-yellow-400" />
-                Próximo nível {proximoNivel.label}: faltam{" "}
-                {formatCurrency(proximoNivel.falta)}
-                {nearThreshold && (
-                  <Badge className="border-amber-500/50 bg-amber-500/15 text-amber-200">
-                    Quase lá
-                  </Badge>
+                {renderRitmoCard(
+                  "Semana",
+                  <CalendarRange size={12} className="text-foreground" />,
+                  vendedora.realizadoSemana || 0,
+                  vendedora.metaSemanalPlanejada || 0
                 )}
               </div>
-            )}
+            </div>
 
             {/* Badges */}
             {vendedora.badges.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-3">
-                {vendedora.badges.slice(0, 3).map(badge => (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {vendedora.badges.slice(0, 2).map(badge => (
                   <Tooltip key={badge}>
                     <TooltipTrigger asChild>
                       <Badge
                         variant="outline"
                         className={cn(
-                          "text-xs cursor-default",
+                          "cursor-default text-[10px] uppercase tracking-[0.12em]",
                           BADGE_STYLE[badge as keyof typeof BADGE_STYLE]
                             ?.className
                         )}
@@ -561,9 +592,12 @@ export function VendedoraCard({
                     </TooltipContent>
                   </Tooltip>
                 ))}
-                {vendedora.badges.length > 3 && (
-                  <Badge variant="outline" className="text-xs">
-                    +{vendedora.badges.length - 3}
+                {vendedora.badges.length > 2 && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] uppercase tracking-[0.12em]"
+                  >
+                    +{vendedora.badges.length - 2}
                   </Badge>
                 )}
               </div>
@@ -571,19 +605,20 @@ export function VendedoraCard({
           </div>
 
           {/* Progress ring */}
-          <div className="flex-shrink-0">
+          <div className="self-center pt-1 sm:self-start sm:flex-shrink-0">
             <ProgressRing
               progress={vendedora.percentualMeta}
-              size={100}
+              size={92}
               strokeWidth={6}
               showPercentage
+              label="meta"
               tierColor={tierVisual.accentColor}
             />
           </div>
         </div>
 
         {onClick && (
-          <div className="mt-4 flex justify-end">
+          <div className="mt-3 flex justify-end">
             <span className="status-chip border-border/70 bg-background/60 text-muted-foreground">
               <Eye size={11} />
               ver análise
