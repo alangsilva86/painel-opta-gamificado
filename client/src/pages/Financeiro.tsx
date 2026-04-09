@@ -1,4 +1,10 @@
-import { useDeferredValue, useEffect, useState, startTransition } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useState,
+  startTransition,
+  type ChangeEvent,
+} from "react";
 import { skipToken } from "@tanstack/react-query";
 import {
   Bar,
@@ -11,7 +17,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useLocation } from "wouter";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import { KpiCard } from "@/components/KpiCard";
@@ -58,15 +63,6 @@ function hasGestaoAccessCookie() {
     typeof document !== "undefined" &&
     document.cookie.split(";").some(part => part.trim() === "gestao_access=1")
   );
-}
-
-function buildGestaoRedirectPath() {
-  if (typeof window === "undefined") {
-    return "/gestao?next=%2Ffinanceiro";
-  }
-
-  const next = `${window.location.pathname}${window.location.search}`;
-  return `/gestao?next=${encodeURIComponent(next)}`;
 }
 
 function getCurrentMonthKey() {
@@ -159,29 +155,23 @@ function MetricDelta({
 }
 
 function FinanceiroContent() {
-  const [, setLocation] = useLocation();
   const [mes, setMes] = useState(() => getCurrentMonthKey());
   const [tipo, setTipo] = useState<"revenue" | "expense" | "all">("all");
   const [categoria, setCategoria] = useState("");
   const [conta, setConta] = useState("");
   const [page, setPage] = useState(1);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [password, setPassword] = useState("");
+  const [authed, setAuthed] = useState(() => hasGestaoAccessCookie());
 
   const deferredTipo = useDeferredValue(tipo);
   const deferredCategoria = useDeferredValue(categoria);
   const deferredConta = useDeferredValue(conta);
-  const hasGestaoAccess = hasGestaoAccessCookie();
-
-  useEffect(() => {
-    if (!hasGestaoAccess) {
-      setLocation(buildGestaoRedirectPath());
-    }
-  }, [hasGestaoAccess, setLocation]);
 
   const resumoQuery = trpc.financeiro.getResumoFinanceiro.useQuery(
     { mes },
     {
-      enabled: hasGestaoAccess,
+      enabled: authed,
       retry: false,
     }
   );
@@ -189,13 +179,13 @@ function FinanceiroContent() {
   const serieQuery = trpc.financeiro.getSerieHistorica.useQuery(
     { meses: 6, mesReferencia: mes },
     {
-      enabled: hasGestaoAccess,
+      enabled: authed,
       retry: false,
     }
   );
 
   const drilldownQuery = trpc.financeiro.getDrilldownTransacoes.useQuery(
-    hasGestaoAccess
+    authed
       ? {
           mes,
           tipo: deferredTipo,
@@ -217,6 +207,17 @@ function FinanceiroContent() {
     },
     onError: error => {
       toast.error(error.message || "Falha ao sincronizar Procfy.");
+    },
+  });
+
+  const authMutation = trpc.gestao.auth.useMutation({
+    onSuccess: () => {
+      setAuthed(true);
+      setPassword("");
+      toast.success("Acesso financeiro liberado.");
+    },
+    onError: error => {
+      toast.error(error.message || "Senha inválida.");
     },
   });
 
@@ -249,14 +250,49 @@ function FinanceiroContent() {
     ]);
   }, [drilldownQuery, resumoQuery, serieQuery, syncStatusQuery.data]);
 
-  if (!hasGestaoAccess) {
+  useEffect(() => {
+    const unauthorized =
+      resumoQuery.error?.data?.code === "UNAUTHORIZED" ||
+      serieQuery.error?.data?.code === "UNAUTHORIZED" ||
+      drilldownQuery.error?.data?.code === "UNAUTHORIZED";
+
+    if (unauthorized) {
+      setAuthed(false);
+    }
+  }, [drilldownQuery.error, resumoQuery.error, serieQuery.error]);
+
+  if (!authed) {
     return (
       <div className="page-shell">
-        <div className="page-content flex min-h-[50vh] items-center justify-center">
+        <div className="page-content flex min-h-[50vh] items-center justify-center px-4">
           <Card className="panel-card-strong w-full max-w-md">
-            <CardContent className="flex items-center justify-center gap-3 py-8 text-sm text-muted-foreground">
-              <Spinner className="h-4 w-4 text-primary" />
-              Redirecionando para autenticação de gestão...
+            <CardHeader>
+              <CardTitle>Acesso Financeiro</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Insira a senha de gestão para acessar a visão de caixa.
+              </p>
+              <Input
+                type="password"
+                value={password}
+                onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                  setPassword(event.target.value)
+                }
+                placeholder="Senha"
+              />
+              <Button
+                className="w-full"
+                onClick={() => authMutation.mutate({ password })}
+                disabled={authMutation.isPending || !password}
+              >
+                {authMutation.isPending ? "Validando..." : "Entrar"}
+              </Button>
+              {authMutation.error && (
+                <p className="text-sm text-rose-300">
+                  Erro: {authMutation.error.message}
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
