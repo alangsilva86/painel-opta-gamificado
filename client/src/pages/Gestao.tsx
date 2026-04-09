@@ -35,6 +35,7 @@ import {
 } from "@/features/gestao/viewState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import DashboardLayout from "@/components/DashboardLayout";
 import { skipToken } from "@tanstack/react-query";
 import { useGestaoDerivedData } from "@/features/gestao/useGestaoDerivedData";
 import { useGestaoViewManager } from "@/features/gestao/useGestaoViewManager";
@@ -60,7 +61,7 @@ type SyncStatus = {
   finishedAt?: string | Date;
 };
 
-export default function Gestao() {
+function GestaoContent() {
   const [, setLocation] = useLocation();
   const now = useMemo(() => new Date(), []);
   const redirectAfterAuth = useMemo(() => {
@@ -1016,5 +1017,13 @@ export default function Gestao() {
         ) : null}
       </div>
     </div>
+  );
+}
+
+export default function Gestao() {
+  return (
+    <DashboardLayout>
+      <GestaoContent />
+    </DashboardLayout>
   );
 }
