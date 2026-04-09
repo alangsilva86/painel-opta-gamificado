@@ -1,5 +1,6 @@
 import {
   boolean,
+  date,
   decimal,
   index,
   int,
@@ -264,3 +265,76 @@ export const gestaoMetas = mysqlTable("gestao_metas", {
 
 export type GestaoMeta = typeof gestaoMetas.$inferSelect;
 export type InsertGestaoMeta = typeof gestaoMetas.$inferInsert;
+
+export const procfyTransactions = mysqlTable(
+  "procfy_transactions",
+  {
+    idProcfy: varchar("id_procfy", { length: 64 }).primaryKey(),
+    name: varchar("name", { length: 512 }).default("").notNull(),
+    description: text("description"),
+    dueDate: date("due_date", { mode: "string" }),
+    paid: boolean("paid").default(false).notNull(),
+    paidAt: date("paid_at", { mode: "string" }),
+    competencyDate: date("competency_date", { mode: "string" }),
+    amountCents: int("amount_cents").default(0).notNull(),
+    transactionType: mysqlEnum("transaction_type", [
+      "revenue",
+      "fixed_expense",
+      "variable_expense",
+      "payroll",
+      "tax",
+      "transfer",
+    ]).notNull(),
+    paymentMethod: varchar("payment_method", { length: 64 })
+      .default("")
+      .notNull(),
+    categoryId: varchar("category_id", { length: 64 }).default("").notNull(),
+    categoryName: varchar("category_name", { length: 255 })
+      .default("")
+      .notNull(),
+    bankAccountId: varchar("bank_account_id", { length: 64 })
+      .default("")
+      .notNull(),
+    bankAccountName: varchar("bank_account_name", { length: 255 })
+      .default("")
+      .notNull(),
+    contactId: varchar("contact_id", { length: 64 }).default("").notNull(),
+    contactName: varchar("contact_name", { length: 255 }).default("").notNull(),
+    documentNumber: varchar("document_number", { length: 128 }),
+    installmentNumber: int("installment_number"),
+    installmentTotal: int("installment_total"),
+    createdAtProcfy: timestamp("created_at_procfy"),
+    syncedAt: timestamp("synced_at").defaultNow().notNull(),
+  },
+  table => ({
+    idxPaidAt: index("idx_procfy_paid_at").on(table.paidAt),
+    idxDueDate: index("idx_procfy_due_date").on(table.dueDate),
+    idxCompetencyDate: index("idx_procfy_competency_date").on(
+      table.competencyDate
+    ),
+    idxTransactionTypePaid: index("idx_procfy_type_paid").on(
+      table.transactionType,
+      table.paid
+    ),
+    idxCategory: index("idx_procfy_category_name").on(table.categoryName),
+    idxBankAccount: index("idx_procfy_bank_account_name").on(
+      table.bankAccountName
+    ),
+  })
+);
+
+export type ProcfyTransaction = typeof procfyTransactions.$inferSelect;
+export type InsertProcfyTransaction = typeof procfyTransactions.$inferInsert;
+
+export const procfySyncLogs = mysqlTable("procfy_sync_logs", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  rangeInicio: varchar("range_inicio", { length: 10 }).notNull(),
+  rangeFim: varchar("range_fim", { length: 10 }).notNull(),
+  fetched: int("fetched").notNull(),
+  upserted: int("upserted").notNull(),
+  durationMs: int("duration_ms").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type ProcfySyncLog = typeof procfySyncLogs.$inferSelect;
+export type InsertProcfySyncLog = typeof procfySyncLogs.$inferInsert;

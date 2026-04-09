@@ -27,6 +27,7 @@ import {
   CHAT_ANALYST_INPUT_SCHEMA,
   generateGestaoAnalystResponse,
 } from "./chatAnalyst";
+import { gestaoProcedure } from "./access";
 
 const DRILLDOWN_SCHEMA = FILTERS_SCHEMA.extend({
   page: z.number().int().min(1).default(1),
@@ -37,31 +38,6 @@ const DRILLDOWN_SCHEMA = FILTERS_SCHEMA.extend({
   somenteSemComissao: z.boolean().optional(),
   sortBy: z.enum(["data", "comissao", "liquido", "takeRate"]).optional(),
   sortDir: z.enum(["asc", "desc"]).optional(),
-});
-
-function parseCookies(cookieHeader?: string | null): Record<string, string> {
-  if (!cookieHeader) return {};
-  return cookieHeader.split(";").reduce<Record<string, string>>((acc, part) => {
-    const [key, ...rest] = part.split("=");
-    if (!key) return acc;
-    acc[key.trim()] = decodeURIComponent(rest.join("=").trim());
-    return acc;
-  }, {});
-}
-
-function hasGestaoAccess(req: any): boolean {
-  const cookies = parseCookies(req?.headers?.cookie);
-  return cookies["gestao_access"] === "1";
-}
-
-const gestaoProcedure = publicProcedure.use(({ ctx, next }) => {
-  if (!hasGestaoAccess(ctx.req)) {
-    throw new TRPCError({
-      code: "UNAUTHORIZED",
-      message: "Acesso Gestão não autorizado",
-    });
-  }
-  return next();
 });
 
 type SyncJobStatus = {

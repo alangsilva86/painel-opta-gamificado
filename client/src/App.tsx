@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import TVMode from "./pages/TVMode";
 import Admin from "./pages/Admin";
 import Gestao from "./pages/Gestao";
+import Financeiro from "./pages/Financeiro";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -18,6 +19,7 @@ function Router() {
       <Route path={"/tv"} component={TVMode} />
       <Route path={"/admin"} component={Admin} />
       <Route path={"/gestao"} component={Gestao} />
+      <Route path={"/financeiro"} component={Financeiro} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
