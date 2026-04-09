@@ -94,6 +94,19 @@ const chartConfig = {
 
 const PAGE_SIZE = 12;
 
+function formatCurrencyCompact(value: number) {
+  const abs = Math.abs(value);
+  if (abs >= 10_000) {
+    return value.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      notation: "compact",
+      maximumFractionDigits: 1,
+    });
+  }
+  return formatCurrency(value);
+}
+
 function hasGestaoAccessCookie() {
   return (
     typeof document !== "undefined" &&
@@ -468,7 +481,7 @@ function FinanceiroContent() {
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
                 <KpiCard
                   title="Comissão Opta"
-                  value={formatCurrency(resumo.competencia.comissaoOpta)}
+                  value={formatCurrencyCompact(resumo.competencia.comissaoOpta)}
                   subtitle={`Competência Zoho · Taxa ${resumo.competencia.receitaBruta > 0 ? formatPercent(resumo.competencia.comissaoOpta / resumo.competencia.receitaBruta) : "—"}`}
                   icon={Scale}
                   motionDelay={0}
@@ -484,7 +497,7 @@ function FinanceiroContent() {
 
                 <KpiCard
                   title="Receita Caixa"
-                  value={formatCurrency(resumo.caixa.totalReceitas)}
+                  value={formatCurrencyCompact(resumo.caixa.totalReceitas)}
                   subtitle="Receitas pagas no Procfy"
                   icon={TrendingUp}
                   motionDelay={0.05}
@@ -500,7 +513,7 @@ function FinanceiroContent() {
 
                 <KpiCard
                   title="Despesas Caixa"
-                  value={formatCurrency(resumo.caixa.totalDespesas)}
+                  value={formatCurrencyCompact(resumo.caixa.totalDespesas)}
                   subtitle="Despesas fixas e variáveis"
                   icon={TrendingDown}
                   motionDelay={0.1}
@@ -516,8 +529,8 @@ function FinanceiroContent() {
 
                 <KpiCard
                   title="Resultado Líquido"
-                  value={formatCurrency(resumo.caixa.resultadoLiquido)}
-                  subtitle="Receitas menos despesas, folha e impostos"
+                  value={formatCurrencyCompact(resumo.caixa.resultadoLiquido)}
+                  subtitle="Receitas − despesas − folha − impostos"
                   icon={PiggyBank}
                   motionDelay={0.15}
                   valueClassName={
@@ -538,9 +551,9 @@ function FinanceiroContent() {
                 </KpiCard>
 
                 <KpiCard
-                  title="Gap Competência/Caixa"
-                  value={formatCurrency(resumo.comparativo.gap)}
-                  subtitle={formatPercent(resumo.comparativo.comissaoVsReceitaCaixa)}
+                  title="Gap Compet./Caixa"
+                  value={formatCurrencyCompact(resumo.comparativo.gap)}
+                  subtitle={`${formatPercent(resumo.comparativo.comissaoVsReceitaCaixa)} convertido em caixa`}
                   icon={Landmark}
                   motionDelay={0.2}
                 >
@@ -608,18 +621,39 @@ function FinanceiroContent() {
                           }
                         />
                         <ChartTooltip
-                          content={
-                            <ChartTooltipContent
-                              formatter={(value) =>
-                                formatCurrency(Number(value))
-                              }
-                              labelFormatter={(_, payload) =>
-                                payload?.[0]?.payload?.mes
-                                  ? formatMonthLabel(payload[0].payload.mes)
-                                  : ""
-                              }
-                            />
-                          }
+                          content={({ active, payload }) => {
+                            if (!active || !payload?.length) return null;
+                            const mesLabel =
+                              payload[0]?.payload?.mes
+                                ? formatMonthLabel(payload[0].payload.mes)
+                                : "";
+                            return (
+                              <div className="border-border/50 bg-background grid min-w-[11rem] gap-1.5 rounded-lg border px-2.5 py-2 text-xs shadow-xl">
+                                {mesLabel && (
+                                  <div className="font-semibold text-foreground">
+                                    {mesLabel}
+                                  </div>
+                                )}
+                                {payload.map(item => (
+                                  <div
+                                    key={String(item.dataKey)}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <div
+                                      className="h-2 w-2 shrink-0 rounded-[2px]"
+                                      style={{ backgroundColor: item.color }}
+                                    />
+                                    <span className="text-muted-foreground">
+                                      {chartConfig[item.dataKey as keyof typeof chartConfig]?.label}
+                                    </span>
+                                    <span className="ml-auto font-mono font-medium tabular-nums text-foreground">
+                                      {formatCurrency(Number(item.value))}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          }}
                         />
                         <ChartLegend content={<ChartLegendContent />} />
                         <Bar
@@ -668,7 +702,7 @@ function FinanceiroContent() {
                       );
                       return (
                         <div
-                          className={`rounded-2xl border px-4 py-3 ${
+                          className={`flex items-center justify-between rounded-xl border px-3 py-2.5 ${
                             saldoTotal >= 0
                               ? "border-emerald-500/30 bg-emerald-500/10"
                               : "border-rose-500/30 bg-rose-500/10"
@@ -678,7 +712,7 @@ function FinanceiroContent() {
                             Caixa Total
                           </div>
                           <div
-                            className={`mt-1 text-2xl font-bold ${
+                            className={`text-lg font-bold tabular-nums ${
                               saldoTotal >= 0 ? "text-emerald-300" : "text-rose-300"
                             }`}
                           >
@@ -691,13 +725,13 @@ function FinanceiroContent() {
                     {resumo.caixa.saldosContas.map(item => (
                       <div
                         key={item.conta}
-                        className="rounded-2xl border border-border/70 bg-background/60 px-4 py-3"
+                        className="flex items-center justify-between rounded-xl border border-border/70 bg-background/60 px-3 py-2"
                       >
                         <div className="text-sm text-muted-foreground">
                           {item.conta}
                         </div>
                         <div
-                          className={`mt-1 text-xl font-semibold ${
+                          className={`text-sm font-semibold tabular-nums ${
                             item.saldo < 0 ? "text-rose-300" : "text-foreground"
                           }`}
                         >
