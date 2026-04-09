@@ -10,14 +10,13 @@ import {
   Bar,
   CartesianGrid,
   ComposedChart,
-  Legend,
   Line,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import { toast } from "sonner";
+import { AnimatedProgressBar } from "@/components/AnimatedProgressBar";
 import DashboardLayout from "@/components/DashboardLayout";
 import { KpiCard } from "@/components/KpiCard";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +28,22 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -51,10 +65,32 @@ import type {
 import {
   Landmark,
   PiggyBank,
+  PercentIcon,
   Scale,
   TrendingDown,
   TrendingUp,
+  X,
+  FileStack,
 } from "lucide-react";
+
+const chartConfig = {
+  competencia: {
+    label: "Comissão Opta",
+    color: "var(--chart-1)",
+  },
+  receitas: {
+    label: "Receita Caixa",
+    color: "var(--chart-2)",
+  },
+  despesas: {
+    label: "Despesas Caixa",
+    color: "var(--chart-4)",
+  },
+  resultado: {
+    label: "Resultado Líquido",
+    color: "var(--chart-3)",
+  },
+} satisfies ChartConfig;
 
 const PAGE_SIZE = 12;
 
@@ -315,6 +351,7 @@ function FinanceiroContent() {
     label: formatMonthLabel(item.mes),
     competencia: item.competencia / 100,
     receitas: item.receitas / 100,
+    despesas: item.despesas / 100,
     resultado: item.resultado / 100,
   }));
   const dreGroups = buildDreGroups(resumo);
@@ -428,11 +465,11 @@ function FinanceiroContent() {
 
           {resumo && !isInitialLoading && !errorMessage && (
             <>
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
                 <KpiCard
                   title="Comissão Opta"
                   value={formatCurrency(resumo.competencia.comissaoOpta)}
-                  subtitle="Competência Zoho"
+                  subtitle={`Competência Zoho · Taxa ${resumo.competencia.receitaBruta > 0 ? formatPercent(resumo.competencia.comissaoOpta / resumo.competencia.receitaBruta) : "—"}`}
                   icon={Scale}
                   motionDelay={0}
                 >
@@ -483,6 +520,13 @@ function FinanceiroContent() {
                   subtitle="Receitas menos despesas, folha e impostos"
                   icon={PiggyBank}
                   motionDelay={0.15}
+                  valueClassName={
+                    resumo.caixa.resultadoLiquido < 0
+                      ? "text-rose-300"
+                      : resumo.caixa.resultadoLiquido > 0
+                        ? "text-emerald-300"
+                        : undefined
+                  }
                 >
                   <MetricDelta
                     delta={getDelta(
@@ -510,6 +554,33 @@ function FinanceiroContent() {
                     previousLabel={previousLabel}
                   />
                 </KpiCard>
+
+                <KpiCard
+                  title="Margem Operacional"
+                  value={
+                    resumo.caixa.totalReceitas > 0
+                      ? formatPercent(resumo.caixa.resultadoLiquido / resumo.caixa.totalReceitas)
+                      : "—"
+                  }
+                  subtitle="Resultado / Receita Caixa"
+                  icon={PercentIcon}
+                  motionDelay={0.25}
+                  valueClassName={
+                    resumo.caixa.resultadoLiquido < 0
+                      ? "text-rose-300"
+                      : resumo.caixa.resultadoLiquido > 0
+                        ? "text-emerald-300"
+                        : undefined
+                  }
+                />
+
+                <KpiCard
+                  title="Contratos no Mês"
+                  value={resumo.competencia.quantidadeContratos}
+                  subtitle="Competência Zoho"
+                  icon={FileStack}
+                  motionDelay={0.3}
+                />
               </div>
 
               <Separator className="bg-border/70" />
@@ -520,7 +591,7 @@ function FinanceiroContent() {
                     <CardTitle>Competência x Caixa</CardTitle>
                   </CardHeader>
                   <CardContent className="h-[360px]">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ChartContainer config={chartConfig} className="h-full w-full">
                       <ComposedChart data={chartData}>
                         <CartesianGrid
                           strokeDasharray="3 3"
@@ -536,39 +607,45 @@ function FinanceiroContent() {
                             })
                           }
                         />
-                        <Tooltip
-                          formatter={(value: number) =>
-                            formatCurrency(Number(value))
-                          }
-                          labelFormatter={(_, payload) =>
-                            payload?.[0]?.payload?.mes
-                              ? formatMonthLabel(payload[0].payload.mes)
-                              : ""
+                        <ChartTooltip
+                          content={
+                            <ChartTooltipContent
+                              formatter={(value) =>
+                                formatCurrency(Number(value))
+                              }
+                              labelFormatter={(_, payload) =>
+                                payload?.[0]?.payload?.mes
+                                  ? formatMonthLabel(payload[0].payload.mes)
+                                  : ""
+                              }
+                            />
                           }
                         />
-                        <Legend />
+                        <ChartLegend content={<ChartLegendContent />} />
                         <Bar
                           dataKey="competencia"
-                          name="Comissão Opta"
-                          fill="#28c76f"
-                          radius={[10, 10, 0, 0]}
+                          fill="var(--chart-1)"
+                          radius={[6, 6, 0, 0]}
                         />
                         <Bar
                           dataKey="receitas"
-                          name="Receita Caixa"
-                          fill="#2d9cdb"
-                          radius={[10, 10, 0, 0]}
+                          fill="var(--chart-2)"
+                          radius={[6, 6, 0, 0]}
+                        />
+                        <Bar
+                          dataKey="despesas"
+                          fill="var(--chart-4)"
+                          radius={[6, 6, 0, 0]}
                         />
                         <Line
                           type="monotone"
                           dataKey="resultado"
-                          name="Resultado Líquido"
-                          stroke="#ff8c42"
+                          stroke="var(--chart-3)"
                           strokeWidth={3}
                           dot={{ r: 3 }}
                         />
                       </ComposedChart>
-                    </ResponsiveContainer>
+                    </ChartContainer>
                   </CardContent>
                 </Card>
 
@@ -584,6 +661,33 @@ function FinanceiroContent() {
                       </div>
                     )}
 
+                    {resumo.caixa.saldosContas.length > 0 && (() => {
+                      const saldoTotal = resumo.caixa.saldosContas.reduce(
+                        (acc, item) => acc + item.saldo,
+                        0
+                      );
+                      return (
+                        <div
+                          className={`rounded-2xl border px-4 py-3 ${
+                            saldoTotal >= 0
+                              ? "border-emerald-500/30 bg-emerald-500/10"
+                              : "border-rose-500/30 bg-rose-500/10"
+                          }`}
+                        >
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                            Caixa Total
+                          </div>
+                          <div
+                            className={`mt-1 text-2xl font-bold ${
+                              saldoTotal >= 0 ? "text-emerald-300" : "text-rose-300"
+                            }`}
+                          >
+                            {formatCurrency(saldoTotal)}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {resumo.caixa.saldosContas.map(item => (
                       <div
                         key={item.conta}
@@ -592,7 +696,11 @@ function FinanceiroContent() {
                         <div className="text-sm text-muted-foreground">
                           {item.conta}
                         </div>
-                        <div className="mt-1 text-xl font-semibold text-foreground">
+                        <div
+                          className={`mt-1 text-xl font-semibold ${
+                            item.saldo < 0 ? "text-rose-300" : "text-foreground"
+                          }`}
+                        >
                           {formatCurrency(item.saldo)}
                         </div>
                       </div>
@@ -656,29 +764,86 @@ function FinanceiroContent() {
                                 Sem lançamentos no período.
                               </div>
                             )}
-                            {(dreGroups.get(section.key) ?? []).map(item => (
-                              <div
-                                key={`${section.key}-${item.categoria}`}
-                                className="flex items-center justify-between rounded-xl border border-border/60 px-3 py-2 text-sm"
-                              >
-                                <span className="text-muted-foreground">
-                                  {item.categoria}
-                                </span>
-                                <span className="font-medium text-foreground">
-                                  {formatCurrency(item.valor)}
-                                </span>
-                              </div>
-                            ))}
+                            {(dreGroups.get(section.key) ?? []).map(item => {
+                              const pctReceita =
+                                resumo.caixa.totalReceitas > 0
+                                  ? item.valor / resumo.caixa.totalReceitas
+                                  : 0;
+                              return (
+                                <div
+                                  key={`${section.key}-${item.categoria}`}
+                                  className="flex items-center justify-between rounded-xl border border-border/60 px-3 py-2 text-sm"
+                                >
+                                  <span className="text-muted-foreground">
+                                    {item.categoria}
+                                  </span>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-xs text-muted-foreground">
+                                      {formatPercent(pctReceita)} da receita
+                                    </span>
+                                    <span className="font-medium text-foreground">
+                                      {formatCurrency(item.valor)}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </AccordionContent>
                         </AccordionItem>
                       ))}
                     </Accordion>
 
-                    <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-4">
-                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/90">
+                    <div className="rounded-2xl border border-border/60 bg-secondary/40 px-4 py-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                          Total de Custos
+                        </span>
+                        <div className="flex items-center gap-3">
+                          {resumo.caixa.totalReceitas > 0 && (
+                            <span className="text-xs text-muted-foreground">
+                              {formatPercent(
+                                (resumo.caixa.totalDespesas +
+                                  resumo.caixa.totalFolha +
+                                  resumo.caixa.totalImpostos) /
+                                  resumo.caixa.totalReceitas
+                              )}{" "}
+                              da receita
+                            </span>
+                          )}
+                          <span className="text-base font-semibold text-foreground">
+                            {formatCurrency(
+                              resumo.caixa.totalDespesas +
+                                resumo.caixa.totalFolha +
+                                resumo.caixa.totalImpostos
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`rounded-2xl border px-4 py-4 ${
+                        resumo.caixa.resultadoLiquido >= 0
+                          ? "border-emerald-500/25 bg-emerald-500/10"
+                          : "border-rose-500/25 bg-rose-500/10"
+                      }`}
+                    >
+                      <div
+                        className={`text-xs font-semibold uppercase tracking-[0.18em] ${
+                          resumo.caixa.resultadoLiquido >= 0
+                            ? "text-emerald-300/90"
+                            : "text-rose-300/90"
+                        }`}
+                      >
                         Resultado
                       </div>
-                      <div className="mt-2 text-2xl font-semibold text-foreground">
+                      <div
+                        className={`mt-2 text-2xl font-semibold ${
+                          resumo.caixa.resultadoLiquido < 0
+                            ? "text-rose-300"
+                            : "text-foreground"
+                        }`}
+                      >
                         {formatCurrency(resumo.caixa.resultadoLiquido)}
                       </div>
                     </div>
@@ -694,22 +859,30 @@ function FinanceiroContent() {
                       <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                         Por Produto
                       </div>
-                      {resumo.competencia.porProduto.map(item => (
+                      {resumo.competencia.porProduto.map((item, i) => (
                         <div
                           key={item.produto}
-                          className="flex items-center justify-between rounded-xl border border-border/60 px-3 py-2"
+                          className="rounded-xl border border-border/60 px-3 py-2 space-y-1.5"
                         >
-                          <div className="min-w-0">
-                            <div className="truncate text-sm text-foreground">
-                              {item.produto}
+                          <div className="flex items-center justify-between">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm text-foreground">
+                                {item.produto}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {formatPercent(item.pct)}
+                              </div>
                             </div>
-                            <div className="text-xs text-muted-foreground">
-                              {formatPercent(item.pct)}
+                            <div className="text-sm font-medium text-foreground">
+                              {formatCurrency(item.valor)}
                             </div>
                           </div>
-                          <div className="text-sm font-medium text-foreground">
-                            {formatCurrency(item.valor)}
-                          </div>
+                          <AnimatedProgressBar
+                            value={item.pct * 100}
+                            height="xs"
+                            colorClass="bg-primary/70"
+                            delay={i * 0.05}
+                          />
                         </div>
                       ))}
                     </div>
@@ -718,22 +891,30 @@ function FinanceiroContent() {
                       <div className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                         Por Vendedor
                       </div>
-                      {resumo.competencia.porVendedor.map(item => (
+                      {resumo.competencia.porVendedor.map((item, i) => (
                         <div
                           key={item.vendedor}
-                          className="flex items-center justify-between rounded-xl border border-border/60 px-3 py-2"
+                          className="rounded-xl border border-border/60 px-3 py-2 space-y-1.5"
                         >
-                          <div className="min-w-0">
-                            <div className="truncate text-sm text-foreground">
-                              {item.vendedor}
+                          <div className="flex items-center justify-between">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm text-foreground">
+                                {item.vendedor}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {formatPercent(item.pct)}
+                              </div>
                             </div>
-                            <div className="text-xs text-muted-foreground">
-                              {formatPercent(item.pct)}
+                            <div className="text-sm font-medium text-foreground">
+                              {formatCurrency(item.valor)}
                             </div>
                           </div>
-                          <div className="text-sm font-medium text-foreground">
-                            {formatCurrency(item.valor)}
-                          </div>
+                          <AnimatedProgressBar
+                            value={item.pct * 100}
+                            height="xs"
+                            colorClass="bg-chart-2/70"
+                            delay={i * 0.05}
+                          />
                         </div>
                       ))}
                     </div>
@@ -745,28 +926,25 @@ function FinanceiroContent() {
                 <CardHeader>
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <CardTitle>Drilldown de Transações</CardTitle>
-                    <div className="grid gap-2 md:grid-cols-3">
-                      <Input
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Select
                         value={tipo}
-                        onChange={event => {
-                          const value = event.target.value as
-                            | "revenue"
-                            | "expense"
-                            | "all";
+                        onValueChange={value => {
                           startTransition(() => {
-                            setTipo(value);
+                            setTipo(value as "revenue" | "expense" | "all");
                             setPage(1);
                           });
                         }}
-                        list="financeiro-tipos"
-                        className="rounded-xl border-border/70 bg-background/80"
-                        placeholder="Tipo"
-                      />
-                      <datalist id="financeiro-tipos">
-                        <option value="all" />
-                        <option value="revenue" />
-                        <option value="expense" />
-                      </datalist>
+                      >
+                        <SelectTrigger className="w-[140px] rounded-xl border-border/70 bg-background/80">
+                          <SelectValue placeholder="Tipo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos</SelectItem>
+                          <SelectItem value="revenue">Receitas</SelectItem>
+                          <SelectItem value="expense">Despesas</SelectItem>
+                        </SelectContent>
+                      </Select>
 
                       <Input
                         value={categoria}
@@ -777,7 +955,7 @@ function FinanceiroContent() {
                           });
                         }}
                         list="financeiro-categorias"
-                        className="rounded-xl border-border/70 bg-background/80"
+                        className="w-[180px] rounded-xl border-border/70 bg-background/80"
                         placeholder="Categoria"
                       />
                       <datalist id="financeiro-categorias">
@@ -786,23 +964,46 @@ function FinanceiroContent() {
                         ))}
                       </datalist>
 
-                      <Input
-                        value={conta}
-                        onChange={event => {
+                      <Select
+                        value={conta || "__all__"}
+                        onValueChange={value => {
                           startTransition(() => {
-                            setConta(event.target.value);
+                            setConta(value === "__all__" ? "" : value);
                             setPage(1);
                           });
                         }}
-                        list="financeiro-contas"
-                        className="rounded-xl border-border/70 bg-background/80"
-                        placeholder="Conta"
-                      />
-                      <datalist id="financeiro-contas">
-                        {accountOptions.map(option => (
-                          <option key={option} value={option} />
-                        ))}
-                      </datalist>
+                      >
+                        <SelectTrigger className="w-[160px] rounded-xl border-border/70 bg-background/80">
+                          <SelectValue placeholder="Conta" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__all__">Todas as contas</SelectItem>
+                          {accountOptions.map(option => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      {(tipo !== "all" || categoria !== "" || conta !== "") && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            startTransition(() => {
+                              setTipo("all");
+                              setCategoria("");
+                              setConta("");
+                              setPage(1);
+                            });
+                          }}
+                          className="gap-1.5 text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          Limpar
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
