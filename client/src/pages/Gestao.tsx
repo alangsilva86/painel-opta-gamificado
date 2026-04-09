@@ -38,6 +38,7 @@ import { Input } from "@/components/ui/input";
 import { skipToken } from "@tanstack/react-query";
 import { useGestaoDerivedData } from "@/features/gestao/useGestaoDerivedData";
 import { useGestaoViewManager } from "@/features/gestao/useGestaoViewManager";
+import { useLocation } from "wouter";
 
 type SyncStatus = {
   id: string;
@@ -60,7 +61,15 @@ type SyncStatus = {
 };
 
 export default function Gestao() {
+  const [, setLocation] = useLocation();
   const now = useMemo(() => new Date(), []);
+  const redirectAfterAuth = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const raw = new URLSearchParams(window.location.search).get("next");
+    if (!raw || !raw.startsWith("/")) return null;
+    if (raw.startsWith("//")) return null;
+    return raw;
+  }, []);
   const initialViewState = useMemo<Partial<GestaoViewState>>(
     () =>
       typeof window !== "undefined"
@@ -221,6 +230,11 @@ export default function Gestao() {
   useEffect(() => {
     if (resumoQuery.data) setAuthed(true);
   }, [resumoQuery.data]);
+
+  useEffect(() => {
+    if (!authed || !redirectAfterAuth) return;
+    setLocation(redirectAfterAuth);
+  }, [authed, redirectAfterAuth, setLocation]);
 
   const {
     availableProducts,

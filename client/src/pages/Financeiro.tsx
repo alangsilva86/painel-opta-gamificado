@@ -60,6 +60,15 @@ function hasGestaoAccessCookie() {
   );
 }
 
+function buildGestaoRedirectPath() {
+  if (typeof window === "undefined") {
+    return "/gestao?next=%2Ffinanceiro";
+  }
+
+  const next = `${window.location.pathname}${window.location.search}`;
+  return `/gestao?next=${encodeURIComponent(next)}`;
+}
+
 function getCurrentMonthKey() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -165,7 +174,7 @@ function FinanceiroContent() {
 
   useEffect(() => {
     if (!hasGestaoAccess) {
-      setLocation("/gestao");
+      setLocation(buildGestaoRedirectPath());
     }
   }, [hasGestaoAccess, setLocation]);
 
