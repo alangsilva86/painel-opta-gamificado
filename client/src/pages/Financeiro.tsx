@@ -167,6 +167,16 @@ function FinanceiroContent() {
   const deferredTipo = useDeferredValue(tipo);
   const deferredCategoria = useDeferredValue(categoria);
   const deferredConta = useDeferredValue(conta);
+  const drilldownInput = authed
+    ? {
+        mes,
+        tipo: deferredTipo,
+        page,
+        pageSize: PAGE_SIZE,
+        ...(deferredCategoria ? { categoria: deferredCategoria } : {}),
+        ...(deferredConta ? { conta: deferredConta } : {}),
+      }
+    : skipToken;
 
   const resumoQuery = trpc.financeiro.getResumoFinanceiro.useQuery(
     { mes },
@@ -185,16 +195,7 @@ function FinanceiroContent() {
   );
 
   const drilldownQuery = trpc.financeiro.getDrilldownTransacoes.useQuery(
-    authed
-      ? {
-          mes,
-          tipo: deferredTipo,
-          categoria: deferredCategoria || undefined,
-          conta: deferredConta || undefined,
-          page,
-          pageSize: PAGE_SIZE,
-        }
-      : skipToken,
+    drilldownInput,
     {
       retry: false,
     }

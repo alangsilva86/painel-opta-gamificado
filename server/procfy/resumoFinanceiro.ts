@@ -13,6 +13,7 @@ import {
 } from "drizzle-orm";
 import { contratos, procfyTransactions } from "../../drizzle/schema";
 import { getDb } from "../db";
+import { assertProcfySchema } from "./procfyCompat";
 import { procfyService } from "./procfyService";
 
 const CASH_EXPENSE_TYPES = ["fixed_expense", "variable_expense"] as const;
@@ -280,6 +281,7 @@ async function queryCompetenciaRows(range: MonthRange) {
       message: "Database indisponível",
     });
   }
+  await assertProcfySchema(db);
 
   return db
     .select({
@@ -305,6 +307,7 @@ async function queryCaixaRows(range: MonthRange) {
       message: "Database indisponível",
     });
   }
+  await assertProcfySchema(db);
 
   return db
     .select({
@@ -342,6 +345,7 @@ async function querySerieRows(
       message: "Database indisponível",
     });
   }
+  await assertProcfySchema(db);
 
   const startRange = buildMonthRange(startMes);
   const endRange = buildMonthRange(endMes);
@@ -603,6 +607,7 @@ export async function buildDrilldownTransacoes(
       message: "Database indisponível",
     });
   }
+  await assertProcfySchema(db);
 
   const range = buildMonthRange(input.mes);
   const clauses = [buildCashDateWhere(range)];

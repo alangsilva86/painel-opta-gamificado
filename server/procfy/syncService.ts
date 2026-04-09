@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 import { procfySyncLogs, procfyTransactions } from "../../drizzle/schema";
 import { getDb } from "../db";
+import { assertProcfySchema } from "./procfyCompat";
 import { procfyService, type ProcfyTransaction } from "./procfyService";
 
 export type ProcfySyncRange = {
@@ -116,6 +117,7 @@ export async function syncProcfyRange(
   if (!db) {
     throw new Error("Database indisponível");
   }
+  await assertProcfySchema(db);
 
   const transactions = await procfyService.fetchTransactions({
     startDate: range.inicio,
