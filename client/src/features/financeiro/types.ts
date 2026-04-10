@@ -83,3 +83,31 @@ export type FinanceiroSyncStatus = {
   startedAt: string | Date;
   finishedAt?: string | Date;
 };
+
+// ---------------------------------------------------------------------------
+// Analyst chat types
+// ---------------------------------------------------------------------------
+
+export type FinanceiroAnalystAction = {
+  type: "change_month";
+  label: string;
+  mes: string;
+};
+
+export type FinanceiroAnalystResponse = {
+  answer: string;
+  summary?: string;
+  evidence: string[];
+  riskLevel: "low" | "medium" | "high";
+  recommendedActions: FinanceiroAnalystAction[];
+  followUpPrompts: string[];
+  contextLabel: string;
+};
+
+export type FinanceiroAnalystMessage = {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  createdAt: string;
+  response?: FinanceiroAnalystResponse;
+};

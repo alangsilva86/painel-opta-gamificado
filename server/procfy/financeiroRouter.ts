@@ -4,6 +4,10 @@ import { z } from "zod";
 import { router } from "../_core/trpc";
 import { gestaoProcedure } from "../gestao/access";
 import {
+  FINANCEIRO_CHAT_ANALYST_INPUT_SCHEMA,
+  generateFinanceiroAnalystResponse,
+} from "../financeiro/chatAnalyst";
+import {
   buildDrilldownTransacoes,
   buildResumoFinanceiro,
   buildSerieHistorica,
@@ -45,6 +49,41 @@ export const financeiroRouter = router({
       })
     )
     .query(({ input }) => buildSerieHistorica(input)),
+
+  chatAnalyst: gestaoProcedure
+    .input(FINANCEIRO_CHAT_ANALYST_INPUT_SCHEMA)
+    .mutation(async ({ input }) => {
+      const [resumo, serie] = await Promise.all([
+        buildResumoFinanceiro(input.mes),
+        buildSerieHistorica({ meses: 6, mesReferencia: input.mes }),
+      ]);
+
+      try {
+        return await generateFinanceiroAnalystResponse({ input, resumo, serie });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error("[FinanceiroAnalyst] Falha no agente analítico:", msg);
+
+        const userMessage = (() => {
+          if (msg.includes("OPENAI_API_KEY") || msg.includes("not configured"))
+            return "O analista de IA está indisponível: OPENAI_API_KEY não configurada.";
+          if (msg.includes("LLM invoke failed: 401"))
+            return "Chave de API inválida. Verifique a configuração de OPENAI_API_KEY.";
+          if (msg.includes("LLM invoke failed: 429"))
+            return "Limite de requisições atingido. Aguarde alguns instantes e tente novamente.";
+          if (msg.includes("LLM invoke failed: 400"))
+            return "Endpoint ou modelo inválido. Verifique OPENAI_API_URL e OPENAI_MODEL.";
+          if (
+            msg.includes("LLM response parse failed") ||
+            msg.includes("LLM response schema mismatch")
+          )
+            return "O modelo retornou um formato inesperado. Reformule a pergunta.";
+          return "O analista de IA não conseguiu responder agora. Tente novamente.";
+        })();
+
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: userMessage });
+      }
+    }),
 
   getDrilldownTransacoes: gestaoProcedure
     .input(

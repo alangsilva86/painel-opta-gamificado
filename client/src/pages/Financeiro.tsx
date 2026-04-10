@@ -72,6 +72,7 @@ import {
   X,
   FileStack,
 } from "lucide-react";
+import { FinanceiroAnalystChat } from "@/features/financeiro/components/FinanceiroAnalystChat";
 
 const chartConfig = {
   competencia: {
@@ -1143,6 +1144,16 @@ function FinanceiroContent() {
           )}
         </section>
       </div>
+
+      <FinanceiroAnalystChat
+        mes={mes}
+        resumo={resumoQuery.data}
+        onAction={action => {
+          if (action.type === "change_month") {
+            startTransition(() => setMes(action.mes));
+          }
+        }}
+      />
     </div>
   );
 }
