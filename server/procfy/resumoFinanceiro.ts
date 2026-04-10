@@ -113,6 +113,45 @@ export type SerieHistoricaItem = {
   resultado: number;
 };
 
+export type FinanceiroInvestigationPack = {
+  totalCosts: number;
+  typeBreakdown: Array<{
+    tipo: CashBreakdownType;
+    label: string;
+    valor: number;
+    pctOfCosts: number;
+    pctOfRevenue: number;
+  }>;
+  topExpenseCategories: Array<{
+    categoria: string;
+    tipo: CashBreakdownType;
+    valor: number;
+    pctOfCosts: number;
+    pctWithinType: number;
+  }>;
+  payrollBreakdown: Array<{
+    categoria: string;
+    valor: number;
+    pctOfPayroll: number;
+  }>;
+  categoryBridge: Array<{
+    label: string;
+    valor: number;
+    pctOfCosts: number;
+  }>;
+  topExpenseTransactions: Array<DrilldownTransacao>;
+  topRevenueTransactions: Array<DrilldownTransacao>;
+  accountRisk: Array<{
+    conta: string;
+    saldo: number;
+    status: "negative" | "low" | "healthy";
+  }>;
+  availableFilters: {
+    categorias: string[];
+    contas: string[];
+  };
+};
+
 export type DrilldownTransacao = {
   id: string;
   name: string;
@@ -173,7 +212,7 @@ function buildMonthRange(mes: string): MonthRange {
   };
 }
 
-function addMonths(mes: string, offset: number) {
+export function shiftMonthKey(mes: string, offset: number) {
   const { year, monthIndex } = parseMonth(mes);
   const next = new Date(Date.UTC(year, monthIndex + offset, 1));
   return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -184,7 +223,7 @@ function buildMonthSequence(meses: number, mesReferencia?: string) {
     mesReferencia ??
     `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, "0")}`;
   return Array.from({ length: meses }, (_, index) =>
-    addMonths(referenceMes, index - (meses - 1))
+    shiftMonthKey(referenceMes, index - (meses - 1))
   );
 }
 
@@ -222,6 +261,14 @@ function monthKeyFromCashRow(row: {
 
 function monthKeyFromContractDate(date: Date) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function getCashBreakdownLabel(tipo: CashBreakdownType) {
+  if (tipo === "revenue") return "Receitas";
+  if (tipo === "fixed_expense") return "Despesas fixas";
+  if (tipo === "variable_expense") return "Despesas variáveis";
+  if (tipo === "payroll") return "Folha";
+  return "Impostos";
 }
 
 function buildCompetenciaBreakdown<T extends string>(
@@ -589,6 +636,165 @@ export async function buildSerieHistorica(params: {
   });
 
   return months.map(mes => seriesMap.get(mes)!);
+}
+
+export async function buildFinanceiroInvestigationPack(
+  mes: string
+): Promise<FinanceiroInvestigationPack> {
+  const range = buildMonthRange(mes);
+  const caixaRows = await queryCaixaRows(range);
+
+  const expenseRows = caixaRows.filter(row =>
+    isNonTransferExpenseType(row.transactionType)
+  );
+  const revenueRows = caixaRows.filter(row => row.transactionType === "revenue");
+
+  const totalRevenueCents = revenueRows.reduce((acc, row) => acc + row.amountCents, 0);
+  const totalCostsCents = expenseRows.reduce((acc, row) => acc + row.amountCents, 0);
+
+  const typeTotals = new Map<CashBreakdownType, number>();
+  const categoryTotals = new Map<
+    string,
+    { tipo: CashBreakdownType; valorCent: number }
+  >();
+  const payrollTotals = new Map<string, number>();
+
+  expenseRows.forEach(row => {
+    const tipo = row.transactionType as CashBreakdownType;
+    typeTotals.set(tipo, (typeTotals.get(tipo) ?? 0) + row.amountCents);
+
+    const category = row.categoryName || "Sem categoria";
+    const categoryKey = `${tipo}:${category}`;
+    categoryTotals.set(categoryKey, {
+      tipo,
+      valorCent: (categoryTotals.get(categoryKey)?.valorCent ?? 0) + row.amountCents,
+    });
+
+    if (tipo === "payroll") {
+      payrollTotals.set(category, (payrollTotals.get(category) ?? 0) + row.amountCents);
+    }
+  });
+
+  const topExpenseCategories = Array.from(categoryTotals.entries())
+    .map(([key, entry]) => {
+      const [, categoria] = key.split(":");
+      const typeTotal = typeTotals.get(entry.tipo) ?? 0;
+      return {
+        categoria,
+        tipo: entry.tipo,
+        valor: centsToNumber(entry.valorCent),
+        pctOfCosts: ratio(entry.valorCent, totalCostsCents),
+        pctWithinType: ratio(entry.valorCent, typeTotal),
+      };
+    })
+    .sort((a, b) => b.valor - a.valor);
+
+  const payrollBreakdown = Array.from(payrollTotals.entries())
+    .map(([categoria, valorCent]) => ({
+      categoria,
+      valor: centsToNumber(valorCent),
+      pctOfPayroll: ratio(valorCent, typeTotals.get("payroll") ?? 0),
+    }))
+    .sort((a, b) => b.valor - a.valor);
+
+  const categoryBridge = topExpenseCategories.slice(0, 5).map(item => ({
+    label: `${item.categoria} (${getCashBreakdownLabel(item.tipo)})`,
+    valor: item.valor,
+    pctOfCosts: item.pctOfCosts,
+  }));
+  const topBridgeValue = categoryBridge.reduce((acc, item) => acc + item.valor, 0);
+  const totalCosts = centsToNumber(totalCostsCents);
+  if (totalCosts - topBridgeValue > 0.009) {
+    categoryBridge.push({
+      label: "Outros custos",
+      valor: Number((totalCosts - topBridgeValue).toFixed(2)),
+      pctOfCosts: totalCosts > 0 ? (totalCosts - topBridgeValue) / totalCosts : 0,
+    });
+  }
+
+  const toDrilldownRow = (row: CaixaRow): DrilldownTransacao => ({
+    id: row.idProcfy,
+    name:
+      row.name ||
+      row.description ||
+      row.documentNumber ||
+      `Transação ${row.idProcfy}`,
+    tipo: row.transactionType,
+    categoria: row.categoryName || "Sem categoria",
+    conta: row.bankAccountName || "Sem conta",
+    contato: row.contactName || "Sem contato",
+    valor: centsToNumber(row.amountCents),
+    pago: row.paid,
+    dataPagamento: row.paidAt ?? row.dueDate,
+    dataCompetencia: row.competencyDate,
+    metodoPagamento: row.paymentMethod,
+  });
+
+  const topExpenseTransactions = expenseRows
+    .slice()
+    .sort((a, b) => b.amountCents - a.amountCents)
+    .slice(0, 8)
+    .map(toDrilldownRow);
+
+  const topRevenueTransactions = revenueRows
+    .slice()
+    .sort((a, b) => b.amountCents - a.amountCents)
+    .slice(0, 6)
+    .map(toDrilldownRow);
+
+  const saldosContas = await procfyService
+    .fetchBankAccounts()
+    .then(accounts =>
+      accounts
+        .map(account => ({
+          conta: account.name,
+          saldo: centsToNumber(account.balanceCents),
+        }))
+        .sort((a, b) => a.saldo - b.saldo)
+    )
+    .catch(error => {
+      console.error("[Financeiro] Falha ao carregar saldos Procfy", error);
+      return [] as Array<{ conta: string; saldo: number }>;
+    });
+
+  const lowBalanceThreshold = totalCosts > 0 ? totalCosts * 0.15 : 0;
+  const accountRisk = saldosContas.map(item => ({
+    conta: item.conta,
+    saldo: item.saldo,
+    status:
+      item.saldo < 0
+        ? ("negative" as const)
+        : item.saldo <= lowBalanceThreshold && lowBalanceThreshold > 0
+          ? ("low" as const)
+          : ("healthy" as const),
+  }));
+
+  return {
+    totalCosts,
+    typeBreakdown: Array.from(typeTotals.entries())
+      .map(([tipo, valorCent]) => ({
+        tipo,
+        label: getCashBreakdownLabel(tipo),
+        valor: centsToNumber(valorCent),
+        pctOfCosts: ratio(valorCent, totalCostsCents),
+        pctOfRevenue: ratio(valorCent, totalRevenueCents),
+      }))
+      .sort((a, b) => b.valor - a.valor),
+    topExpenseCategories: topExpenseCategories.slice(0, 8),
+    payrollBreakdown: payrollBreakdown.slice(0, 6),
+    categoryBridge,
+    topExpenseTransactions,
+    topRevenueTransactions,
+    accountRisk,
+    availableFilters: {
+      categorias: Array.from(
+        new Set(caixaRows.map(row => row.categoryName || "Sem categoria"))
+      ).sort((a, b) => a.localeCompare(b)),
+      contas: Array.from(
+        new Set(caixaRows.map(row => row.bankAccountName || "Sem conta"))
+      ).sort((a, b) => a.localeCompare(b)),
+    },
+  };
 }
 
 export async function buildDrilldownTransacoes(

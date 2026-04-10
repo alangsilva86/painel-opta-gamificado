@@ -222,7 +222,7 @@ const resolveApiUrl = () => {
 const resolveModel = () =>
   ENV.openaiModel && ENV.openaiModel.trim().length > 0
     ? ENV.openaiModel.trim()
-    : "gpt-4o-mini";
+    : "gpt-4o";
 
 const assertApiKey = () => {
   if (!ENV.openaiApiKey) {

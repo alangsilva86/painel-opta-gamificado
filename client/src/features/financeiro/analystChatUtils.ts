@@ -1,14 +1,17 @@
-import type { FinanceiroAnalystMessage, FinanceiroAnalystResponse, ResumoFinanceiro } from "./types";
+import type {
+  FinanceiroAnalystFocus,
+  FinanceiroAnalystMessage,
+  FinanceiroAnalystResponse,
+  ResumoFinanceiro,
+} from "./types";
 
 export const FINANCEIRO_ANALYST_INITIAL_PROMPTS = [
-  "Qual o diagnóstico financeiro do mês atual?",
-  "O fluxo de caixa está saudável ou em risco?",
-  "Quais categorias de despesa estão mais pesando no resultado?",
-  "Por que há diferença entre competência e receita de caixa?",
-  "Como está a tendência do resultado nos últimos 6 meses?",
-  "Qual a margem operacional e o que está pressionando?",
-  "Há alguma conta bancária com saldo preocupante?",
-  "Compare o resultado deste mês com os meses anteriores.",
+  "Qual decisão financeira mais urgente deste mês?",
+  "O que piorou versus o mês anterior?",
+  "Como chegamos no total de custos deste mês?",
+  "Quais gastos com pessoas estão mais pressionando o resultado?",
+  "Existe alguma conta bancária em risco imediato?",
+  "Se eu tiver 7 dias para agir, por onde começo?",
 ];
 
 export function createFinanceiroAnalystMessage(
@@ -30,7 +33,9 @@ export function createFinanceiroAnalystMessage(
 
 export function buildFinanceiroAnalystContextLabel(
   mes: string,
-  resumo?: ResumoFinanceiro | null
+  resumo?: ResumoFinanceiro | null,
+  compareTo?: string | null,
+  focus: FinanceiroAnalystFocus = "overview"
 ): string {
   const label = new Date(`${mes}-01T00:00:00Z`).toLocaleDateString("pt-BR", {
     month: "short",
@@ -39,5 +44,25 @@ export function buildFinanceiroAnalystContextLabel(
   });
   if (!resumo) return label;
   const resultado = resumo.caixa.resultadoLiquido;
-  return `${label} • ${resultado >= 0 ? "resultado positivo" : "resultado negativo"}`;
+  const compareLabel = compareTo
+    ? ` • vs ${new Date(`${compareTo}-01T00:00:00Z`).toLocaleDateString("pt-BR", {
+        month: "short",
+        year: "2-digit",
+        timeZone: "UTC",
+      })}`
+    : "";
+  const focusLabel = focus === "overview" ? "" : ` • foco ${focus}`;
+  return `${label} • ${resultado >= 0 ? "resultado positivo" : "resultado negativo"}${compareLabel}${focusLabel}`;
+}
+
+export function buildFinanceiroAnalystContextSignature(
+  mes: string,
+  compareTo?: string | null,
+  focus: FinanceiroAnalystFocus = "overview"
+) {
+  return JSON.stringify({
+    mes,
+    compareTo: compareTo || null,
+    focus,
+  });
 }

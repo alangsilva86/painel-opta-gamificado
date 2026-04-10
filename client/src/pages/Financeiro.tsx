@@ -58,6 +58,7 @@ import { trpc } from "@/lib/trpc";
 import { formatCurrency, formatPercent } from "@/features/gestao/utils";
 import type {
   DrilldownFinanceiroResponse,
+  FinanceiroAnalystFocus,
   FinanceiroSyncStatus,
   ResumoFinanceiro,
   SerieHistoricaItem,
@@ -209,6 +210,9 @@ function FinanceiroContent() {
   const [tipo, setTipo] = useState<"revenue" | "expense" | "all">("all");
   const [categoria, setCategoria] = useState("");
   const [conta, setConta] = useState("");
+  const [analystCompareTo, setAnalystCompareTo] = useState<string | null>(null);
+  const [analystFocus, setAnalystFocus] =
+    useState<FinanceiroAnalystFocus>("overview");
   const [page, setPage] = useState(1);
   const [jobId, setJobId] = useState<string | null>(null);
   const [password, setPassword] = useState("");
@@ -384,12 +388,20 @@ function FinanceiroContent() {
     drilldownQuery.error?.message ||
     null;
 
-  const handleMonthChange = (nextMes: string) => {
+  const handleMonthChange = (
+    nextMes: string,
+    options?: {
+      compareTo?: string | null;
+      focus?: FinanceiroAnalystFocus;
+    }
+  ) => {
     startTransition(() => {
       setMes(nextMes);
       setTipo("all");
       setCategoria("");
       setConta("");
+      setAnalystCompareTo(options?.compareTo ?? null);
+      setAnalystFocus(options?.focus ?? "overview");
       setPage(1);
     });
   };
@@ -421,6 +433,14 @@ function FinanceiroContent() {
                 onChange={event => handleMonthChange(event.target.value)}
                 className="w-[11rem] rounded-xl border-border/70 bg-background/80"
               />
+              {analystCompareTo && (
+                <Badge
+                  variant="outline"
+                  className="border-primary/20 bg-primary/5 text-xs"
+                >
+                  Chat vs {formatMonthLabel(analystCompareTo)}
+                </Badge>
+              )}
               <Button
                 variant="outline"
                 onClick={() => {
@@ -1148,9 +1168,65 @@ function FinanceiroContent() {
       <FinanceiroAnalystChat
         mes={mes}
         resumo={resumoQuery.data}
+        compareTo={analystCompareTo}
+        focus={analystFocus}
         onAction={action => {
           if (action.type === "change_month") {
-            startTransition(() => setMes(action.mes));
+            handleMonthChange(action.mes);
+            return;
+          }
+
+          if (action.type === "compare_months") {
+            handleMonthChange(action.mes, {
+              compareTo: action.compareMes,
+              focus: "comparison",
+            });
+            return;
+          }
+
+          if (action.type === "open_category") {
+            startTransition(() => {
+              setTipo(action.transactionType);
+              setCategoria(action.categoria);
+              setConta("");
+              setAnalystFocus(
+                action.transactionType === "expense" ? "costs" : "transactions"
+              );
+              setPage(1);
+            });
+            return;
+          }
+
+          if (action.type === "open_transactions") {
+            startTransition(() => {
+              setTipo(action.transactionType);
+              setCategoria("");
+              setConta("");
+              setAnalystFocus("transactions");
+              setPage(1);
+            });
+            return;
+          }
+
+          if (action.type === "filter_transactions") {
+            startTransition(() => {
+              setTipo(action.transactionType);
+              setCategoria(action.categoria ?? "");
+              setConta(action.conta ?? "");
+              setAnalystFocus("transactions");
+              setPage(1);
+            });
+            return;
+          }
+
+          if (action.type === "open_account_risk") {
+            startTransition(() => {
+              setTipo("expense");
+              setCategoria("");
+              setConta(action.conta);
+              setAnalystFocus("accounts");
+              setPage(1);
+            });
           }
         }}
       />

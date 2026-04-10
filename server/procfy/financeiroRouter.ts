@@ -6,8 +6,10 @@ import { gestaoProcedure } from "../gestao/access";
 import {
   FINANCEIRO_CHAT_ANALYST_INPUT_SCHEMA,
   generateFinanceiroAnalystResponse,
+  resolveFinanceiroAnalystContext,
 } from "../financeiro/chatAnalyst";
 import {
+  buildFinanceiroInvestigationPack,
   buildDrilldownTransacoes,
   buildResumoFinanceiro,
   buildSerieHistorica,
@@ -53,13 +55,33 @@ export const financeiroRouter = router({
   chatAnalyst: gestaoProcedure
     .input(FINANCEIRO_CHAT_ANALYST_INPUT_SCHEMA)
     .mutation(async ({ input }) => {
-      const [resumo, serie] = await Promise.all([
-        buildResumoFinanceiro(input.mes),
-        buildSerieHistorica({ meses: 6, mesReferencia: input.mes }),
-      ]);
+      const resolvedContext = resolveFinanceiroAnalystContext(input);
+      const comparisonMes = resolvedContext.compareTo;
+
+      const [resumo, serie, investigation, comparisonResumo, comparisonInvestigation] =
+        await Promise.all([
+          buildResumoFinanceiro(resolvedContext.resolvedPeriod),
+          buildSerieHistorica({
+            meses: 6,
+            mesReferencia: resolvedContext.resolvedPeriod,
+          }),
+          buildFinanceiroInvestigationPack(resolvedContext.resolvedPeriod),
+          comparisonMes ? buildResumoFinanceiro(comparisonMes) : Promise.resolve(null),
+          comparisonMes
+            ? buildFinanceiroInvestigationPack(comparisonMes)
+            : Promise.resolve(null),
+        ]);
 
       try {
-        return await generateFinanceiroAnalystResponse({ input, resumo, serie });
+        return await generateFinanceiroAnalystResponse({
+          input,
+          resolvedContext,
+          resumo,
+          serie,
+          investigation,
+          comparisonResumo,
+          comparisonInvestigation,
+        });
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         console.error("[FinanceiroAnalyst] Falha no agente analítico:", msg);

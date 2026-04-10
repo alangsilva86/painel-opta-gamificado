@@ -88,18 +88,86 @@ export type FinanceiroSyncStatus = {
 // Analyst chat types
 // ---------------------------------------------------------------------------
 
-export type FinanceiroAnalystAction = {
-  type: "change_month";
+export type FinanceiroAnalystFocus =
+  | "overview"
+  | "cash"
+  | "costs"
+  | "people"
+  | "accounts"
+  | "transactions"
+  | "reconciliation"
+  | "comparison";
+
+type FinanceiroActionMeta = {
   label: string;
-  mes: string;
+  ownerHint: string;
+  urgency: "now" | "this_week" | "monitor";
+};
+
+export type FinanceiroAnalystAction =
+  | (FinanceiroActionMeta & {
+      type: "change_month";
+      mes: string;
+    })
+  | (FinanceiroActionMeta & {
+      type: "compare_months";
+      mes: string;
+      compareMes: string;
+    })
+  | (FinanceiroActionMeta & {
+      type: "open_category";
+      categoria: string;
+      transactionType: "all" | "revenue" | "expense";
+    })
+  | (FinanceiroActionMeta & {
+      type: "open_transactions";
+      transactionType: "all" | "revenue" | "expense";
+    })
+  | (FinanceiroActionMeta & {
+      type: "filter_transactions";
+      transactionType: "all" | "revenue" | "expense";
+      categoria?: string;
+      conta?: string;
+    })
+  | (FinanceiroActionMeta & {
+      type: "open_account_risk";
+      conta: string;
+    });
+
+export type FinanceiroAnalystDecision = {
+  status: "good" | "watch" | "critical";
+  message: string;
+};
+
+export type FinanceiroAnalystDriver = {
+  title: string;
+  direction: "positive" | "negative" | "neutral";
+  metric?: string;
+  impact: string;
+  detail: string;
+  ownerHint?: string;
+  urgency: "now" | "this_week" | "monitor";
+};
+
+export type FinanceiroAnalystCitation = {
+  label: string;
+  value: string;
+  note?: string;
 };
 
 export type FinanceiroAnalystResponse = {
-  answer: string;
+  headline: string;
   summary?: string;
-  evidence: string[];
-  riskLevel: "low" | "medium" | "high";
-  recommendedActions: FinanceiroAnalystAction[];
+  decision: FinanceiroAnalystDecision;
+  narrative?: string;
+  drivers: FinanceiroAnalystDriver[];
+  actions: FinanceiroAnalystAction[];
+  citations: FinanceiroAnalystCitation[];
+  confidence: "low" | "medium" | "high";
+  requestedPeriod: string;
+  resolvedPeriod: string;
+  compareTo?: string;
+  warnings: string[];
   followUpPrompts: string[];
   contextLabel: string;
 };
