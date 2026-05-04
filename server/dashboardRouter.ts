@@ -32,11 +32,13 @@ import {
   listarMetasSemanaisDoMes,
   obterMetasDiarias,
   obterMetasSemanais,
+  obterMetasOperacionaisPlanejadas,
   atualizarMetaDiaria,
   atualizarMetaSemanal,
   gerarMetasDiarias,
   gerarMetasSemanais,
-  calcularDiasUteisDoMes,
+  alternarDiaUtilOperacional,
+  contarDiasUteisOperacionais,
   calcularSemanasUteisDoMes,
 } from "./metasService";
 import {
@@ -100,7 +102,7 @@ export const dashboardRouter = router({
   obterDashboard: publicProcedure.query(async () => {
     try {
       const mesAtual = obterMesAtual();
-      const diasUteis = calcularDiasUteisDoMes(mesAtual);
+      const diasUteis = await contarDiasUteisOperacionais(mesAtual);
       const semanasPlanejadas = calcularSemanasUteisDoMes(mesAtual);
 
       // Busca contratos do Zoho ou usa mock
@@ -204,9 +206,8 @@ export const dashboardRouter = router({
         const metasDiariasEntradas = metasDiariasCount.get(v.id) || 0;
         const metasSemanaisEntradas = metasSemanaisCount.get(v.id) || 0;
         const metaDiaria =
-          planejada && planejada.metaDiaria > 0
-            ? planejada.metaDiaria /
-              Math.max(1, metasDiariasEntradas || diasUteis || 1)
+          planejada && metasDiariasEntradas > 0
+            ? planejada.metaDiaria / Math.max(1, diasUteis || 1)
             : diasUteis > 0
               ? v.meta / diasUteis
               : 0;
@@ -383,7 +384,7 @@ export const dashboardRouter = router({
     .query(async ({ input }) => {
       try {
         const mesAtual = obterMesAtual();
-        const diasUteis = calcularDiasUteisDoMes(mesAtual);
+        const diasUteis = await contarDiasUteisOperacionais(mesAtual);
         const semanasPlanejadas = calcularSemanasUteisDoMes(mesAtual);
 
         let contratosZoho;
@@ -441,7 +442,7 @@ export const dashboardRouter = router({
             ? metasDiarias.reduce(
                 (acc, m) => acc + parseFloat(m.metaValor),
                 0
-              ) / Math.max(1, metasDiarias.length)
+              ) / Math.max(1, diasUteis || 1)
             : diasUteis > 0
               ? vendedoraFinal.meta / diasUteis
               : 0;
@@ -620,35 +621,53 @@ export const adminRouter = router({
   obterMetasOperacionais: protectedProcedure
     .input(z.object({ mes: z.string(), vendedoraId: z.string() }))
     .query(async ({ input }) => {
-      const [diarias, semanais] = await Promise.all([
-        obterMetasDiarias(input.mes, input.vendedoraId),
-        obterMetasSemanais(input.mes, input.vendedoraId),
-      ]);
-
-      return {
-        diarias,
-        semanais,
-        diasUteis: calcularDiasUteisDoMes(input.mes),
-        semanasPlanejadas: calcularSemanasUteisDoMes(input.mes),
-      };
+      return obterMetasOperacionaisPlanejadas(input.mes, input.vendedoraId);
     }),
 
   atualizarMetaDiaria: protectedProcedure
     .input(
-      z.object({
-        mes: z.string(),
-        dia: z.number().min(1).max(31),
-        vendedoraId: z.string(),
-        metaValor: z.number().positive(),
-      })
+      z
+        .object({
+          mes: z.string(),
+          dia: z.number().min(1).max(31),
+          vendedoraId: z.string(),
+          modo: z.enum(["valor", "percentual"]).optional(),
+          metaValor: z.number().nonnegative().optional(),
+          percentualMeta: z.number().min(0).max(100).optional(),
+        })
+        .refine(
+          input =>
+            typeof input.metaValor === "number" ||
+            typeof input.percentualMeta === "number",
+          { message: "Informe valor ou percentual da meta" }
+        )
     )
     .mutation(async ({ input }) => {
       await atualizarMetaDiaria(
         input.mes,
         input.dia,
         input.vendedoraId,
-        input.metaValor
+        input.metaValor ?? 0,
+        {
+          modo:
+            input.modo ??
+            (input.percentualMeta !== undefined ? "percentual" : "valor"),
+          percentualMeta: input.percentualMeta,
+        }
       );
+      return { success: true };
+    }),
+
+  alternarDiaUtilOperacional: protectedProcedure
+    .input(
+      z.object({
+        mes: z.string(),
+        dia: z.number().min(1).max(31),
+        diaUtil: z.boolean(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      await alternarDiaUtilOperacional(input.mes, input.dia, input.diaUtil);
       return { success: true };
     }),
 

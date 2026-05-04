@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -61,6 +61,7 @@ export default function Admin() {
     onSuccess: () => {
       toast.success("Meta de vendedora atualizada!");
       refetchMetas();
+      metasOperacionais.refetch();
     },
     onError: error => {
       toast.error(`Erro: ${error.message}`);
@@ -114,6 +115,15 @@ export default function Admin() {
     onError: error => toast.error(error.message),
   });
 
+  const alternarDiaUtilOperacional =
+    trpc.admin.alternarDiaUtilOperacional.useMutation({
+      onSuccess: () => {
+        toast.success("Calendário operacional atualizado");
+        metasOperacionais.refetch();
+      },
+      onError: error => toast.error(error.message),
+    });
+
   const regenerarMetas = trpc.admin.regenerarMetasVendedora.useMutation({
     onSuccess: () => {
       toast.success("Metas recalculadas com dias úteis");
@@ -141,6 +151,16 @@ export default function Admin() {
     { mes: mesAtual, vendedoraId: vendedoraOperacional },
     { enabled: Boolean(vendedoraOperacional) }
   );
+
+  const metasPorVendedoraId = useMemo(() => {
+    return new Map(
+      (metas?.metasVendedor ?? []).map((meta: any) => [meta.vendedoraId, meta])
+    );
+  }, [metas?.metasVendedor]);
+
+  const metaVendedoraSelecionada = vendedoraOperacional
+    ? metasPorVendedoraId.get(vendedoraOperacional)
+    : null;
 
   useEffect(() => {
     if (!vendedoraOperacional && vendedoras && vendedoras.length > 0) {
@@ -196,13 +216,28 @@ export default function Admin() {
     criarVendedora.mutate(novaVendedora);
   };
 
-  const handleAtualizarMetaDiaria = (dia: number, valor: number) => {
+  const handleAtualizarMetaDiaria = (
+    dia: number,
+    payload: {
+      modo: "valor" | "percentual";
+      metaValor?: number;
+      percentualMeta?: number;
+    }
+  ) => {
     if (!vendedoraOperacional) return;
     atualizarMetaDiaria.mutate({
       mes: mesAtual,
       dia,
       vendedoraId: vendedoraOperacional,
-      metaValor: valor,
+      ...payload,
+    });
+  };
+
+  const handleToggleDiaUtil = (dia: number, diaUtil: boolean) => {
+    alternarDiaUtilOperacional.mutate({
+      mes: mesAtual,
+      dia,
+      diaUtil,
     });
   };
 
@@ -223,9 +258,7 @@ export default function Admin() {
 
   const handleRegenerarMetas = () => {
     if (!vendedoraOperacional) return;
-    const metaSelecionada = metas?.metasVendedor?.find(
-      (m: any) => m.vendedoraId === vendedoraOperacional
-    );
+    const metaSelecionada = metasPorVendedoraId.get(vendedoraOperacional);
     const metaValor = metaSelecionada
       ? parseFloat(metaSelecionada.metaValor)
       : undefined;
@@ -247,6 +280,7 @@ export default function Admin() {
   };
 
   const diasUteis = calcularDiasUteisDoMes(mesAtual);
+  const diasUteisOperacionais = metasOperacionais.data?.diasUteis ?? diasUteis;
   const semanas = calcularSemanasUteisDoMes(mesAtual);
   const totalVendedoras = vendedoras?.length ?? 0;
 
@@ -272,7 +306,9 @@ export default function Admin() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <div className="status-chip">Mês {mesAtual}</div>
-                <div className="status-chip">{diasUteis} dias úteis</div>
+                <div className="status-chip">
+                  {diasUteisOperacionais} dias úteis
+                </div>
                 <div className="status-chip">{semanas} semanas planejadas</div>
                 <div
                   className={`status-chip ${
@@ -324,7 +360,7 @@ export default function Admin() {
               <CardContent className="space-y-1 p-5">
                 <div className="metric-label">Dias úteis</div>
                 <div className="text-2xl font-semibold text-foreground">
-                  {diasUteis}
+                  {diasUteisOperacionais}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   Base para distribuição automática das metas diárias.
@@ -649,16 +685,9 @@ export default function Admin() {
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
                           {vendedora.id} • Meta:{" "}
-                          {metas?.metasVendedor &&
-                          metas.metasVendedor[
-                            vendedora.id as keyof typeof metas.metasVendedor
-                          ]
+                          {metasPorVendedoraId.get(vendedora.id)
                             ? formatCurrency(
-                                (
-                                  metas.metasVendedor[
-                                    vendedora.id as keyof typeof metas.metasVendedor
-                                  ] as any
-                                ).metaValor
+                                metasPorVendedoraId.get(vendedora.id).metaValor
                               )
                             : "Não definida"}
                         </p>
@@ -809,16 +838,22 @@ export default function Admin() {
                     metasOperacionais.data.diarias?.map(d => ({
                       dia: d.dia,
                       meta: parseFloat(d.metaValor),
+                      percentualMeta: parseFloat(d.percentualMeta),
                       tipo: d.tipo as "automatica" | "manual",
+                      diaUtil: d.diaUtil,
+                      bloqueado: d.bloqueado,
                     })) || []
                   }
                   metaMensal={parseFloat(
-                    (metas?.metasVendedor as any)?.find(
-                      (m: any) => m.vendedoraId === vendedoraOperacional
-                    )?.metaValor || "0"
+                    metaVendedoraSelecionada?.metaValor ||
+                      String(metasOperacionais.data.metaMensal ?? 0)
                   )}
+                  distribuicao={metasOperacionais.data.distribuicao}
                   onAtualizarMeta={handleAtualizarMetaDiaria}
+                  onToggleDiaUtil={handleToggleDiaUtil}
                   onRegenerar={handleRegenerarMetas}
+                  isSaving={atualizarMetaDiaria.isPending}
+                  isTogglingDiaUtil={alternarDiaUtilOperacional.isPending}
                 />
 
                 <Card className="table-shell">

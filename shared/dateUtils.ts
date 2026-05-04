@@ -11,6 +11,43 @@ export function contarDiasUteis(dataInicio: Date, dataFim: Date): number {
   return dias;
 }
 
+export type DiaOperacional = {
+  dia: number;
+  diaUtil: boolean;
+};
+
+export function isDiaUtilPadrao(data: Date): boolean {
+  const diaSemana = data.getDay();
+  return diaSemana !== 0 && diaSemana !== 6;
+}
+
+export function obterUltimoDiaDoMes(mes: string): number {
+  const [ano, mesNum] = mes.split("-").map(Number);
+  return new Date(ano, mesNum, 0).getDate();
+}
+
+export function criarCalendarioOperacionalPadrao(
+  mes: string
+): DiaOperacional[] {
+  const [ano, mesNum] = mes.split("-").map(Number);
+  const ultimoDia = obterUltimoDiaDoMes(mes);
+
+  return Array.from({ length: ultimoDia }, (_, index) => {
+    const dia = index + 1;
+    const data = new Date(ano, mesNum - 1, dia);
+    return {
+      dia,
+      diaUtil: isDiaUtilPadrao(data),
+    };
+  });
+}
+
+export function contarDiasUteisCalendario(
+  calendario: DiaOperacional[]
+): number {
+  return calendario.filter(dia => dia.diaUtil).length;
+}
+
 export function calcularSemanaDoMes(dia: number): number {
   return Math.ceil(dia / 7);
 }
@@ -26,10 +63,7 @@ export function obterIntervaloSemana(mes: string, semana: number) {
 }
 
 export function calcularDiasUteisDoMes(mes: string): number {
-  const [ano, mesNum] = mes.split("-").map(Number);
-  const inicio = new Date(ano, mesNum - 1, 1);
-  const fim = new Date(ano, mesNum, 0);
-  return contarDiasUteis(inicio, fim);
+  return contarDiasUteisCalendario(criarCalendarioOperacionalPadrao(mes));
 }
 
 export function calcularSemanasUteisDoMes(mes: string): number {

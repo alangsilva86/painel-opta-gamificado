@@ -62,7 +62,9 @@ export const metasGlobal = mysqlTable("metas_global", {
   id: varchar("id", { length: 64 }).primaryKey(),
   mes: varchar("mes", { length: 7 }).notNull(), // YYYY-MM
   metaValor: varchar("metaValor", { length: 20 }).notNull(), // Meta Global (100% = +25%)
-  superMetaValor: varchar("superMetaValor", { length: 20 }).default("0").notNull(), // Super Meta (100% = +50%)
+  superMetaValor: varchar("superMetaValor", { length: 20 })
+    .default("0")
+    .notNull(), // Super Meta (100% = +50%)
   createdAt: timestamp("createdAt").defaultNow(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow(),
 });
@@ -75,7 +77,9 @@ export const parametrosPlano = mysqlTable("parametros_plano", {
   id: varchar("id", { length: 64 }).primaryKey(),
   nome: varchar("nome", { length: 255 }).notNull(),
   basePct: varchar("basePct", { length: 10 }).default("0.55").notNull(),
-  pctVendedora: varchar("pctVendedora", { length: 10 }).default("0.06").notNull(),
+  pctVendedora: varchar("pctVendedora", { length: 10 })
+    .default("0.06")
+    .notNull(),
   ativo: mysqlEnum("ativo", ["sim", "nao"]).default("sim").notNull(),
   createdAt: timestamp("createdAt").defaultNow(),
 });
@@ -112,6 +116,22 @@ export const historicoMetas = mysqlTable("historico_metas", {
 export type HistoricoMeta = typeof historicoMetas.$inferSelect;
 export type InsertHistoricoMeta = typeof historicoMetas.$inferInsert;
 
+// Calendário operacional mensal compartilhado por todas as vendedoras
+export const metasCalendarioDias = mysqlTable("metas_calendario_dias", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  mes: varchar("mes", { length: 7 }).notNull(), // YYYY-MM
+  dia: int("dia").notNull(), // 1-31
+  diaUtil: boolean("diaUtil").default(true).notNull(),
+  tipo: mysqlEnum("tipo", ["automatica", "manual"])
+    .default("automatica")
+    .notNull(),
+  createdAt: timestamp("createdAt").defaultNow(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow(),
+});
+
+export type MetaCalendarioDia = typeof metasCalendarioDias.$inferSelect;
+export type InsertMetaCalendarioDia = typeof metasCalendarioDias.$inferInsert;
+
 // Tabela de metas diárias por vendedora
 export const metasDiarias = mysqlTable("metas_diarias", {
   id: varchar("id", { length: 64 }).primaryKey(),
@@ -119,7 +139,12 @@ export const metasDiarias = mysqlTable("metas_diarias", {
   dia: int("dia").notNull(), // 1-31
   vendedoraId: varchar("vendedoraId", { length: 64 }).notNull(),
   metaValor: varchar("metaValor", { length: 20 }).notNull(), // Calculado automaticamente ou editado manualmente
-  tipo: mysqlEnum("tipo", ["automatica", "manual"]).default("automatica").notNull(),
+  percentualMeta: varchar("percentualMeta", { length: 20 })
+    .default("0")
+    .notNull(),
+  tipo: mysqlEnum("tipo", ["automatica", "manual"])
+    .default("automatica")
+    .notNull(),
   createdAt: timestamp("createdAt").defaultNow(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow(),
 });
@@ -134,7 +159,9 @@ export const metasSemanais = mysqlTable("metas_semanais", {
   semana: int("semana").notNull(), // 1-5
   vendedoraId: varchar("vendedoraId", { length: 64 }).notNull(),
   metaValor: varchar("metaValor", { length: 20 }).notNull(), // Calculado automaticamente ou editado manualmente
-  tipo: mysqlEnum("tipo", ["automatica", "manual"]).default("automatica").notNull(),
+  tipo: mysqlEnum("tipo", ["automatica", "manual"])
+    .default("automatica")
+    .notNull(),
   createdAt: timestamp("createdAt").defaultNow(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow(),
 });
@@ -151,7 +178,8 @@ export const zohoContratosSnapshot = mysqlTable("zoho_contratos_snapshot", {
 });
 
 export type ZohoContratoSnapshot = typeof zohoContratosSnapshot.$inferSelect;
-export type InsertZohoContratoSnapshot = typeof zohoContratosSnapshot.$inferInsert;
+export type InsertZohoContratoSnapshot =
+  typeof zohoContratosSnapshot.$inferInsert;
 
 // Tabela normalizada para BI rápido
 export const contratos = mysqlTable(
