@@ -7,6 +7,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { syncContratosGestaoMesAtualEAnterior } from "../gestao/syncService";
+import { runStartupMigrations } from "./migrations";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -28,6 +29,8 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  await runStartupMigrations();
+
   const app = express();
   const server = createServer(app);
   // Configure body parser with larger size limit for file uploads
@@ -64,7 +67,9 @@ async function startServer() {
 
 function scheduleGestaoSync() {
   if (process.env.GESTAO_SYNC_ENABLED !== "true") {
-    console.log("[GestaoSync] Desabilitado (set GESTAO_SYNC_ENABLED=true para ativar)");
+    console.log(
+      "[GestaoSync] Desabilitado (set GESTAO_SYNC_ENABLED=true para ativar)"
+    );
     return;
   }
 
@@ -86,7 +91,9 @@ function scheduleGestaoSync() {
   // Run immediately on start and then on interval
   void run();
   setInterval(run, minutes * 60 * 1000);
-  console.log(`[GestaoSync] Ativado: intervalo ${minutes} min (mês atual + anterior)`);
+  console.log(
+    `[GestaoSync] Ativado: intervalo ${minutes} min (mês atual + anterior)`
+  );
 }
 
 startServer().catch(console.error);
