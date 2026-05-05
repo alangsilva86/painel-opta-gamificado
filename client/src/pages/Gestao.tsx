@@ -35,6 +35,7 @@ import {
 } from "@/features/gestao/viewState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ShieldCheck } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { skipToken } from "@tanstack/react-query";
 import { useGestaoDerivedData } from "@/features/gestao/useGestaoDerivedData";
@@ -626,37 +627,43 @@ function GestaoContent() {
     return (
       <div className="page-shell">
         <div className="page-content flex min-h-screen items-center justify-center px-4">
-          <Card className="panel-card-strong w-full max-w-md">
-            <CardHeader>
-              <CardTitle>Acesso Gestão</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Insira a senha fixa para liberar a visualização dos KPIs de
-                Gestão.
-              </p>
-              <Input
-                type="password"
-                value={password}
-                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setPassword(e.target.value)
-                }
-                placeholder="Senha"
-              />
-              <Button
-                className="w-full"
-                onClick={() => authMutation.mutate({ password })}
-                disabled={authMutation.isPending || !password}
-              >
-                {authMutation.isPending ? "Validando..." : "Entrar"}
-              </Button>
-              {authMutation.error && (
-                <p className="text-sm text-red-400">
-                  Erro: {authMutation.error.message}
+          <div className="flex flex-col items-center gap-6 w-full max-w-md">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/25 bg-primary/15">
+              <ShieldCheck className="h-7 w-7 text-primary" />
+            </div>
+            <Card className="panel-card-strong w-full">
+              <CardHeader>
+                <CardTitle className="heading-card text-center">Acesso Gestão</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground text-center">
+                  Insira a senha para liberar a visualização dos KPIs de Gestão.
                 </p>
-              )}
-            </CardContent>
-          </Card>
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                    setPassword(e.target.value)
+                  }
+                  onKeyDown={(e) => e.key === "Enter" && !authMutation.isPending && password && authMutation.mutate({ password })}
+                  placeholder="Senha"
+                  className="rounded-xl border-border/70 bg-background/80"
+                />
+                <Button
+                  className="h-11 w-full rounded-xl"
+                  onClick={() => authMutation.mutate({ password })}
+                  disabled={authMutation.isPending || !password}
+                >
+                  {authMutation.isPending ? "Validando..." : "Entrar"}
+                </Button>
+                {authMutation.error && (
+                  <p className="text-sm text-rose-400 text-center">
+                    Senha incorreta. Tente novamente.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     );

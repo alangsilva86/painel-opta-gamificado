@@ -1,6 +1,5 @@
-import { type LucideIcon } from "lucide-react";
+import { type LucideIcon, TrendingUp, TrendingDown } from "lucide-react";
 import { motion } from "framer-motion";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AnimatedProgressBar } from "@/components/AnimatedProgressBar";
 import { cn } from "@/lib/utils";
 
@@ -9,6 +8,8 @@ interface KpiCardProps {
   value: string | number;
   subtitle?: string;
   icon?: LucideIcon;
+  iconColor?: string;
+  trend?: "up" | "down" | "neutral";
   progress?: {
     value: number;
     max?: number;
@@ -24,6 +25,8 @@ export function KpiCard({
   value,
   subtitle,
   icon: Icon,
+  iconColor,
+  trend,
   progress,
   valueClassName,
   motionDelay = 0,
@@ -34,44 +37,57 @@ export function KpiCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: motionDelay }}
+      className="h-full"
     >
-      <Card className="panel-card-strong h-full gap-4">
-        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-1">
-          <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            {title}
-          </CardTitle>
+      <div className="panel-card-strong flex h-full flex-col gap-3 p-5">
+        <div className="flex items-start justify-between">
+          <p className="metric-label">{title}</p>
           {Icon && (
             <span className="rounded-full border border-white/10 bg-background/60 p-2">
-              <Icon className="h-4 w-4 text-muted-foreground" />
+              <Icon className={cn("h-4 w-4", iconColor ?? "text-primary/70")} />
             </span>
           )}
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div
-            className={cn(
-              "text-[2rem] font-black tracking-tight",
-              valueClassName
+        </div>
+
+        <div
+          className={cn(
+            "text-[2rem] font-black tracking-tight tabular-nums",
+            valueClassName
+          )}
+        >
+          {value}
+        </div>
+
+        {(subtitle || trend) && (
+          <div className="flex items-center gap-1.5">
+            {trend === "up" && (
+              <TrendingUp className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
             )}
-          >
-            {value}
+            {trend === "down" && (
+              <TrendingDown className="h-3.5 w-3.5 shrink-0 text-rose-400" />
+            )}
+            {subtitle && (
+              <p className={cn(
+                "text-xs leading-5",
+                trend === "up" ? "text-emerald-400" : trend === "down" ? "text-rose-400" : "text-muted-foreground"
+              )}>
+                {subtitle}
+              </p>
+            )}
           </div>
-          {subtitle && (
-            <p className="text-xs leading-5 text-muted-foreground">
-              {subtitle}
-            </p>
-          )}
-          {progress && (
-            <AnimatedProgressBar
-              value={progress.value}
-              max={progress.max}
-              colorClass={progress.colorClass}
-              className="mt-3"
-              delay={motionDelay}
-            />
-          )}
-          {children}
-        </CardContent>
-      </Card>
+        )}
+
+        {progress && (
+          <AnimatedProgressBar
+            value={progress.value}
+            max={progress.max}
+            colorClass={progress.colorClass}
+            className="mt-auto"
+            delay={motionDelay}
+          />
+        )}
+        {children}
+      </div>
     </motion.div>
   );
 }

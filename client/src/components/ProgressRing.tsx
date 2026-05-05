@@ -33,13 +33,7 @@ export function ProgressRing({
   const normalizedProgress = Math.max(0, Math.min(displayProgress, 100));
   const offset = circumference - (normalizedProgress / 100) * circumference;
 
-  // Determina cor baseada no progresso
-  const getColor = () => {
-    if (tierColor) return tierColor;
-    if (progress >= 100) return "oklch(0.7 0.2 140)"; // Verde
-    if (progress >= 75) return "oklch(0.7 0.2 50)"; // Amarelo
-    return color;
-  };
+  const getColor = () => tierColor ?? color;
 
   return (
     <div className="relative inline-flex items-center justify-center">

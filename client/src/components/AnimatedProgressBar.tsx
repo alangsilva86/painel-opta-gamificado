@@ -24,7 +24,8 @@ export function AnimatedProgressBar({
   height = "sm",
   delay = 0,
 }: AnimatedProgressBarProps) {
-  const pct = max > 0 ? Math.min((value / max) * 100, 140) : 0;
+  const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
+  const exceeded = max > 0 && value / max > 1;
 
   return (
     <div
@@ -35,7 +36,12 @@ export function AnimatedProgressBar({
       )}
     >
       <motion.div
-        className={cn("h-full rounded-full", colorClass)}
+        className={cn(
+          "h-full rounded-full",
+          exceeded
+            ? "animate-pulse bg-gradient-to-r from-emerald-400 to-cyan-400"
+            : colorClass
+        )}
         initial={{ width: 0 }}
         animate={{ width: `${pct}%` }}
         transition={{ duration: 0.8, ease: "easeOut", delay }}

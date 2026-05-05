@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { VendedoraCard } from "@/components/VendedoraCard";
@@ -99,11 +100,18 @@ function getLeaderboardRankBadge(index: number) {
   return `#${String(index + 1).padStart(2, "0")}`;
 }
 
-function getLeaderboardBorder(index: number) {
-  if (index === 0) return "border-l-yellow-400";
-  if (index === 1) return "border-l-gray-300";
-  if (index === 2) return "border-l-orange-400";
-  return "border-l-transparent";
+function getLeaderboardRowClass(index: number) {
+  if (index === 0) return "border-l-yellow-400 bg-yellow-500/[0.07]";
+  if (index === 1) return "border-l-gray-300 bg-white/[0.03]";
+  if (index === 2) return "border-l-orange-400 bg-orange-500/[0.06]";
+  return "border-l-transparent bg-secondary/50";
+}
+
+function getLeaderboardRankColor(index: number) {
+  if (index === 0) return "text-yellow-400";
+  if (index === 1) return "text-gray-300";
+  if (index === 2) return "text-orange-400";
+  return "text-muted-foreground";
 }
 
 export default function Dashboard() {
@@ -290,10 +298,20 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-center">
-          <RefreshCw className="h-10 w-10 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Carregando dashboard…</p>
+      <div className="page-shell">
+        <div className="page-content page-stack">
+          <Skeleton className="h-52 w-full rounded-[28px]" />
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-36 rounded-[24px]" />
+            ))}
+          </div>
+          <Skeleton className="h-20 w-full rounded-2xl" />
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-80 rounded-[24px]" />
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -676,8 +694,8 @@ export default function Dashboard() {
         <div className="page-section">
           <div className="page-section-header">
             <div>
-              <h2 className="flex items-center gap-2 text-2xl font-black tracking-tight">
-                <Users size={28} />
+              <h2 className="heading-section section-heading flex items-center gap-2">
+                <Users size={22} className="text-primary/70" />
                 Vendedoras
               </h2>
               <p className="page-section-copy mt-2">
@@ -737,11 +755,11 @@ export default function Dashboard() {
                     key={vendedora.id}
                     variants={leaderboardItemVariants}
                     className={cn(
-                      "flex items-center gap-4 rounded-lg border-l-4 bg-secondary/50 p-3",
-                      getLeaderboardBorder(index)
+                      "flex items-center gap-4 rounded-lg border-l-4 p-3 transition-colors",
+                      getLeaderboardRowClass(index)
                     )}
                   >
-                    <div className="w-12 text-center text-lg font-black tracking-[0.16em] text-muted-foreground">
+                    <div className={cn("w-12 text-center text-lg font-black tracking-[0.16em]", getLeaderboardRankColor(index))}>
                       {getLeaderboardRankBadge(index)}
                     </div>
                     <div className="flex-1">
@@ -778,7 +796,7 @@ export default function Dashboard() {
         <div className="page-section">
           <div className="page-section-header">
             <div>
-              <h2 className="text-2xl font-black tracking-tight">
+              <h2 className="heading-section section-heading">
                 Produtos & Pipeline
               </h2>
               <p className="page-section-copy mt-2">

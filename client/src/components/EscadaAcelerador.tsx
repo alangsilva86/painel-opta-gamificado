@@ -28,8 +28,9 @@ export function EscadaAcelerador({
 }: EscadaAceleradorProps) {
   return (
     <div className={compact ? "text-xs" : "text-sm"}>
-      <div className="overflow-x-auto pb-2">
-        <div className="flex min-w-max items-center gap-0">
+      <div className="relative">
+        <div className="overflow-x-auto pb-2">
+          <div className="flex min-w-max items-center gap-0">
           {steps.map((step, idx) => {
             const isNext =
               !step.atingido && steps.slice(0, idx).every(s => s.atingido);
@@ -128,7 +129,9 @@ export function EscadaAcelerador({
               </div>
             );
           })}
+          </div>
         </div>
+        <div className="pointer-events-none absolute right-0 top-0 h-full w-12 bg-gradient-to-l from-card/90 to-transparent" />
       </div>
     </div>
   );

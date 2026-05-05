@@ -1,6 +1,30 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
 import { TrendingUp, Package, Zap } from "lucide-react";
 
 interface ProdutoData {
@@ -26,21 +50,26 @@ interface GraficosAnaliseProps {
 }
 
 const CORES_PRODUTOS = [
-  "#3b82f6", // blue
-  "#8b5cf6", // purple
-  "#ec4899", // pink
-  "#f59e0b", // amber
-  "#10b981", // emerald
-  "#06b6d4", // cyan
+  "var(--chart-2)",
+  "var(--chart-6)",
+  "var(--chart-4)",
+  "var(--chart-3)",
+  "var(--chart-1)",
+  "var(--chart-5)",
 ];
 
 const CORES_PIPELINE = [
-  "#6366f1", // indigo
-  "#f43f5e", // rose
-  "#14b8a6", // teal
-  "#f97316", // orange
-  "#6b21a8", // violet
+  "var(--chart-2)",
+  "var(--chart-4)",
+  "var(--chart-1)",
+  "var(--chart-3)",
+  "var(--chart-6)",
 ];
+
+const chartConfig = {
+  comissao: { label: "Incentivo", color: "var(--chart-2)" },
+  value: { label: "Valor", color: "var(--chart-1)" },
+};
 
 export function GraficosAnalise({ produtos, pipeline, totalComissao, totalValorPipeline }: GraficosAnaliseProps) {
   const [productSeriesVisible, setProductSeriesVisible] = useState(true);
@@ -55,7 +84,6 @@ export function GraficosAnalise({ produtos, pipeline, totalComissao, totalValorP
     }).format(value);
   };
 
-  // Preparar dados para gráficos
   const produtosGrafico = produtos.map((p) => ({
     name: p.nome,
     contratos: p.totalContratos,
@@ -96,38 +124,38 @@ export function GraficosAnalise({ produtos, pipeline, totalComissao, totalValorP
     <div className="space-y-6">
       {/* Grid de KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
+        <Card className="panel-card">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Incentivo Total</p>
-                <p className="text-2xl font-bold">{formatCurrency(totalComissao)}</p>
+                <p className="metric-label mb-1">Incentivo Total</p>
+                <p className="text-2xl font-bold tabular-nums">{formatCurrency(totalComissao)}</p>
               </div>
-              <TrendingUp className="h-8 w-8 text-blue-500 opacity-50" />
+              <TrendingUp className="h-7 w-7 text-primary/60" />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="panel-card">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Produtos</p>
-                <p className="text-2xl font-bold">{produtos.length}</p>
+                <p className="metric-label mb-1">Produtos</p>
+                <p className="text-2xl font-bold tabular-nums">{produtos.length}</p>
               </div>
-              <Package className="h-8 w-8 text-purple-500 opacity-50" />
+              <Package className="h-7 w-7 text-primary/60" />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="panel-card">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Pipeline</p>
-                <p className="text-2xl font-bold">{formatCurrency(totalValorPipeline)}</p>
+                <p className="metric-label mb-1">Pipeline</p>
+                <p className="text-2xl font-bold tabular-nums">{formatCurrency(totalValorPipeline)}</p>
               </div>
-              <Zap className="h-8 w-8 text-yellow-500 opacity-50" />
+              <Zap className="h-7 w-7 text-warning/70" />
             </div>
           </CardContent>
         </Card>
@@ -136,23 +164,35 @@ export function GraficosAnalise({ produtos, pipeline, totalComissao, totalValorP
       {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Produtos por Comissão */}
-        <Card>
+        <Card className="panel-card">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package size={20} />
+            <CardTitle className="heading-card flex items-center gap-2">
+              <Package size={18} className="text-primary/70" />
               Produtos Mais Rentáveis
             </CardTitle>
           </CardHeader>
           <CardContent>
             {produtos.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
+              <ChartContainer config={chartConfig} className="h-[300px] w-full">
                 <BarChart data={produtosGrafico}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
-                  <YAxis />
-                  <Tooltip
-                    formatter={(value: any) => formatCurrency(value)}
-                    contentStyle={{ backgroundColor: "#1a1a1a", border: "1px solid #333" }}
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis
+                    dataKey="name"
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                    tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+                  />
+                  <YAxis
+                    tickFormatter={formatCurrency}
+                    tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+                  />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        formatter={(value) => formatCurrency(Number(value))}
+                      />
+                    }
                   />
                   <Legend
                     onClick={() => setProductSeriesVisible((prev) => !prev)}
@@ -162,9 +202,15 @@ export function GraficosAnalise({ produtos, pipeline, totalComissao, totalValorP
                       </span>
                     )}
                   />
-                  <Bar dataKey="comissao" fill="#3b82f6" name="Incentivo" hide={!productSeriesVisible} />
+                  <Bar
+                    dataKey="comissao"
+                    fill="var(--chart-2)"
+                    name="Incentivo"
+                    hide={!productSeriesVisible}
+                    radius={[4, 4, 0, 0]}
+                  />
                 </BarChart>
-              </ResponsiveContainer>
+              </ChartContainer>
             ) : (
               <p className="text-center text-muted-foreground py-8">Sem dados</p>
             )}
@@ -172,16 +218,16 @@ export function GraficosAnalise({ produtos, pipeline, totalComissao, totalValorP
         </Card>
 
         {/* Pipeline por Estágio */}
-        <Card>
+        <Card className="panel-card">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Zap size={20} />
+            <CardTitle className="heading-card flex items-center gap-2">
+              <Zap size={18} className="text-warning/70" />
               Pipeline por Estágio
             </CardTitle>
           </CardHeader>
           <CardContent>
             {pipeline.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
+              <ChartContainer config={chartConfig} className="h-[300px] w-full">
                 <PieChart>
                   <Pie
                     data={pipelineDisplay}
@@ -192,7 +238,6 @@ export function GraficosAnalise({ produtos, pipeline, totalComissao, totalValorP
                       percent > 0 ? `${name} (${(percent * 100).toFixed(0)}%)` : ""
                     }
                     outerRadius={80}
-                    fill="#8884d8"
                     dataKey="value"
                   >
                     {pipelineDisplay.map((entry, index) => (
@@ -202,9 +247,12 @@ export function GraficosAnalise({ produtos, pipeline, totalComissao, totalValorP
                       />
                     ))}
                   </Pie>
-                  <Tooltip
-                    formatter={(value: any) => formatCurrency(value)}
-                    contentStyle={{ backgroundColor: "#1a1a1a", border: "1px solid #333" }}
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        formatter={(value) => formatCurrency(Number(value))}
+                      />
+                    }
                   />
                   <Legend
                     onClick={(item) =>
@@ -225,7 +273,7 @@ export function GraficosAnalise({ produtos, pipeline, totalComissao, totalValorP
                     }}
                   />
                 </PieChart>
-              </ResponsiveContainer>
+              </ChartContainer>
             ) : (
               <p className="text-center text-muted-foreground py-8">Sem dados</p>
             )}
@@ -234,89 +282,89 @@ export function GraficosAnalise({ produtos, pipeline, totalComissao, totalValorP
       </div>
 
       {/* Tabela de Produtos */}
-      <Card>
+      <Card className="panel-card">
         <CardHeader>
-          <CardTitle>Detalhes dos Produtos</CardTitle>
+          <CardTitle className="heading-card">Detalhes dos Produtos</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left py-2 px-4 font-semibold">Produto</th>
-                  <th className="text-right py-2 px-4 font-semibold">Contratos</th>
-                  <th className="text-right py-2 px-4 font-semibold">Incentivo Total</th>
-                  <th className="text-right py-2 px-4 font-semibold">Incentivo Médio</th>
-                  <th className="text-right py-2 px-4 font-semibold">% Total</th>
-                </tr>
-              </thead>
-              <tbody>
+        <CardContent className="p-0">
+          <div className="table-shell">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Produto</TableHead>
+                  <TableHead className="text-right">Contratos</TableHead>
+                  <TableHead className="text-right">Incentivo Total</TableHead>
+                  <TableHead className="text-right">Incentivo Médio</TableHead>
+                  <TableHead className="text-right">% Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {produtos.map((produto, idx) => (
-                  <tr key={idx} className="border-b border-border/50 hover:bg-muted/30">
-                    <td className="py-3 px-4">
+                  <TableRow key={idx}>
+                    <TableCell>
                       <div className="flex items-center gap-2">
                         <div
-                          className="w-3 h-3 rounded-full"
+                          className="h-2.5 w-2.5 rounded-full shrink-0"
                           style={{ backgroundColor: CORES_PRODUTOS[idx % CORES_PRODUTOS.length] }}
                         />
-                        {produto.nome}
+                        <span className="font-medium">{produto.nome}</span>
                       </div>
-                    </td>
-                    <td className="text-right py-3 px-4">{produto.totalContratos}</td>
-                    <td className="text-right py-3 px-4 font-semibold">{formatCurrency(produto.totalComissao)}</td>
-                    <td className="text-right py-3 px-4">{formatCurrency(produto.comissaoMedia)}</td>
-                    <td className="text-right py-3 px-4">
-                      <span className="bg-blue-500/20 text-blue-400 px-2 py-1 rounded text-xs font-semibold">
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{produto.totalContratos}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(produto.totalComissao)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatCurrency(produto.comissaoMedia)}</TableCell>
+                    <TableCell className="text-right">
+                      <span className="status-pill border-primary/25 bg-primary/10 text-primary">
                         {produto.percentualTotal.toFixed(1)}%
                       </span>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
 
       {/* Tabela de Pipeline */}
-      <Card>
+      <Card className="panel-card">
         <CardHeader>
-          <CardTitle>Detalhes do Pipeline</CardTitle>
+          <CardTitle className="heading-card">Detalhes do Pipeline</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left py-2 px-4 font-semibold">Estágio</th>
-                  <th className="text-right py-2 px-4 font-semibold">Contratos</th>
-                  <th className="text-right py-2 px-4 font-semibold">Valor Total</th>
-                  <th className="text-right py-2 px-4 font-semibold">% Pipeline</th>
-                </tr>
-              </thead>
-              <tbody>
+        <CardContent className="p-0">
+          <div className="table-shell">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Estágio</TableHead>
+                  <TableHead className="text-right">Contratos</TableHead>
+                  <TableHead className="text-right">Valor Total</TableHead>
+                  <TableHead className="text-right">% Pipeline</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {pipeline.map((item, idx) => (
-                  <tr key={idx} className="border-b border-border/50 hover:bg-muted/30">
-                    <td className="py-3 px-4">
+                  <TableRow key={idx}>
+                    <TableCell>
                       <div className="flex items-center gap-2">
                         <div
-                          className="w-3 h-3 rounded-full"
+                          className="h-2.5 w-2.5 rounded-full shrink-0"
                           style={{ backgroundColor: CORES_PIPELINE[idx % CORES_PIPELINE.length] }}
                         />
-                        {item.estagio}
+                        <span className="font-medium">{item.estagio}</span>
                       </div>
-                    </td>
-                    <td className="text-right py-3 px-4">{item.totalContratos}</td>
-                    <td className="text-right py-3 px-4 font-semibold">{formatCurrency(item.totalValor)}</td>
-                    <td className="text-right py-3 px-4">
-                      <span className="bg-indigo-500/20 text-indigo-400 px-2 py-1 rounded text-xs font-semibold">
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{item.totalContratos}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(item.totalValor)}</TableCell>
+                    <TableCell className="text-right">
+                      <span className="status-pill border-info/25 bg-info/10 text-info">
                         {((item.percentualPipeline ?? (item as any).percentual ?? 0)).toFixed(1)}%
                       </span>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>

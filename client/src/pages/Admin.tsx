@@ -31,6 +31,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MetasCalendario } from "@/components/MetasCalendario";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import {
   calcularDiasUteisDoMes,
   calcularSemanasUteisDoMes,
@@ -294,7 +296,7 @@ export default function Admin() {
                 Console operacional
               </div>
               <div className="space-y-3">
-                <h1 className="flex items-center gap-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                <h1 className="heading-display flex items-center gap-3 text-foreground">
                   <Settings className="h-8 w-8 text-primary" />
                   Administração comercial
                 </h1>
@@ -385,26 +387,30 @@ export default function Admin() {
           <TabsList className="grid w-full grid-cols-2 gap-2 rounded-2xl border border-border/60 bg-background/70 p-2 md:grid-cols-4">
             <TabsTrigger
               value="metas"
-              className="rounded-xl px-4 py-3 text-sm data-[state=active]:bg-card data-[state=active]:text-foreground"
+              className="rounded-xl px-4 py-3 text-sm data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:font-semibold data-[state=active]:shadow-[0_2px_10px_rgba(2,8,23,0.30)] data-[state=active]:border data-[state=active]:border-white/10"
             >
+              <Target size={13} className="mr-1.5" />
               Metas globais
             </TabsTrigger>
             <TabsTrigger
               value="vendedoras"
-              className="rounded-xl px-4 py-3 text-sm data-[state=active]:bg-card data-[state=active]:text-foreground"
+              className="rounded-xl px-4 py-3 text-sm data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:font-semibold data-[state=active]:shadow-[0_2px_10px_rgba(2,8,23,0.30)] data-[state=active]:border data-[state=active]:border-white/10"
             >
+              <Users size={13} className="mr-1.5" />
               Vendedoras
             </TabsTrigger>
             <TabsTrigger
               value="operacional"
-              className="rounded-xl px-4 py-3 text-sm data-[state=active]:bg-card data-[state=active]:text-foreground"
+              className="rounded-xl px-4 py-3 text-sm data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:font-semibold data-[state=active]:shadow-[0_2px_10px_rgba(2,8,23,0.30)] data-[state=active]:border data-[state=active]:border-white/10"
             >
+              <CalendarRange size={13} className="mr-1.5" />
               Metas dia/sem
             </TabsTrigger>
             <TabsTrigger
               value="historico"
-              className="rounded-xl px-4 py-3 text-sm data-[state=active]:bg-card data-[state=active]:text-foreground"
+              className="rounded-xl px-4 py-3 text-sm data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:font-semibold data-[state=active]:shadow-[0_2px_10px_rgba(2,8,23,0.30)] data-[state=active]:border data-[state=active]:border-white/10"
             >
+              <History size={13} className="mr-1.5" />
               Histórico
             </TabsTrigger>
           </TabsList>
@@ -458,26 +464,29 @@ export default function Admin() {
                       className="mt-2 rounded-xl border-border/70 bg-background/70"
                     />
                   </div>
-                  <div>
-                    <Label className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
-                      Nova meta (R$)
-                    </Label>
-                    <Input
-                      type="number"
-                      placeholder="Ex: 610000"
-                      value={metaGlobalInput}
-                      onChange={e => setMetaGlobalInput(e.target.value)}
-                      className="mt-2 rounded-xl border-border/70 bg-background/80"
-                    />
+                  <Separator className="opacity-40" />
+                  <div className="surface-inset space-y-4 p-4">
+                    <div>
+                      <Label className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+                        Nova meta (R$)
+                      </Label>
+                      <Input
+                        type="number"
+                        placeholder="Ex: 610000"
+                        value={metaGlobalInput}
+                        onChange={e => setMetaGlobalInput(e.target.value)}
+                        className="mt-2 rounded-xl border-border/70 bg-background/80"
+                      />
+                    </div>
+                    <Button
+                      onClick={handleSaveMetaGlobal}
+                      disabled={definirMetaGlobal.isPending}
+                      className="h-11 w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
+                      <Save size={16} className="mr-2" />
+                      Salvar Meta Global
+                    </Button>
                   </div>
-                  <Button
-                    onClick={handleSaveMetaGlobal}
-                    disabled={definirMetaGlobal.isPending}
-                    className="h-11 w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
-                  >
-                    <Save size={16} className="mr-2" />
-                    Salvar Meta Global
-                  </Button>
                 </CardContent>
               </Card>
 
@@ -661,8 +670,9 @@ export default function Admin() {
                   Gerenciar Vendedoras ({totalVendedoras})
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+              <CardContent className="p-0">
+                <ScrollArea className="h-96 px-6 pb-4 pt-2">
+                  <div className="space-y-3 pr-3">
                   {vendedoras?.map(vendedora => (
                     <div
                       key={vendedora.id}
@@ -735,7 +745,8 @@ export default function Admin() {
                       </div>
                     </div>
                   ))}
-                </div>
+                  </div>
+                </ScrollArea>
               </CardContent>
             </Card>
           </TabsContent>
@@ -930,8 +941,9 @@ export default function Admin() {
                   Histórico de Alterações
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+              <CardContent className="p-0">
+                <ScrollArea className="h-96 px-6 pb-4 pt-2">
+                  <div className="space-y-3 pr-3">
                   {historico && historico.length > 0 ? (
                     historico.map((item, idx) => (
                       <div
@@ -958,7 +970,8 @@ export default function Admin() {
                       Nenhuma alteração registrada neste mês.
                     </div>
                   )}
-                </div>
+                  </div>
+                </ScrollArea>
               </CardContent>
             </Card>
           </TabsContent>

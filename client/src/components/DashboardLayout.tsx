@@ -30,6 +30,7 @@ import {
   PanelLeft,
   Settings,
 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -213,18 +214,25 @@ function DashboardLayoutContent({
 
           <SidebarContent className="gap-0">
             <SidebarMenu className="px-2 py-1">
-              {menuItems.map(item => {
+              {menuItems.map((item, idx) => {
                 const isActive = location === item.path;
+                const isAdminItem = item.path === "/admin";
                 return (
                   <SidebarMenuItem key={item.path}>
+                    {isAdminItem && (
+                      <Separator className="my-1.5 opacity-30" />
+                    )}
                     <SidebarMenuButton
                       isActive={isActive}
                       onClick={() => setLocation(item.path)}
                       tooltip={item.label}
-                      className="h-10 font-normal transition-all"
+                      className={cn(
+                        "h-10 font-normal transition-all",
+                        isActive && "border-l-2 border-primary pl-[calc(0.5rem-2px)] bg-sidebar-accent/60"
+                      )}
                     >
                       <item.icon
-                        className={cn("h-4 w-4", isActive && "text-primary")}
+                        className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground/70")}
                       />
                       <span>{item.label}</span>
                     </SidebarMenuButton>
@@ -239,7 +247,7 @@ function DashboardLayoutContent({
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <Avatar className="h-9 w-9 border shrink-0">
-                    <AvatarFallback className="text-xs font-medium">
+                    <AvatarFallback className="bg-primary/20 text-primary text-xs font-semibold">
                       {user?.name?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
@@ -277,20 +285,21 @@ function DashboardLayoutContent({
 
       <SidebarInset>
         {isMobile && (
-          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
+          <div className="sticky top-0 z-40 flex h-14 items-center border-b border-border/60 bg-background/80 px-2 backdrop-blur-md">
             <div className="flex items-center gap-2">
-              <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-1">
-                  <span className="tracking-tight text-foreground">
-                    {activeMenuItem?.label ?? APP_TITLE}
-                  </span>
-                </div>
-              </div>
+              <SidebarTrigger className="h-9 w-9 rounded-lg" />
+              <img
+                src={APP_LOGO}
+                className="h-5 w-5 rounded-md object-cover ring-1 ring-border shrink-0"
+                alt=""
+              />
+              <span className="text-sm font-semibold tracking-tight text-foreground">
+                {activeMenuItem?.label ?? APP_TITLE}
+              </span>
             </div>
           </div>
         )}
-        <main className="flex-1 p-4">{children}</main>
+        <main className="flex-1">{children}</main>
       </SidebarInset>
     </>
   );

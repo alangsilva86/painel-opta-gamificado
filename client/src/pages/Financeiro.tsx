@@ -414,13 +414,17 @@ function FinanceiroContent() {
   return (
     <div className="page-shell">
       <div className="page-content page-stack px-4">
-        <section className="page-section">
+        <section className="page-hero px-6 py-6 sm:px-8">
+          <div className="status-chip mb-4 w-fit border-primary/25 bg-primary/10 text-primary">
+            <Landmark size={13} />
+            Visão financeira
+          </div>
           <div className="page-section-header">
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              <h1 className="heading-page text-foreground">
                 Financeiro
               </h1>
-              <p className="page-section-copy">
+              <p className="page-section-copy mt-1">
                 Visão mensal de competência vs caixa, com DRE simplificado,
                 saldos bancários e trilha transacional do Procfy.
               </p>
@@ -459,6 +463,9 @@ function FinanceiroContent() {
               </Button>
             </div>
           </div>
+        </section>
+
+        <div className="page-stack">
 
           {syncStatus?.perMonth && syncStatus.perMonth.length > 0 && (
             <Card className="panel-card">
@@ -1162,7 +1169,7 @@ function FinanceiroContent() {
               </Card>
             </>
           )}
-        </section>
+        </div>
       </div>
 
       <FinanceiroAnalystChat
