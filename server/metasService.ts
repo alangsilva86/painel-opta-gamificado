@@ -26,6 +26,7 @@ export {
 };
 
 const DISTRIBUICAO_EPSILON = 0.000001;
+const loggedSchemaFallbacks = new Set<string>();
 
 type MetaDiariaModo = "valor" | "percentual";
 
@@ -42,6 +43,16 @@ export type MetaDiariaPlanejada = {
   bloqueado: boolean;
   metaValor: string;
   percentualMeta: string;
+  tipo: "automatica" | "manual";
+};
+
+type MetaDiariaCompatRow = {
+  id?: string;
+  mes: string;
+  dia: number;
+  vendedoraId: string;
+  metaValor: string;
+  percentualMeta?: string;
   tipo: "automatica" | "manual";
 };
 
@@ -68,6 +79,46 @@ function parseNumeric(value: unknown) {
 function toStoredNumber(value: number) {
   if (!Number.isFinite(value)) return "0";
   return Number(value.toFixed(8)).toString();
+}
+
+function getSchemaErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+export function isSchemaCompatibilityError(
+  error: unknown,
+  options?: {
+    table?: string;
+    column?: string;
+  }
+) {
+  const message = getSchemaErrorMessage(error).toLowerCase();
+  const code = String((error as { code?: unknown })?.code ?? "");
+  const errno = Number((error as { errno?: unknown })?.errno ?? 0);
+
+  const missingTable =
+    errno === 1146 ||
+    code === "ER_NO_SUCH_TABLE" ||
+    (message.includes("doesn't exist") &&
+      (!options?.table || message.includes(options.table.toLowerCase())));
+  const missingColumn =
+    errno === 1054 ||
+    code === "ER_BAD_FIELD_ERROR" ||
+    (message.includes("unknown column") &&
+      (!options?.column || message.includes(options.column.toLowerCase())));
+
+  return missingTable || missingColumn;
+}
+
+function logSchemaFallbackOnce(key: string, message: string, error: unknown) {
+  if (loggedSchemaFallbacks.has(key)) return;
+  loggedSchemaFallbacks.add(key);
+  console.warn(`[MetasService] ${message}`, {
+    detail: getSchemaErrorMessage(error),
+    code: (error as { code?: unknown })?.code,
+    errno: (error as { errno?: unknown })?.errno,
+  });
 }
 
 function getCalendarioId(mes: string, dia: number) {
@@ -130,7 +181,7 @@ export function validarLimiteDistribuicao({
   return total;
 }
 
-function percentualDaMeta(
+export function resolverPercentualMetaCompat(
   metaMensal: number,
   metaValor: string,
   percentualMeta?: string
@@ -140,31 +191,182 @@ function percentualDaMeta(
   return metaMensal > 0 ? (parseNumeric(metaValor) / metaMensal) * 100 : 0;
 }
 
+async function listarCalendarioOperacionalFallbackPadrao(mes: string) {
+  const calendarioPadrao = criarCalendarioOperacionalPadrao(mes);
+  return calendarioPadrao.map(dia => ({
+    ...dia,
+    tipo: "automatica" as const,
+  }));
+}
+
+async function obterMetasDiariasLegacy(
+  mes: string,
+  vendedoraId: string
+): Promise<MetaDiariaCompatRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select({
+      id: metasDiarias.id,
+      mes: metasDiarias.mes,
+      dia: metasDiarias.dia,
+      vendedoraId: metasDiarias.vendedoraId,
+      metaValor: metasDiarias.metaValor,
+      tipo: metasDiarias.tipo,
+    })
+    .from(metasDiarias)
+    .where(
+      and(eq(metasDiarias.mes, mes), eq(metasDiarias.vendedoraId, vendedoraId))
+    )
+    .orderBy(metasDiarias.dia);
+}
+
+async function listarMetasDiariasDoMesLegacy(
+  mes: string
+): Promise<MetaDiariaCompatRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select({
+      id: metasDiarias.id,
+      mes: metasDiarias.mes,
+      dia: metasDiarias.dia,
+      vendedoraId: metasDiarias.vendedoraId,
+      metaValor: metasDiarias.metaValor,
+      tipo: metasDiarias.tipo,
+    })
+    .from(metasDiarias)
+    .where(eq(metasDiarias.mes, mes));
+}
+
+async function upsertMetaDiariaCompat(row: typeof metasDiarias.$inferInsert) {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    await db
+      .insert(metasDiarias)
+      .values(row)
+      .onDuplicateKeyUpdate({
+        set: {
+          metaValor: row.metaValor,
+          percentualMeta: row.percentualMeta,
+          tipo: row.tipo,
+        },
+      });
+  } catch (error) {
+    if (
+      !isSchemaCompatibilityError(error, {
+        column: "percentualMeta",
+      })
+    ) {
+      throw error;
+    }
+
+    logSchemaFallbackOnce(
+      "metas-diarias-write-legacy",
+      "Coluna percentualMeta ausente; gravando metas diárias em modo legado.",
+      error
+    );
+
+    await db
+      .insert(metasDiarias)
+      .values({
+        id: row.id,
+        mes: row.mes,
+        dia: row.dia,
+        vendedoraId: row.vendedoraId,
+        metaValor: row.metaValor,
+        tipo: row.tipo,
+      })
+      .onDuplicateKeyUpdate({
+        set: {
+          metaValor: row.metaValor,
+          tipo: row.tipo,
+        },
+      });
+  }
+}
+
+async function zerarMetaDiariaCompat(mes: string, dia: number) {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    await db
+      .update(metasDiarias)
+      .set({
+        metaValor: "0",
+        percentualMeta: "0",
+        tipo: "manual",
+        updatedAt: new Date(),
+      })
+      .where(and(eq(metasDiarias.mes, mes), eq(metasDiarias.dia, dia)));
+  } catch (error) {
+    if (
+      !isSchemaCompatibilityError(error, {
+        column: "percentualMeta",
+      })
+    ) {
+      throw error;
+    }
+
+    logSchemaFallbackOnce(
+      "metas-diarias-zero-legacy",
+      "Coluna percentualMeta ausente; zerando metas diárias em modo legado.",
+      error
+    );
+
+    await db
+      .update(metasDiarias)
+      .set({
+        metaValor: "0",
+        tipo: "manual",
+        updatedAt: new Date(),
+      })
+      .where(and(eq(metasDiarias.mes, mes), eq(metasDiarias.dia, dia)));
+  }
+}
+
 export async function listarCalendarioOperacional(mes: string) {
   assertValidMes(mes);
   const db = await getDb();
-  const calendarioPadrao = criarCalendarioOperacionalPadrao(mes);
-  if (!db) {
-    return calendarioPadrao.map(dia => ({
-      ...dia,
-      tipo: "automatica" as const,
-    }));
+  if (!db) return listarCalendarioOperacionalFallbackPadrao(mes);
+
+  try {
+    const calendarioPadrao = criarCalendarioOperacionalPadrao(mes);
+    const salvos = await db
+      .select()
+      .from(metasCalendarioDias)
+      .where(eq(metasCalendarioDias.mes, mes));
+    const salvosMap = new Map(salvos.map(dia => [dia.dia, dia]));
+
+    return calendarioPadrao.map(dia => {
+      const salvo = salvosMap.get(dia.dia);
+      return {
+        dia: dia.dia,
+        diaUtil: salvo?.diaUtil ?? dia.diaUtil,
+        tipo: (salvo?.tipo ?? "automatica") as "automatica" | "manual",
+      };
+    });
+  } catch (error) {
+    if (
+      !isSchemaCompatibilityError(error, {
+        table: "metas_calendario_dias",
+      })
+    ) {
+      throw error;
+    }
+
+    logSchemaFallbackOnce(
+      "calendario-operacional-read-fallback",
+      "Tabela metas_calendario_dias ausente; usando calendário operacional padrão.",
+      error
+    );
+    return listarCalendarioOperacionalFallbackPadrao(mes);
   }
-
-  const salvos = await db
-    .select()
-    .from(metasCalendarioDias)
-    .where(eq(metasCalendarioDias.mes, mes));
-  const salvosMap = new Map(salvos.map(dia => [dia.dia, dia]));
-
-  return calendarioPadrao.map(dia => {
-    const salvo = salvosMap.get(dia.dia);
-    return {
-      dia: dia.dia,
-      diaUtil: salvo?.diaUtil ?? dia.diaUtil,
-      tipo: (salvo?.tipo ?? "automatica") as "automatica" | "manual",
-    };
-  });
 }
 
 export async function contarDiasUteisOperacionais(mes: string) {
@@ -223,16 +425,7 @@ export async function gerarMetasDiarias(
   });
 
   for (const row of rows) {
-    await db
-      .insert(metasDiarias)
-      .values(row)
-      .onDuplicateKeyUpdate({
-        set: {
-          metaValor: row.metaValor,
-          percentualMeta: row.percentualMeta,
-          tipo: "automatica",
-        },
-      });
+    await upsertMetaDiariaCompat(row);
   }
 }
 
@@ -374,7 +567,12 @@ export async function atualizarMetaDiaria(
     if (meta.dia === dia) return acc;
     if (!diasUteisSet.has(meta.dia)) return acc;
     return (
-      acc + percentualDaMeta(metaMensal, meta.metaValor, meta.percentualMeta)
+      acc +
+      resolverPercentualMetaCompat(
+        metaMensal,
+        meta.metaValor,
+        meta.percentualMeta
+      )
     );
   }, 0);
   validarLimiteDistribuicao({
@@ -383,24 +581,15 @@ export async function atualizarMetaDiaria(
   });
 
   const id = getMetaDiaId(mes, dia, vendedoraId);
-  await db
-    .insert(metasDiarias)
-    .values({
-      id,
-      mes,
-      dia,
-      vendedoraId,
-      metaValor: toStoredNumber(distribuicao.metaValor),
-      percentualMeta: toStoredNumber(distribuicao.percentualMeta),
-      tipo: "manual",
-    })
-    .onDuplicateKeyUpdate({
-      set: {
-        metaValor: toStoredNumber(distribuicao.metaValor),
-        percentualMeta: toStoredNumber(distribuicao.percentualMeta),
-        tipo: "manual",
-      },
-    });
+  await upsertMetaDiariaCompat({
+    id,
+    mes,
+    dia,
+    vendedoraId,
+    metaValor: toStoredNumber(distribuicao.metaValor),
+    percentualMeta: toStoredNumber(distribuicao.percentualMeta),
+    tipo: "manual",
+  });
 
   await recalcularMetasSemanaisAPartirDasDiarias(mes, vendedoraId);
 }
@@ -415,21 +604,40 @@ export async function alternarDiaUtilOperacional(
   const db = await getDb();
   if (!db) return;
 
-  await db
-    .insert(metasCalendarioDias)
-    .values({
-      id: getCalendarioId(mes, dia),
-      mes,
-      dia,
-      diaUtil,
-      tipo: "manual",
-    })
-    .onDuplicateKeyUpdate({
-      set: {
+  try {
+    await db
+      .insert(metasCalendarioDias)
+      .values({
+        id: getCalendarioId(mes, dia),
+        mes,
+        dia,
         diaUtil,
         tipo: "manual",
-      },
-    });
+      })
+      .onDuplicateKeyUpdate({
+        set: {
+          diaUtil,
+          tipo: "manual",
+        },
+      });
+  } catch (error) {
+    if (
+      !isSchemaCompatibilityError(error, {
+        table: "metas_calendario_dias",
+      })
+    ) {
+      throw error;
+    }
+
+    logSchemaFallbackOnce(
+      "calendario-operacional-write-missing-table",
+      "Tabela metas_calendario_dias ausente; recurso de calendário customizado indisponível até migrar o banco.",
+      error
+    );
+    throw new Error(
+      "Calendário operacional personalizado indisponível até aplicar a migração do banco."
+    );
+  }
 
   if (diaUtil) return;
 
@@ -445,15 +653,7 @@ export async function alternarDiaUtilOperacional(
     .where(and(eq(metasDiarias.mes, mes), eq(metasDiarias.dia, dia)));
   diariasDoDia.forEach(meta => idsAfetados.add(meta.vendedoraId));
 
-  await db
-    .update(metasDiarias)
-    .set({
-      metaValor: "0",
-      percentualMeta: "0",
-      tipo: "manual",
-      updatedAt: new Date(),
-    })
-    .where(and(eq(metasDiarias.mes, mes), eq(metasDiarias.dia, dia)));
+  await zerarMetaDiariaCompat(mes, dia);
 
   for (const vendedoraId of idsAfetados) {
     await recalcularMetasSemanaisAPartirDasDiarias(mes, vendedoraId);
@@ -497,13 +697,33 @@ export async function obterMetasDiarias(mes: string, vendedoraId: string) {
   const db = await getDb();
   if (!db) return [];
 
-  return await db
-    .select()
-    .from(metasDiarias)
-    .where(
-      and(eq(metasDiarias.mes, mes), eq(metasDiarias.vendedoraId, vendedoraId))
-    )
-    .orderBy(metasDiarias.dia);
+  try {
+    return await db
+      .select()
+      .from(metasDiarias)
+      .where(
+        and(
+          eq(metasDiarias.mes, mes),
+          eq(metasDiarias.vendedoraId, vendedoraId)
+        )
+      )
+      .orderBy(metasDiarias.dia);
+  } catch (error) {
+    if (
+      !isSchemaCompatibilityError(error, {
+        column: "percentualMeta",
+      })
+    ) {
+      throw error;
+    }
+
+    logSchemaFallbackOnce(
+      "metas-diarias-read-legacy",
+      "Coluna percentualMeta ausente; lendo metas diárias em modo legado.",
+      error
+    );
+    return obterMetasDiariasLegacy(mes, vendedoraId);
+  }
 }
 
 /**
@@ -539,7 +759,7 @@ export async function obterMetasOperacionaisPlanejadas(
 
   const diariasCompletas: MetaDiariaPlanejada[] = calendario.map(dia => {
     const meta = diariasMap.get(dia.dia);
-    const percentualMeta = percentualDaMeta(
+    const percentualMeta = resolverPercentualMetaCompat(
       metaMensal,
       meta?.metaValor ?? "0",
       meta?.percentualMeta
@@ -607,7 +827,27 @@ export async function listarMetasDiariasDoMes(mes: string) {
   const db = await getDb();
   if (!db) return [];
 
-  return db.select().from(metasDiarias).where(eq(metasDiarias.mes, mes));
+  try {
+    return await db
+      .select()
+      .from(metasDiarias)
+      .where(eq(metasDiarias.mes, mes));
+  } catch (error) {
+    if (
+      !isSchemaCompatibilityError(error, {
+        column: "percentualMeta",
+      })
+    ) {
+      throw error;
+    }
+
+    logSchemaFallbackOnce(
+      "metas-diarias-list-month-legacy",
+      "Coluna percentualMeta ausente; listando metas diárias do mês em modo legado.",
+      error
+    );
+    return listarMetasDiariasDoMesLegacy(mes);
+  }
 }
 
 /**
