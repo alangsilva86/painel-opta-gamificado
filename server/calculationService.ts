@@ -146,6 +146,31 @@ function normalizeZohoDateToBr(value?: string): string {
   return trimmed;
 }
 
+function getRawText(value: unknown): string {
+  if (typeof value === "string") return value.trim().replace(/\s+/g, " ");
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return (
+      getRawText(record.zc_display_value) ||
+      getRawText(record.name) ||
+      getRawText(record.operation_type_name) ||
+      getRawText(record.ID)
+    );
+  }
+  return "";
+}
+
+function getRawLookupId(value: unknown): string {
+  if (value && typeof value === "object") {
+    return getRawText((value as Record<string, unknown>).ID);
+  }
+  return "";
+}
+
+function getRawCreationDate(raw: ZohoContratoRaw): string {
+  return raw.Added_Time || raw.Data_de_Criacao || raw.typeDate || "";
+}
+
 function getValorLiquidoRaw(raw: ZohoContratoRaw): number {
   const valorLiquido = parseMoneyToNumber(raw.Valor_liquido_liberado);
   if (valorLiquido > 0) return valorLiquido;
@@ -167,18 +192,27 @@ export function calcularVendasHojePorVendedora(
       valorLiquidoTotal: 0,
     });
   });
+  const vendasPorNome = new Map(
+    Array.from(vendasMap.values()).map(venda => [
+      normalizePipelineStage(venda.vendedoraNome),
+      venda,
+    ])
+  );
 
   contratosRaw.forEach(raw => {
-    const stage = raw["Blueprint.Current_Stage"]?.zc_display_value;
+    const stage = getRawText(raw["Blueprint.Current_Stage"]);
     if (
       ESTAGIOS_EXCLUIDOS_VENDAS_HOJE.has(normalizePipelineStage(stage || ""))
     ) {
       return;
     }
-    if (normalizeZohoDateToBr(raw.Data_de_Criacao) !== dataHojeBr) return;
+    if (normalizeZohoDateToBr(getRawCreationDate(raw)) !== dataHojeBr) return;
 
-    const vendedoraId = raw.sellerName?.ID || "";
-    const venda = vendasMap.get(vendedoraId);
+    const sellerName = getRawText(raw.sellerName);
+    const vendedoraId = getRawLookupId(raw.sellerName);
+    const venda =
+      (vendedoraId ? vendasMap.get(vendedoraId) : undefined) ||
+      vendasPorNome.get(normalizePipelineStage(sellerName));
     if (!venda) return;
 
     venda.quantidade += 1;

@@ -10,10 +10,20 @@ interface ZohoTokenResponse {
   token_type: string;
 }
 
+type ZohoLookupValue =
+  | string
+  | {
+      name?: string;
+      ID?: string;
+      zc_display_value?: string;
+      operation_type_name?: string;
+    };
+
 export interface ZohoContratoRaw {
   ID: string;
   contractNumber?: string;
   Data_de_Criacao?: string; // dd/mm/yyyy
+  Added_Time?: string; // dd/mm/yyyy HH:mm:ss
   paymentDate?: string; // dd/mm/yyyy
   Data_de_Pagamento?: string; // fallback
   typeDate?: string; // dd/mm/yyyy
@@ -25,16 +35,13 @@ export interface ZohoContratoRaw {
   amountComission?: string; // campo que chega no payload do Zoho
   comissionPercent?: string; // percentual de comissão
   comissionPercentBonus?: string; // percentual de bônus
-  sellerName?: { name: string; ID: string; zc_display_value: string };
-  typerName?: { name: string; ID: string; zc_display_value: string };
-  product?: { name: string; ID: string; zc_display_value: string };
-  operationType?: {
-    operation_type_name: string;
-    ID: string;
-    zc_display_value: string;
-  };
-  agentId?: { name: string; ID: string; zc_display_value: string };
-  "Blueprint.Current_Stage"?: { ID: string; zc_display_value: string };
+  sellerName?: ZohoLookupValue;
+  typerName?: ZohoLookupValue;
+  product?: ZohoLookupValue;
+  operationType?: ZohoLookupValue;
+  agentId?: ZohoLookupValue;
+  "agentId.name"?: string;
+  "Blueprint.Current_Stage"?: ZohoLookupValue;
 }
 
 export interface ZohoContrato {
@@ -72,6 +79,42 @@ function formatarDataBrTimezone(
   const get = (type: string) =>
     parts.find(part => part.type === type)?.value ?? "";
   return `${get("day")}/${get("month")}/${get("year")}`;
+}
+
+function cleanText(value: unknown): string {
+  return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+}
+
+function lookupDisplay(
+  value: ZohoLookupValue | undefined,
+  fallback = "",
+  alternates: unknown[] = []
+): string {
+  if (value && typeof value === "object") {
+    const display =
+      cleanText(value.zc_display_value) ||
+      cleanText(value.name) ||
+      cleanText(value.operation_type_name) ||
+      cleanText(value.ID);
+    if (display) return display;
+  }
+
+  const direct = cleanText(value);
+  if (direct) return direct;
+
+  for (const alternate of alternates) {
+    const display = cleanText(alternate);
+    if (display) return display;
+  }
+
+  return fallback;
+}
+
+function lookupId(value: ZohoLookupValue | undefined, fallback = ""): string {
+  if (value && typeof value === "object") {
+    return cleanText(value.ID) || fallback;
+  }
+  return fallback;
 }
 
 class ZohoService {
@@ -272,33 +315,29 @@ class ZohoService {
       Valor_comissao_opta: valorComissaoOpta, // NÃO EXIBIR no painel
       Base_comissionavel_vendedores: baseComissionavelVendedores,
       Vendedor: {
-        display_value:
-          raw.sellerName?.zc_display_value ||
-          raw.sellerName?.name ||
-          "Sem vendedor",
-        ID: raw.sellerName?.ID || "",
+        display_value: lookupDisplay(raw.sellerName, "Sem vendedor"),
+        ID: lookupId(raw.sellerName, lookupDisplay(raw.sellerName)),
       },
       Produto: {
-        display_value:
-          raw.product?.zc_display_value || raw.product?.name || "Sem produto",
-        ID: raw.product?.ID || "",
+        display_value: lookupDisplay(raw.product, "Sem produto"),
+        ID: lookupId(raw.product),
       },
       Corban: {
-        display_value:
-          raw.agentId?.zc_display_value || raw.agentId?.name || "Sem corban",
-        ID: raw.agentId?.ID || "",
+        display_value: lookupDisplay(raw.agentId, "Sem corban", [
+          raw["agentId.name"],
+        ]),
+        ID: lookupId(raw.agentId),
       },
       Estagio: {
-        display_value:
-          raw["Blueprint.Current_Stage"]?.zc_display_value || "Sem estágio",
-        ID: raw["Blueprint.Current_Stage"]?.ID || "",
+        display_value: lookupDisplay(
+          raw["Blueprint.Current_Stage"],
+          "Sem estágio"
+        ),
+        ID: lookupId(raw["Blueprint.Current_Stage"]),
       },
       TipoOperacao: {
-        display_value:
-          raw.operationType?.zc_display_value ||
-          raw.operationType?.operation_type_name ||
-          "",
-        ID: raw.operationType?.ID || "",
+        display_value: lookupDisplay(raw.operationType),
+        ID: lookupId(raw.operationType),
       },
     };
   }
@@ -486,7 +525,7 @@ class ZohoService {
       params?.dataReferencia ?? new Date()
     );
     const maxRecords = params?.maxRecords ?? 1000;
-    const criteria = `Data_de_Criacao == '${dataHojeBr}'`;
+    const criteria = `Added_Time >= '${dataHojeBr} 00:00:00' && Added_Time <= '${dataHojeBr} 23:59:59'`;
 
     return this.buscarContratosReportRaw({
       criteria,
@@ -499,13 +538,17 @@ class ZohoService {
       fields: [
         "ID",
         "contractNumber",
+        "Added_Time",
         "Data_de_Criacao",
+        "typeDate",
         "amount",
         "Valor_liquido_liberado",
         "sellerName",
+        "sellerName.email",
         "product",
         "operationType",
         "agentId",
+        "agentId.name",
         "Blueprint.Current_Stage",
       ],
     });

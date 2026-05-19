@@ -139,7 +139,9 @@ export function gerarContratosCriadosHojeMock(): ZohoContratoRaw[] {
       contratos.push({
         ID: `mock_criado_hoje_${vendedora.id}_${i}`,
         contractNumber: `DIG-${vendedoraIndex + 1}${String(i + 1).padStart(2, "0")}`,
+        Added_Time: `${hojeBr} ${String(9 + vendedoraIndex).padStart(2, "0")}:${String(10 + i).padStart(2, "0")}:00`,
         Data_de_Criacao: hojeBr,
+        typeDate: hojeBr,
         amount: valorLiquido.toString(),
         Valor_liquido_liberado: valorLiquido,
         sellerName: {

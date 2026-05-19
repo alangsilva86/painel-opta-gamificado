@@ -169,13 +169,10 @@ describe("calculationService", () => {
       [
         {
           ID: "dig_1",
-          Data_de_Criacao: "19/05/2026",
+          Added_Time: "19/05/2026 16:41:45",
           Valor_liquido_liberado: "10.000,00",
-          sellerName: { ID: "vend_1", name: "Ana", zc_display_value: "Ana" },
-          "Blueprint.Current_Stage": {
-            ID: "stage_digitacao",
-            zc_display_value: "Em Digitação",
-          },
+          sellerName: "Ana",
+          "Blueprint.Current_Stage": "Em Digitação",
         },
         {
           ID: "dig_2",
@@ -189,63 +186,45 @@ describe("calculationService", () => {
         },
         {
           ID: "financeiro_hoje",
-          Data_de_Criacao: "19/05/2026",
+          Added_Time: "19/05/2026 15:16:13",
           Valor_liquido_liberado: "20.000,00",
-          sellerName: { ID: "vend_2", name: "Bia", zc_display_value: "Bia" },
-          "Blueprint.Current_Stage": {
-            ID: "stage_financeiro",
-            zc_display_value: "Financeiro",
-          },
+          sellerName: "Bia",
+          "Blueprint.Current_Stage": "Financeiro",
         },
         {
           ID: "aguardando_comissao_hoje",
           Data_de_Criacao: "19/05/2026",
           Valor_liquido_liberado: "5.000,00",
-          sellerName: { ID: "vend_2", name: "Bia", zc_display_value: "Bia" },
-          "Blueprint.Current_Stage": {
-            ID: "stage_aguardando",
-            zc_display_value: "Aguardando Comissão",
-          },
+          sellerName: "Bia",
+          "Blueprint.Current_Stage": "Aguardando Comissão",
         },
         {
           ID: "cancelado_hoje",
-          Data_de_Criacao: "19/05/2026",
+          Added_Time: "19/05/2026 16:49:05",
           Valor_liquido_liberado: "20.000,00",
-          sellerName: { ID: "vend_2", name: "Bia", zc_display_value: "Bia" },
-          "Blueprint.Current_Stage": {
-            ID: "stage_cancelado",
-            zc_display_value: "Cancelado",
-          },
+          sellerName: "Bia",
+          "Blueprint.Current_Stage": "Cancelado",
         },
         {
           ID: "nao_contratado_hoje",
           Data_de_Criacao: "19/05/2026",
           Valor_liquido_liberado: "20.000,00",
-          sellerName: { ID: "vend_2", name: "Bia", zc_display_value: "Bia" },
-          "Blueprint.Current_Stage": {
-            ID: "stage_nao_contratado",
-            zc_display_value: "Não Contratado",
-          },
+          sellerName: "Bia",
+          "Blueprint.Current_Stage": "Não Contratado",
         },
         {
           ID: "comercial_hoje",
           Data_de_Criacao: "19/05/2026",
           Valor_liquido_liberado: "20.000,00",
-          sellerName: { ID: "vend_2", name: "Bia", zc_display_value: "Bia" },
-          "Blueprint.Current_Stage": {
-            ID: "stage_comercial",
-            zc_display_value: "Comercial",
-          },
+          sellerName: "Bia",
+          "Blueprint.Current_Stage": "Comercial",
         },
         {
           ID: "digitacao_ontem",
-          Data_de_Criacao: "18/05/2026",
+          Added_Time: "18/05/2026 17:22:12",
           Valor_liquido_liberado: "30.000,00",
-          sellerName: { ID: "vend_2", name: "Bia", zc_display_value: "Bia" },
-          "Blueprint.Current_Stage": {
-            ID: "stage_digitacao",
-            zc_display_value: "Em Digitação",
-          },
+          sellerName: "Bia",
+          "Blueprint.Current_Stage": "Em Digitação",
         },
         {
           ID: "vendedora_oculta",
