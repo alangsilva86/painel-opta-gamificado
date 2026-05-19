@@ -2,7 +2,7 @@ import { z } from "zod";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { zohoService } from "./zohoService";
 import {
-  gerarContratosEmDigitacaoHojeMock,
+  gerarContratosCriadosHojeMock,
   gerarContratosMock,
   shouldUseMockData,
 } from "./mockDataService";
@@ -129,23 +129,21 @@ export const dashboardRouter = router({
 
       // Busca contratos do Zoho ou usa mock
       let contratosZoho;
-      let contratosEmDigitacaoHojeRaw;
+      let contratosCriadosHojeRaw;
       const usarMockData = shouldUseMockData();
       if (usarMockData) {
         console.log(
           "[dashboardRouter] Usando dados mock (Zoho não disponível)"
         );
         contratosZoho = gerarContratosMock();
-        contratosEmDigitacaoHojeRaw = gerarContratosEmDigitacaoHojeMock();
+        contratosCriadosHojeRaw = gerarContratosCriadosHojeMock();
       } else {
-        const [contratosMesAtual, contratosEmDigitacaoHoje] = await Promise.all(
-          [
-            zohoService.buscarContratosMesAtual(),
-            zohoService.buscarContratosEmDigitacaoHojeRaw({ dataReferencia }),
-          ]
-        );
+        const [contratosMesAtual, contratosCriadosHoje] = await Promise.all([
+          zohoService.buscarContratosMesAtual(),
+          zohoService.buscarContratosCriadosHojeRaw({ dataReferencia }),
+        ]);
         contratosZoho = filtrarContratosZohoValidos(contratosMesAtual);
-        contratosEmDigitacaoHojeRaw = contratosEmDigitacaoHoje;
+        contratosCriadosHojeRaw = contratosCriadosHoje;
       }
 
       // Sincroniza vendedoras do Zoho para o banco
@@ -319,7 +317,7 @@ export const dashboardRouter = router({
           ? vendedorasVisiveis2.map(v => ({ id: v.id, nome: v.nome }))
           : vendedorasVisiveis.map(v => ({ id: v.id, nome: v.nome }));
       const vendasHoje = calcularVendasHojePorVendedora(
-        contratosEmDigitacaoHojeRaw,
+        contratosCriadosHojeRaw,
         vendedorasBaseVendasHoje,
         dataHojeBr
       );

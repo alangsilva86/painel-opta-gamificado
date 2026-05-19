@@ -478,7 +478,7 @@ class ZohoService {
     });
   }
 
-  async buscarContratosEmDigitacaoHojeRaw(params?: {
+  async buscarContratosCriadosHojeRaw(params?: {
     dataReferencia?: Date;
     maxRecords?: 200 | 500 | 1000;
   }): Promise<ZohoContratoRaw[]> {
@@ -486,13 +486,13 @@ class ZohoService {
       params?.dataReferencia ?? new Date()
     );
     const maxRecords = params?.maxRecords ?? 1000;
-    const criteria = `Data_de_Criacao == '${dataHojeBr}' && Blueprint.Current_Stage == 'Em Digitação'`;
+    const criteria = `Data_de_Criacao == '${dataHojeBr}'`;
 
     return this.buscarContratosReportRaw({
       criteria,
       maxRecords,
       cacheKey: JSON.stringify({
-        tipo: "em_digitacao_hoje",
+        tipo: "criados_hoje",
         dataHojeBr,
         maxRecords,
       }),

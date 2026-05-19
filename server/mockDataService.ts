@@ -117,9 +117,15 @@ export function gerarContratosMock(): MockContrato[] {
   return contratos;
 }
 
-export function gerarContratosEmDigitacaoHojeMock(): ZohoContratoRaw[] {
+export function gerarContratosCriadosHojeMock(): ZohoContratoRaw[] {
   const hojeBr = formatarDataBrTimezone(new Date());
   const contratos: ZohoContratoRaw[] = [];
+  const estagios = [
+    "Em Digitação",
+    "Financeiro",
+    "Aguardando Comissão",
+    "Comercial",
+  ];
 
   VENDEDORAS.forEach((vendedora, vendedoraIndex) => {
     const quantidade = vendedoraIndex < 4 ? 4 - vendedoraIndex : 0;
@@ -131,7 +137,7 @@ export function gerarContratosEmDigitacaoHojeMock(): ZohoContratoRaw[] {
         TIPOS_OPERACAO[(vendedoraIndex + i) % TIPOS_OPERACAO.length];
 
       contratos.push({
-        ID: `mock_digitacao_${vendedora.id}_${i}`,
+        ID: `mock_criado_hoje_${vendedora.id}_${i}`,
         contractNumber: `DIG-${vendedoraIndex + 1}${String(i + 1).padStart(2, "0")}`,
         Data_de_Criacao: hojeBr,
         amount: valorLiquido.toString(),
@@ -157,8 +163,8 @@ export function gerarContratosEmDigitacaoHojeMock(): ZohoContratoRaw[] {
           zc_display_value: CORBANS[(vendedoraIndex + i) % CORBANS.length],
         },
         "Blueprint.Current_Stage": {
-          ID: "estagio_em_digitacao",
-          zc_display_value: "Em Digitação",
+          ID: `estagio_mock_${vendedoraIndex}_${i}`,
+          zc_display_value: estagios[(vendedoraIndex + i) % estagios.length],
         },
       });
     }

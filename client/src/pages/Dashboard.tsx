@@ -817,7 +817,8 @@ export default function Dashboard() {
                     Vendas do Dia
                   </CardTitle>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Contratos criados hoje em Em Digitação.
+                    Contratos criados hoje, exceto cancelados, não contratados e
+                    comercial.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -836,7 +837,7 @@ export default function Dashboard() {
             <CardContent>
               {vendasHojeTotalContratos === 0 && (
                 <div className="empty-state mb-3">
-                  Nenhuma venda em digitação criada hoje.
+                  Nenhuma venda válida criada hoje.
                 </div>
               )}
               <motion.div

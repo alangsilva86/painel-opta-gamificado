@@ -164,7 +164,7 @@ describe("calculationService", () => {
     expect(metaGlobal.realizado).toBe(5000);
   });
 
-  it("agrega vendas do dia apenas para contratos criados hoje em Em Digitação", () => {
+  it("agrega vendas do dia por data de criação excluindo apenas estágios bloqueados", () => {
     const vendas = calcularVendasHojePorVendedora(
       [
         {
@@ -195,6 +195,46 @@ describe("calculationService", () => {
           "Blueprint.Current_Stage": {
             ID: "stage_financeiro",
             zc_display_value: "Financeiro",
+          },
+        },
+        {
+          ID: "aguardando_comissao_hoje",
+          Data_de_Criacao: "19/05/2026",
+          Valor_liquido_liberado: "5.000,00",
+          sellerName: { ID: "vend_2", name: "Bia", zc_display_value: "Bia" },
+          "Blueprint.Current_Stage": {
+            ID: "stage_aguardando",
+            zc_display_value: "Aguardando Comissão",
+          },
+        },
+        {
+          ID: "cancelado_hoje",
+          Data_de_Criacao: "19/05/2026",
+          Valor_liquido_liberado: "20.000,00",
+          sellerName: { ID: "vend_2", name: "Bia", zc_display_value: "Bia" },
+          "Blueprint.Current_Stage": {
+            ID: "stage_cancelado",
+            zc_display_value: "Cancelado",
+          },
+        },
+        {
+          ID: "nao_contratado_hoje",
+          Data_de_Criacao: "19/05/2026",
+          Valor_liquido_liberado: "20.000,00",
+          sellerName: { ID: "vend_2", name: "Bia", zc_display_value: "Bia" },
+          "Blueprint.Current_Stage": {
+            ID: "stage_nao_contratado",
+            zc_display_value: "Não Contratado",
+          },
+        },
+        {
+          ID: "comercial_hoje",
+          Data_de_Criacao: "19/05/2026",
+          Valor_liquido_liberado: "20.000,00",
+          sellerName: { ID: "vend_2", name: "Bia", zc_display_value: "Bia" },
+          "Blueprint.Current_Stage": {
+            ID: "stage_comercial",
+            zc_display_value: "Comercial",
           },
         },
         {
@@ -231,16 +271,16 @@ describe("calculationService", () => {
 
     expect(vendas).toEqual([
       {
+        vendedoraId: "vend_2",
+        vendedoraNome: "Bia",
+        quantidade: 2,
+        valorLiquidoTotal: 25000,
+      },
+      {
         vendedoraId: "vend_1",
         vendedoraNome: "Ana",
         quantidade: 2,
         valorLiquidoTotal: 17500.5,
-      },
-      {
-        vendedoraId: "vend_2",
-        vendedoraNome: "Bia",
-        quantidade: 0,
-        valorLiquidoTotal: 0,
       },
     ]);
   });

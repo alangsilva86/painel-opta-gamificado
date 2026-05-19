@@ -108,6 +108,12 @@ export interface VendaHojeVendedora {
   valorLiquidoTotal: number;
 }
 
+const ESTAGIOS_EXCLUIDOS_VENDAS_HOJE = new Set([
+  "cancelado",
+  "nao contratado",
+  "comercial",
+]);
+
 /**
  * Tiers e escada compartilhados em @shared/tiers
  * REGRA CRÍTICA: Bronze (1-75%) NÃO recebe comissão, mesmo com acelerador global
@@ -164,7 +170,11 @@ export function calcularVendasHojePorVendedora(
 
   contratosRaw.forEach(raw => {
     const stage = raw["Blueprint.Current_Stage"]?.zc_display_value;
-    if (normalizePipelineStage(stage || "") !== "em digitacao") return;
+    if (
+      ESTAGIOS_EXCLUIDOS_VENDAS_HOJE.has(normalizePipelineStage(stage || ""))
+    ) {
+      return;
+    }
     if (normalizeZohoDateToBr(raw.Data_de_Criacao) !== dataHojeBr) return;
 
     const vendedoraId = raw.sellerName?.ID || "";
