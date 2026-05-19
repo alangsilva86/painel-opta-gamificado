@@ -12,9 +12,11 @@ import {
   determinarTier,
   GLOBAL_ACCELERATOR_ELIGIBILITY_PCT,
   isProdutoIgnoradoNoPainelVendedoras,
+  normalizePipelineStage,
 } from "@shared/commercialRules";
 import { ESCADA_NIVEIS, TIERS } from "@shared/tiers";
-import { ZohoContrato } from "./zohoService";
+import { parseMoneyToNumber } from "@shared/zohoParsing";
+import { ZohoContrato, ZohoContratoRaw } from "./zohoService";
 
 export interface ContratoProcessado {
   id: string;
@@ -99,6 +101,13 @@ export interface PipelineAnalise {
   percentualPipeline: number;
 }
 
+export interface VendaHojeVendedora {
+  vendedoraId: string;
+  vendedoraNome: string;
+  quantidade: number;
+  valorLiquidoTotal: number;
+}
+
 /**
  * Tiers e escada compartilhados em @shared/tiers
  * REGRA CRÍTICA: Bronze (1-75%) NÃO recebe comissão, mesmo com acelerador global
@@ -117,6 +126,62 @@ export function filtrarContratosPainelVendedoras<
   T extends { produto: string; ignoradoPainelVendedoras?: boolean },
 >(contratos: T[]): T[] {
   return contratos.filter(c => !isContratoIgnoradoPainelVendedoras(c));
+}
+
+function normalizeZohoDateToBr(value?: string): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  const brMatch = /(\d{2})\/(\d{2})\/(\d{4})/.exec(trimmed);
+  if (brMatch) return `${brMatch[1]}/${brMatch[2]}/${brMatch[3]}`;
+
+  const isoMatch = /(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
+  if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+
+  return trimmed;
+}
+
+function getValorLiquidoRaw(raw: ZohoContratoRaw): number {
+  const valorLiquido = parseMoneyToNumber(raw.Valor_liquido_liberado);
+  if (valorLiquido > 0) return valorLiquido;
+  return parseMoneyToNumber(raw.amount);
+}
+
+export function calcularVendasHojePorVendedora(
+  contratosRaw: ZohoContratoRaw[],
+  vendedorasVisiveis: Array<{ id: string; nome: string }>,
+  dataHojeBr: string
+): VendaHojeVendedora[] {
+  const vendasMap = new Map<string, VendaHojeVendedora>();
+
+  vendedorasVisiveis.forEach(vendedora => {
+    vendasMap.set(vendedora.id, {
+      vendedoraId: vendedora.id,
+      vendedoraNome: vendedora.nome,
+      quantidade: 0,
+      valorLiquidoTotal: 0,
+    });
+  });
+
+  contratosRaw.forEach(raw => {
+    const stage = raw["Blueprint.Current_Stage"]?.zc_display_value;
+    if (normalizePipelineStage(stage || "") !== "em digitacao") return;
+    if (normalizeZohoDateToBr(raw.Data_de_Criacao) !== dataHojeBr) return;
+
+    const vendedoraId = raw.sellerName?.ID || "";
+    const venda = vendasMap.get(vendedoraId);
+    if (!venda) return;
+
+    venda.quantidade += 1;
+    venda.valorLiquidoTotal += getValorLiquidoRaw(raw);
+  });
+
+  return Array.from(vendasMap.values()).sort((a, b) => {
+    if (b.quantidade !== a.quantidade) return b.quantidade - a.quantidade;
+    if (b.valorLiquidoTotal !== a.valorLiquidoTotal) {
+      return b.valorLiquidoTotal - a.valorLiquidoTotal;
+    }
+    return a.vendedoraNome.localeCompare(b.vendedoraNome, "pt-BR");
+  });
 }
 
 /**

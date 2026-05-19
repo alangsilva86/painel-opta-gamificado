@@ -3,6 +3,8 @@
  * Gera contratos fictícios quando o Zoho não está disponível
  */
 
+import type { ZohoContratoRaw } from "./zohoService";
+
 export interface MockContrato {
   ID: string;
   Numero_do_Contrato: string;
@@ -35,6 +37,21 @@ const PRODUTOS = [
 
 const CORBANS = ["Corban A", "Corban B", "Corban C", "Corban D"];
 const TIPOS_OPERACAO = ["Novo", "Refinanciamento", "Portabilidade", "Cartão"];
+
+function formatarDataBrTimezone(
+  data: Date,
+  timeZone = "America/Sao_Paulo"
+): string {
+  const parts = new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone,
+  }).formatToParts(data);
+  const get = (type: string) =>
+    parts.find(part => part.type === type)?.value ?? "";
+  return `${get("day")}/${get("month")}/${get("year")}`;
+}
 
 /**
  * Gera contratos mock para o mês atual
@@ -92,6 +109,56 @@ export function gerarContratosMock(): MockContrato[] {
           display_value:
             TIPOS_OPERACAO[Math.floor(Math.random() * TIPOS_OPERACAO.length)],
           ID: `tipo_${Math.floor(Math.random() * 100)}`,
+        },
+      });
+    }
+  });
+
+  return contratos;
+}
+
+export function gerarContratosEmDigitacaoHojeMock(): ZohoContratoRaw[] {
+  const hojeBr = formatarDataBrTimezone(new Date());
+  const contratos: ZohoContratoRaw[] = [];
+
+  VENDEDORAS.forEach((vendedora, vendedoraIndex) => {
+    const quantidade = vendedoraIndex < 4 ? 4 - vendedoraIndex : 0;
+
+    for (let i = 0; i < quantidade; i++) {
+      const valorLiquido = 8000 + vendedoraIndex * 4500 + i * 2750;
+      const produto = PRODUTOS[(vendedoraIndex + i) % PRODUTOS.length];
+      const tipoOperacao =
+        TIPOS_OPERACAO[(vendedoraIndex + i) % TIPOS_OPERACAO.length];
+
+      contratos.push({
+        ID: `mock_digitacao_${vendedora.id}_${i}`,
+        contractNumber: `DIG-${vendedoraIndex + 1}${String(i + 1).padStart(2, "0")}`,
+        Data_de_Criacao: hojeBr,
+        amount: valorLiquido.toString(),
+        Valor_liquido_liberado: valorLiquido,
+        sellerName: {
+          name: vendedora.nome,
+          ID: vendedora.id,
+          zc_display_value: vendedora.nome,
+        },
+        product: {
+          name: produto,
+          ID: `prod_mock_${vendedoraIndex}_${i}`,
+          zc_display_value: produto,
+        },
+        operationType: {
+          operation_type_name: tipoOperacao,
+          ID: `tipo_mock_${vendedoraIndex}_${i}`,
+          zc_display_value: tipoOperacao,
+        },
+        agentId: {
+          name: CORBANS[(vendedoraIndex + i) % CORBANS.length],
+          ID: `corban_mock_${vendedoraIndex}_${i}`,
+          zc_display_value: CORBANS[(vendedoraIndex + i) % CORBANS.length],
+        },
+        "Blueprint.Current_Stage": {
+          ID: "estagio_em_digitacao",
+          zc_display_value: "Em Digitação",
         },
       });
     }

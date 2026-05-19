@@ -13,6 +13,7 @@ interface ZohoTokenResponse {
 export interface ZohoContratoRaw {
   ID: string;
   contractNumber?: string;
+  Data_de_Criacao?: string; // dd/mm/yyyy
   paymentDate?: string; // dd/mm/yyyy
   Data_de_Pagamento?: string; // fallback
   typeDate?: string; // dd/mm/yyyy
@@ -27,7 +28,11 @@ export interface ZohoContratoRaw {
   sellerName?: { name: string; ID: string; zc_display_value: string };
   typerName?: { name: string; ID: string; zc_display_value: string };
   product?: { name: string; ID: string; zc_display_value: string };
-  operationType?: { operation_type_name: string; ID: string; zc_display_value: string };
+  operationType?: {
+    operation_type_name: string;
+    ID: string;
+    zc_display_value: string;
+  };
   agentId?: { name: string; ID: string; zc_display_value: string };
   "Blueprint.Current_Stage"?: { ID: string; zc_display_value: string };
 }
@@ -51,6 +56,24 @@ interface ZohoDataResponse {
   record_cursor?: string;
 }
 
+const CONTRATOS_REPORT_URL =
+  "https://www.zohoapis.com/creator/v2.1/data/optacredito/opta-operation/report/Contratos";
+
+function formatarDataBrTimezone(
+  data: Date,
+  timeZone = "America/Sao_Paulo"
+): string {
+  const parts = new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone,
+  }).formatToParts(data);
+  const get = (type: string) =>
+    parts.find(part => part.type === type)?.value ?? "";
+  return `${get("day")}/${get("month")}/${get("year")}`;
+}
+
 class ZohoService {
   private clientId: string;
   private clientSecret: string;
@@ -60,7 +83,10 @@ class ZohoService {
   private lastRequestTime: number = 0;
   private minRequestInterval: number = 1200; // 1.2s entre requisições (50 req/min)
   private cacheTtlMs: number;
-  private contratosCache = new Map<string, { data: ZohoContratoRaw[]; expiresAt: number }>();
+  private contratosCache = new Map<
+    string,
+    { data: ZohoContratoRaw[]; expiresAt: number }
+  >();
 
   constructor() {
     this.clientId = process.env.ZOHO_CLIENT_ID || "";
@@ -85,7 +111,7 @@ class ZohoService {
 
     if (timeSinceLastRequest < this.minRequestInterval) {
       const waitTime = this.minRequestInterval - timeSinceLastRequest;
-      await new Promise((resolve) => setTimeout(resolve, waitTime));
+      await new Promise(resolve => setTimeout(resolve, waitTime));
     }
 
     this.lastRequestTime = Date.now();
@@ -109,7 +135,10 @@ class ZohoService {
         const timeout = setTimeout(() => controller.abort(), timeoutMs);
         let response: Response;
         try {
-          response = await fetch(url, { ...options, signal: controller.signal });
+          response = await fetch(url, {
+            ...options,
+            signal: controller.signal,
+          });
         } finally {
           clearTimeout(timeout);
         }
@@ -117,12 +146,14 @@ class ZohoService {
         // Se receber 429 (Too Many Requests), aguarda e tenta novamente
         if (response.status === 429) {
           const retryAfter = response.headers.get("Retry-After");
-          const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, attempt) * 1000;
+          const waitTime = retryAfter
+            ? parseInt(retryAfter) * 1000
+            : Math.pow(2, attempt) * 1000;
 
           console.warn(
             `[ZohoService] Rate limit atingido (429). Aguardando ${waitTime}ms antes de tentar novamente...`
           );
-          await new Promise((resolve) => setTimeout(resolve, waitTime));
+          await new Promise(resolve => setTimeout(resolve, waitTime));
           continue;
         }
 
@@ -130,11 +161,14 @@ class ZohoService {
       } catch (error: any) {
         lastError = error;
         const motivo = error?.name === "AbortError" ? "timeout" : error.message;
-        console.warn(`[ZohoService] Tentativa ${attempt + 1}/${maxRetries} falhou:`, motivo);
+        console.warn(
+          `[ZohoService] Tentativa ${attempt + 1}/${maxRetries} falhou:`,
+          motivo
+        );
 
         if (attempt < maxRetries - 1) {
           const waitTime = Math.pow(2, attempt) * 1000;
-          await new Promise((resolve) => setTimeout(resolve, waitTime));
+          await new Promise(resolve => setTimeout(resolve, waitTime));
         }
       }
     }
@@ -211,7 +245,8 @@ class ZohoService {
     // Data de pagamento: aceita paymentDate ou Data_de_Pagamento (iso ou dd/mm/yyyy)
     const dataPagamentoBr = raw.Data_de_Pagamento || raw.paymentDate;
     if (!dataPagamentoBr) return null;
-    const dataPagamento = this.converterData(dataPagamentoBr) || dataPagamentoBr;
+    const dataPagamento =
+      this.converterData(dataPagamentoBr) || dataPagamentoBr;
 
     const commissionBreakdown = resolveZohoCommissionBreakdown({
       valorLiquido: raw.Valor_liquido_liberado,
@@ -237,55 +272,52 @@ class ZohoService {
       Valor_comissao_opta: valorComissaoOpta, // NÃO EXIBIR no painel
       Base_comissionavel_vendedores: baseComissionavelVendedores,
       Vendedor: {
-        display_value: raw.sellerName?.zc_display_value || raw.sellerName?.name || "Sem vendedor",
+        display_value:
+          raw.sellerName?.zc_display_value ||
+          raw.sellerName?.name ||
+          "Sem vendedor",
         ID: raw.sellerName?.ID || "",
       },
       Produto: {
-        display_value: raw.product?.zc_display_value || raw.product?.name || "Sem produto",
+        display_value:
+          raw.product?.zc_display_value || raw.product?.name || "Sem produto",
         ID: raw.product?.ID || "",
       },
       Corban: {
-        display_value: raw.agentId?.zc_display_value || raw.agentId?.name || "Sem corban",
+        display_value:
+          raw.agentId?.zc_display_value || raw.agentId?.name || "Sem corban",
         ID: raw.agentId?.ID || "",
       },
       Estagio: {
-        display_value: raw["Blueprint.Current_Stage"]?.zc_display_value || "Sem estágio",
+        display_value:
+          raw["Blueprint.Current_Stage"]?.zc_display_value || "Sem estágio",
         ID: raw["Blueprint.Current_Stage"]?.ID || "",
       },
       TipoOperacao: {
-        display_value: raw.operationType?.zc_display_value || raw.operationType?.operation_type_name || "",
+        display_value:
+          raw.operationType?.zc_display_value ||
+          raw.operationType?.operation_type_name ||
+          "",
         ID: raw.operationType?.ID || "",
       },
     };
   }
 
-  /**
-   * Busca contratos do Zoho Creator
-   */
-  async buscarContratosRaw(params: {
-    mesInicio: string; // yyyy-mm-dd
-    mesFim: string; // yyyy-mm-dd
+  private async buscarContratosReportRaw(params: {
+    criteria: string;
+    fields: string[];
     maxRecords?: 200 | 500 | 1000;
+    cacheKey: string;
   }): Promise<ZohoContratoRaw[]> {
-    const { mesInicio, mesFim, maxRecords = 1000 } = params;
-    const cacheKey = JSON.stringify({ mesInicio, mesFim, maxRecords });
+    const { criteria, fields, maxRecords = 1000, cacheKey } = params;
     const cached = this.getCache(cacheKey);
     if (cached) {
       return cached;
     }
 
     const token = await this.getAccessToken();
-
-    // Converte datas para formato dd/mm/yyyy
-    const [anoIni, mesIni, diaIni] = mesInicio.split("-");
-    const [anoFim, mesFim2, diaFim] = mesFim.split("-");
-    const dataInicioBr = `${diaIni}/${mesIni}/${anoIni}`;
-    const dataFimBr = `${diaFim}/${mesFim2}/${anoFim}`;
-
-    // Monta o critério de filtro (range de pagamento). Cancelados são filtrados posteriormente via estágio.
-    const criteria = `paymentDate >= '${dataInicioBr}' && paymentDate <= '${dataFimBr}'`;
     console.log(
-      `[ZohoService] Critério: ${criteria} | range: ${mesInicio} -> ${mesFim} | max_records=${maxRecords}`
+      `[ZohoService] Critério: ${criteria} | max_records=${maxRecords}`
     );
 
     let allData: ZohoContratoRaw[] = [];
@@ -295,7 +327,6 @@ class ZohoService {
     const maxIterations = 500; // evita loop infinito
 
     try {
-      // Loop de paginação
       while (pageCount < maxIterations) {
         pageCount++;
         console.log(
@@ -306,45 +337,25 @@ class ZohoService {
           max_records: maxRecords.toString(),
           criteria,
           field_config: "custom",
-          fields: [
-            "ID",
-            "contractNumber",
-            "paymentDate",
-            "Data_de_Pagamento",
-            "amount",
-            "Valor_liquido_liberado",
-            "Valor_comissao",
-            "Comissao",
-            "Comissao_Bonus",
-            "amountComission",
-            "comissionPercent",
-            "comissionPercentBonus",
-            "sellerName",
-            "typerName",
-            "product",
-            "operationType",
-            "agentId",
-            "Blueprint.Current_Stage",
-          ].join(","),
+          fields: fields.join(","),
         });
 
-        // fallback de paginação por page quando não há cursor
         if (!cursor && page > 1) {
           urlParams.set("page", page.toString());
         }
-
-        const url = `https://www.zohoapis.com/creator/v2.1/data/optacredito/opta-operation/report/Contratos?${urlParams.toString()}`;
 
         const headers: Record<string, string> = {
           Authorization: `Zoho-oauthtoken ${token}`,
         };
 
-        // record_cursor vai no HEADER, não no query param
         if (cursor) {
           headers["record_cursor"] = cursor;
         }
 
-        const response = await this.fetchWithRetry(url, { headers });
+        const response = await this.fetchWithRetry(
+          `${CONTRATOS_REPORT_URL}?${urlParams.toString()}`,
+          { headers }
+        );
 
         if (!response.ok) {
           let errorData: any = null;
@@ -358,11 +369,16 @@ class ZohoService {
             console.warn(
               `[ZohoService] Sem registros para o critério informado (page=${page}, criteria=${criteria})`
             );
-            break; // encerra paginação para este intervalo
+            break;
           }
 
-          console.error("[ZohoService] Erro ao buscar contratos:", errorData ?? response.statusText);
-          throw new Error(`HTTP ${response.status}: ${JSON.stringify(errorData ?? {})}`);
+          console.error(
+            "[ZohoService] Erro ao buscar contratos:",
+            errorData ?? response.statusText
+          );
+          throw new Error(
+            `HTTP ${response.status}: ${JSON.stringify(errorData ?? {})}`
+          );
         }
 
         const data: ZohoDataResponse = await response.json();
@@ -370,7 +386,9 @@ class ZohoService {
 
         if (data.data && data.data.length > 0) {
           allData = allData.concat(data.data);
-          console.log(`[ZohoService] Página ${pageCount}: ${data.data.length} registros`);
+          console.log(
+            `[ZohoService] Página ${pageCount}: ${data.data.length} registros`
+          );
           if (!data.record_cursor && data.data.length >= maxRecords) {
             console.warn(
               `[ZohoService] ALERTA: record_cursor ausente em cenário paginado (page=${page}, batch=${data.data.length}, max_records=${maxRecords})`
@@ -387,7 +405,6 @@ class ZohoService {
         }
 
         if (batchFull) {
-          // fallback: incrementa page quando não há cursor mas ainda há dados
           page += 1;
           continue;
         }
@@ -397,7 +414,7 @@ class ZohoService {
 
       if (allData.length === 0) {
         console.warn(
-          `[ZohoService] Nenhum contrato retornado pelo Zoho (raw=0). Verifique se há dados no intervalo e se o token tem escopo correto.`
+          "[ZohoService] Nenhum contrato retornado pelo Zoho (raw=0). Verifique se há dados no intervalo e se o token tem escopo correto."
         );
       }
       console.log(
@@ -409,6 +426,89 @@ class ZohoService {
       console.error("[ZohoService] Erro ao buscar contratos:", error.message);
       throw new Error("Falha ao buscar contratos do Zoho Creator");
     }
+  }
+
+  /**
+   * Busca contratos do Zoho Creator
+   */
+  async buscarContratosRaw(params: {
+    mesInicio: string; // yyyy-mm-dd
+    mesFim: string; // yyyy-mm-dd
+    maxRecords?: 200 | 500 | 1000;
+  }): Promise<ZohoContratoRaw[]> {
+    const { mesInicio, mesFim, maxRecords = 1000 } = params;
+
+    // Converte datas para formato dd/mm/yyyy
+    const [anoIni, mesIni, diaIni] = mesInicio.split("-");
+    const [anoFim, mesFim2, diaFim] = mesFim.split("-");
+    const dataInicioBr = `${diaIni}/${mesIni}/${anoIni}`;
+    const dataFimBr = `${diaFim}/${mesFim2}/${anoFim}`;
+
+    // Monta o critério de filtro (range de pagamento). Cancelados são filtrados posteriormente via estágio.
+    const criteria = `paymentDate >= '${dataInicioBr}' && paymentDate <= '${dataFimBr}'`;
+    return this.buscarContratosReportRaw({
+      criteria,
+      maxRecords,
+      cacheKey: JSON.stringify({
+        tipo: "pagos",
+        mesInicio,
+        mesFim,
+        maxRecords,
+      }),
+      fields: [
+        "ID",
+        "contractNumber",
+        "paymentDate",
+        "Data_de_Pagamento",
+        "amount",
+        "Valor_liquido_liberado",
+        "Valor_comissao",
+        "Comissao",
+        "Comissao_Bonus",
+        "amountComission",
+        "comissionPercent",
+        "comissionPercentBonus",
+        "sellerName",
+        "typerName",
+        "product",
+        "operationType",
+        "agentId",
+        "Blueprint.Current_Stage",
+      ],
+    });
+  }
+
+  async buscarContratosEmDigitacaoHojeRaw(params?: {
+    dataReferencia?: Date;
+    maxRecords?: 200 | 500 | 1000;
+  }): Promise<ZohoContratoRaw[]> {
+    const dataHojeBr = formatarDataBrTimezone(
+      params?.dataReferencia ?? new Date()
+    );
+    const maxRecords = params?.maxRecords ?? 1000;
+    const criteria = `Data_de_Criacao == '${dataHojeBr}' && Blueprint.Current_Stage == 'Em Digitação'`;
+
+    return this.buscarContratosReportRaw({
+      criteria,
+      maxRecords,
+      cacheKey: JSON.stringify({
+        tipo: "em_digitacao_hoje",
+        dataHojeBr,
+        maxRecords,
+      }),
+      fields: [
+        "ID",
+        "contractNumber",
+        "Data_de_Criacao",
+        "amount",
+        "Valor_liquido_liberado",
+        "sellerName",
+        "product",
+        "operationType",
+        "agentId",
+        "Blueprint.Current_Stage",
+      ],
+    });
   }
 
   private getCache(cacheKey: string): ZohoContratoRaw[] | null {
@@ -442,7 +542,7 @@ class ZohoService {
 
     // Transforma contratos
     const contratosTransformados = allData
-      .map((raw) => this.transformarContrato(raw))
+      .map(raw => this.transformarContrato(raw))
       .filter((c): c is ZohoContrato => c !== null);
 
     console.log(

@@ -6,6 +6,7 @@ Campos esperados no payload:
 
 - ID
 - contractNumber
+- Data_de_Criacao
 - paymentDate
 - Data_de_Pagamento
 - amount
@@ -28,3 +29,4 @@ Observacoes:
 - A data de pagamento pode vir em `paymentDate` ou `Data_de_Pagamento`.
 - A comissao base prioriza `amountComission` e `Valor_comissao`.
 - O estagio vem de `Blueprint.Current_Stage`.
+- A seção "Vendas do Dia" usa `Data_de_Criacao` e contratos no estágio `Em Digitação`.

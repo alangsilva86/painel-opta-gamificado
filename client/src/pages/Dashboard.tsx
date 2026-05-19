@@ -23,6 +23,7 @@ import {
   CalendarRange,
   Clock3,
   Sparkles,
+  ClipboardList,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -388,6 +389,10 @@ export default function Dashboard() {
     hidden: { opacity: 0, y: 12 },
     show: { opacity: 1, y: 0 },
   };
+  const vendasHoje = data.vendasHoje ?? [];
+  const vendasHojeTotalContratos = data.vendasHojeTotalContratos ?? 0;
+  const vendasHojeValorTotal = data.vendasHojeValorTotal ?? 0;
+  const maxVendasHoje = Math.max(...vendasHoje.map(item => item.quantidade), 0);
 
   return (
     <div className="page-shell">
@@ -759,7 +764,12 @@ export default function Dashboard() {
                       getLeaderboardRowClass(index)
                     )}
                   >
-                    <div className={cn("w-12 text-center text-lg font-black tracking-[0.16em]", getLeaderboardRankColor(index))}>
+                    <div
+                      className={cn(
+                        "w-12 text-center text-lg font-black tracking-[0.16em]",
+                        getLeaderboardRankColor(index)
+                      )}
+                    >
                       {getLeaderboardRankBadge(index)}
                     </div>
                     <div className="flex-1">
@@ -787,6 +797,118 @@ export default function Dashboard() {
                     <TierBadge tier={vendedora.tier} size="sm" />
                   </motion.div>
                 ))}
+              </motion.div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Vendas do Dia */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.55 }}
+        >
+          <Card className="panel-card">
+            <CardHeader>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <ClipboardList size={24} />
+                    Vendas do Dia
+                  </CardTitle>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Contratos criados hoje em Em Digitação.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <div className="status-chip border-primary/25 bg-primary/10 text-primary">
+                    <span className="font-semibold tabular-nums">
+                      {vendasHojeTotalContratos}
+                    </span>
+                    <span>contratos</span>
+                  </div>
+                  <div className="status-chip border-emerald-500/25 bg-emerald-500/10 text-emerald-200">
+                    {formatCurrency(vendasHojeValorTotal)}
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {vendasHojeTotalContratos === 0 && (
+                <div className="empty-state mb-3">
+                  Nenhuma venda em digitação criada hoje.
+                </div>
+              )}
+              <motion.div
+                className="space-y-2"
+                variants={leaderboardVariants}
+                initial="hidden"
+                animate="show"
+              >
+                {vendasHoje.map((item, index) => {
+                  const pct =
+                    maxVendasHoje > 0
+                      ? (item.quantidade / maxVendasHoje) * 100
+                      : 0;
+                  const hasSales = item.quantidade > 0;
+
+                  return (
+                    <motion.div
+                      key={item.vendedoraId}
+                      variants={leaderboardItemVariants}
+                      className={cn(
+                        "relative overflow-hidden rounded-lg border border-white/8 bg-secondary/40 p-3",
+                        hasSales
+                          ? "border-primary/20 bg-primary/[0.07]"
+                          : "bg-secondary/30"
+                      )}
+                    >
+                      <div
+                        className="absolute inset-y-0 left-0 bg-primary/10"
+                        style={{ width: `${pct}%` }}
+                      />
+                      <div className="relative flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div
+                            className={cn(
+                              "w-10 text-center text-sm font-black tracking-[0.16em]",
+                              hasSales
+                                ? "text-primary"
+                                : "text-muted-foreground"
+                            )}
+                          >
+                            {String(index + 1).padStart(2, "0")}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="truncate font-semibold">
+                              {item.vendedoraNome}
+                            </div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {formatCurrency(item.valorLiquidoTotal)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 sm:justify-end">
+                          <div
+                            className={cn(
+                              "status-chip",
+                              hasSales
+                                ? "border-primary/25 bg-primary/10 text-primary"
+                                : "border-border/70 bg-background/60 text-muted-foreground"
+                            )}
+                          >
+                            <span className="font-semibold tabular-nums">
+                              {item.quantidade}
+                            </span>
+                            <span>
+                              {item.quantidade === 1 ? "venda" : "vendas"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </motion.div>
             </CardContent>
           </Card>

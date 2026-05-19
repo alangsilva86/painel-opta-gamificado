@@ -6,6 +6,7 @@ import {
   processarContratos,
   agregarPorVendedora,
   VendedoraStats,
+  calcularVendasHojePorVendedora,
 } from "./calculationService";
 
 function criarVendedora(parciais: Partial<VendedoraStats>): VendedoraStats {
@@ -76,20 +77,20 @@ describe("calculationService", () => {
     expect(metaGlobal.metaGlobalBatida).toBe(true);
     expect(metaGlobal.superMetaGlobalBatida).toBe(true);
     expect(metaGlobal.acelerador).toBeCloseTo(0.5);
-    expect(metaGlobal.escada.map((step) => step.label)).toEqual([
+    expect(metaGlobal.escada.map(step => step.label)).toEqual([
       "Meta Global",
       "Super Meta",
     ]);
-    expect(metaGlobal.escada.some((step) => step.percentual === 75)).toBe(false);
+    expect(metaGlobal.escada.some(step => step.percentual === 75)).toBe(false);
   });
 
   it("montarEscada calcula alvos e faltas por nível", () => {
     const escada = montarEscada(1000, 500);
-    const nivel75 = escada.find((s) => s.percentual === 75);
+    const nivel75 = escada.find(s => s.percentual === 75);
     expect(nivel75?.alvo).toBeCloseTo(750);
     expect(nivel75?.falta).toBeCloseTo(250);
 
-    const nivel100 = escada.find((s) => s.percentual === 100);
+    const nivel100 = escada.find(s => s.percentual === 100);
     expect(nivel100?.atingido).toBe(false);
   });
 
@@ -103,7 +104,10 @@ describe("calculationService", () => {
         Valor_comissao_opta: 500,
         Base_comissionavel_vendedores: 200,
         Vendedor: { display_value: "Ana", ID: "vend_1" },
-        Produto: { display_value: "Empréstimo Garantia Veículo", ID: "prod_egv" },
+        Produto: {
+          display_value: "Empréstimo Garantia Veículo",
+          ID: "prod_egv",
+        },
         Corban: { display_value: "Agente X", ID: "corban_1" },
         Estagio: { display_value: "Financeiro", ID: "est_1" },
       },
@@ -129,7 +133,10 @@ describe("calculationService", () => {
         Valor_comissao_opta: 500,
         Base_comissionavel_vendedores: 200,
         Vendedor: { display_value: "Ana", ID: "vend_1" },
-        Produto: { display_value: "Empréstimo Garantia Veículo - Ref.", ID: "prod_egv" },
+        Produto: {
+          display_value: "Empréstimo Garantia Veículo - Ref.",
+          ID: "prod_egv",
+        },
         Corban: { display_value: "Agente X", ID: "corban_1" },
         Estagio: { display_value: "Financeiro", ID: "est_1" },
       },
@@ -155,5 +162,86 @@ describe("calculationService", () => {
     const metaGlobal = calcularMetaGlobal(vendedoras, 20000, 0, "2024-05");
 
     expect(metaGlobal.realizado).toBe(5000);
+  });
+
+  it("agrega vendas do dia apenas para contratos criados hoje em Em Digitação", () => {
+    const vendas = calcularVendasHojePorVendedora(
+      [
+        {
+          ID: "dig_1",
+          Data_de_Criacao: "19/05/2026",
+          Valor_liquido_liberado: "10.000,00",
+          sellerName: { ID: "vend_1", name: "Ana", zc_display_value: "Ana" },
+          "Blueprint.Current_Stage": {
+            ID: "stage_digitacao",
+            zc_display_value: "Em Digitação",
+          },
+        },
+        {
+          ID: "dig_2",
+          Data_de_Criacao: "19/05/2026",
+          amount: "7500.50",
+          sellerName: { ID: "vend_1", name: "Ana", zc_display_value: "Ana" },
+          "Blueprint.Current_Stage": {
+            ID: "stage_digitacao",
+            zc_display_value: "Em Digitação",
+          },
+        },
+        {
+          ID: "financeiro_hoje",
+          Data_de_Criacao: "19/05/2026",
+          Valor_liquido_liberado: "20.000,00",
+          sellerName: { ID: "vend_2", name: "Bia", zc_display_value: "Bia" },
+          "Blueprint.Current_Stage": {
+            ID: "stage_financeiro",
+            zc_display_value: "Financeiro",
+          },
+        },
+        {
+          ID: "digitacao_ontem",
+          Data_de_Criacao: "18/05/2026",
+          Valor_liquido_liberado: "30.000,00",
+          sellerName: { ID: "vend_2", name: "Bia", zc_display_value: "Bia" },
+          "Blueprint.Current_Stage": {
+            ID: "stage_digitacao",
+            zc_display_value: "Em Digitação",
+          },
+        },
+        {
+          ID: "vendedora_oculta",
+          Data_de_Criacao: "19/05/2026",
+          Valor_liquido_liberado: "40.000,00",
+          sellerName: {
+            ID: "vend_3",
+            name: "Carol",
+            zc_display_value: "Carol",
+          },
+          "Blueprint.Current_Stage": {
+            ID: "stage_digitacao",
+            zc_display_value: "Em Digitação",
+          },
+        },
+      ],
+      [
+        { id: "vend_1", nome: "Ana" },
+        { id: "vend_2", nome: "Bia" },
+      ],
+      "19/05/2026"
+    );
+
+    expect(vendas).toEqual([
+      {
+        vendedoraId: "vend_1",
+        vendedoraNome: "Ana",
+        quantidade: 2,
+        valorLiquidoTotal: 17500.5,
+      },
+      {
+        vendedoraId: "vend_2",
+        vendedoraNome: "Bia",
+        quantidade: 0,
+        valorLiquidoTotal: 0,
+      },
+    ]);
   });
 });

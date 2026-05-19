@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { zohoService } from "./zohoService";
-import { gerarContratosMock, shouldUseMockData } from "./mockDataService";
+import {
+  gerarContratosEmDigitacaoHojeMock,
+  gerarContratosMock,
+  shouldUseMockData,
+} from "./mockDataService";
 import {
   processarContratos,
   agregarPorVendedora,
@@ -11,6 +15,7 @@ import {
   calcularRanking,
   calcularAnalisePipeline,
   calcularAnaliseProdutos,
+  calcularVendasHojePorVendedora,
   filtrarContratosPainelVendedoras,
   VendedoraStats,
 } from "./calculationService";
@@ -67,6 +72,21 @@ function obterIntervalosOperacionais() {
   return { agora, inicioDoDia, inicioDaSemana };
 }
 
+function formatarDataBrTimezone(
+  data: Date,
+  timeZone = "America/Sao_Paulo"
+): string {
+  const parts = new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone,
+  }).formatToParts(data);
+  const get = (type: string) =>
+    parts.find(part => part.type === type)?.value ?? "";
+  return `${get("day")}/${get("month")}/${get("year")}`;
+}
+
 function parseDataPagamento(dataPagamento: string): Date | null {
   if (!dataPagamento) return null;
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dataPagamento);
@@ -102,20 +122,30 @@ export const dashboardRouter = router({
   obterDashboard: publicProcedure.query(async () => {
     try {
       const mesAtual = obterMesAtual();
+      const dataReferencia = new Date();
+      const dataHojeBr = formatarDataBrTimezone(dataReferencia);
       const diasUteis = await contarDiasUteisOperacionais(mesAtual);
       const semanasPlanejadas = calcularSemanasUteisDoMes(mesAtual);
 
       // Busca contratos do Zoho ou usa mock
       let contratosZoho;
-      if (shouldUseMockData()) {
+      let contratosEmDigitacaoHojeRaw;
+      const usarMockData = shouldUseMockData();
+      if (usarMockData) {
         console.log(
           "[dashboardRouter] Usando dados mock (Zoho não disponível)"
         );
         contratosZoho = gerarContratosMock();
+        contratosEmDigitacaoHojeRaw = gerarContratosEmDigitacaoHojeMock();
       } else {
-        contratosZoho = filtrarContratosZohoValidos(
-          await zohoService.buscarContratosMesAtual()
+        const [contratosMesAtual, contratosEmDigitacaoHoje] = await Promise.all(
+          [
+            zohoService.buscarContratosMesAtual(),
+            zohoService.buscarContratosEmDigitacaoHojeRaw({ dataReferencia }),
+          ]
         );
+        contratosZoho = filtrarContratosZohoValidos(contratosMesAtual);
+        contratosEmDigitacaoHojeRaw = contratosEmDigitacaoHoje;
       }
 
       // Sincroniza vendedoras do Zoho para o banco
@@ -280,9 +310,27 @@ export const dashboardRouter = router({
 
       // FILTRA apenas vendedoras visíveis para exibição
       const vendedorasVisiveis2 =
-        shouldUseMockData() && idsVisiveis.size === 0
+        usarMockData && idsVisiveis.size === 0
           ? vendedoras
           : vendedoras.filter(v => idsVisiveis.has(v.id));
+
+      const vendedorasBaseVendasHoje =
+        usarMockData && idsVisiveis.size === 0
+          ? vendedorasVisiveis2.map(v => ({ id: v.id, nome: v.nome }))
+          : vendedorasVisiveis.map(v => ({ id: v.id, nome: v.nome }));
+      const vendasHoje = calcularVendasHojePorVendedora(
+        contratosEmDigitacaoHojeRaw,
+        vendedorasBaseVendasHoje,
+        dataHojeBr
+      );
+      const vendasHojeTotalContratos = vendasHoje.reduce(
+        (acc, item) => acc + item.quantidade,
+        0
+      );
+      const vendasHojeValorTotal = vendasHoje.reduce(
+        (acc, item) => acc + item.valorLiquidoTotal,
+        0
+      );
 
       // Calcula ranking (apenas com visíveis)
       const ranking = calcularRanking(vendedorasVisiveis2);
@@ -302,6 +350,9 @@ export const dashboardRouter = router({
         vendedoras: vendedorasVisiveis2, // Retorna apenas visíveis
         ranking,
         totalContratos: contratosParaPainelVendedoras.length,
+        vendasHoje,
+        vendasHojeTotalContratos,
+        vendasHojeValorTotal,
         realizadoDiaGlobal,
         realizadoSemanaGlobal,
         ultimaAtualizacao: new Date().toISOString(),
